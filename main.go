@@ -2,11 +2,13 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 	"github.com/sashabaranov/go-openai"
@@ -15,8 +17,7 @@ import (
 type FunctionConfig struct {
 	Name        string            `toml:"name"`
 	Description string            `toml:"description"`
-	Executable  string            `toml:"executable"`
-	ScriptPath  string            `toml:"script_path"`
+	Command     string            `toml:"command"`
 	Parameters  []ParameterConfig `toml:"parameters"`
 }
 
@@ -31,14 +32,24 @@ type Config struct {
 	Functions []FunctionConfig `toml:"functions"`
 }
 
+func expandHomePath(path string) string {
+	if strings.HasPrefix(path, "~") {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return path
+		}
+		return filepath.Join(homeDir, path[2:])
+	}
+	return path
+}
+
 func loadConfig(configPath string) (Config, error) {
 	var config Config
-	_, err := toml.DecodeFile(configPath, &config)
+	_, err := toml.DecodeFile(expandHomePath(configPath), &config)
 	return config, err
 }
 
 func convertToOpenAIFunction(fc FunctionConfig) openai.FunctionDefinition {
-	// Convert local function config to OpenAI function definition
 	properties := make(map[string]interface{})
 	required := []string{}
 
@@ -70,7 +81,7 @@ func main() {
 	}
 
 	// Load configuration
-	configPath := filepath.Join(os.Getenv("HOME"), ".config", "esa", "config.toml")
+	configPath := "~/.config/esa/config.toml"
 	config, err := loadConfig(configPath)
 	if err != nil {
 		log.Fatalf("Error loading config: %v", err)
@@ -126,7 +137,8 @@ func main() {
 		// Execute the function
 		result, err := executeFunction(matchedFunc, functionCall.Arguments)
 		if err != nil {
-			log.Fatalf("Function execution error: %v", err)
+			fmt.Fprintf(os.Stderr, "[ERROR] %v\n", err)
+			os.Exit(1)
 		}
 
 		fmt.Println("Action completed:", result)
@@ -136,27 +148,32 @@ func main() {
 }
 
 func executeFunction(fc FunctionConfig, args string) (string, error) {
-	// Read the script content
-	scriptPath := filepath.Join(os.Getenv("HOME"), ".config", "esa", "scripts", fc.ScriptPath)
-	scriptContent, err := os.ReadFile(scriptPath)
-	if err != nil {
-		return "", fmt.Errorf("error reading script: %v", err)
+	// Parse the JSON arguments
+	var parsedArgs map[string]interface{}
+	if err := json.Unmarshal([]byte(args), &parsedArgs); err != nil {
+		return "", fmt.Errorf("error parsing arguments: %v", err)
 	}
 
-	// Prepare command
-	cmd := exec.Command(fc.Executable, string(scriptContent), args)
+	// Prepare the command by replacing placeholders
+	command := fc.Command
+	for key, value := range parsedArgs {
+		placeholder := fmt.Sprintf("{{%s}}", key)
+		command = strings.ReplaceAll(command, placeholder, fmt.Sprintf("%v", value))
+	}
+
+	// Expand any home path in the command
+	command = expandHomePath(command)
+
+	// Execute the command
+	cmd := exec.Command("sh", "-c", command)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf("error executing script: %v", err)
+		return "", fmt.Errorf("%v\nCommand: %s\nOutput: %s", err, command, output)
 	}
 
-	return string(output), nil
+	return strings.TrimSpace(string(output)), nil
 }
 
 func String(args []string) string {
-	result := ""
-	for _, arg := range args {
-		result += arg + " "
-	}
-	return result
+	return strings.Join(args, " ")
 }
