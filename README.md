@@ -1,5 +1,7 @@
 # ESA
 
+<img src="https://github.com/user-attachments/assets/5c2915ab-4a8e-4b49-b3b6-394d5644dac2" alt="Mascot" width="300" align="right"/>
+
 The project lets you specify functions in a TOML file which is sent to
 LLM APIs(currently only OpenAI) as available functions. The response
 is then parsed and calls the associated command which could be a shell
