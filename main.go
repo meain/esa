@@ -135,23 +135,23 @@ func main() {
 		}
 
 		// Execute the function
-		result, err := executeFunction(matchedFunc, functionCall.Arguments)
+		command, result, err := executeFunction(matchedFunc, functionCall.Arguments)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "[ERROR] %v\n", err)
 			os.Exit(1)
 		}
 
-		fmt.Println("Action completed:", result)
+		fmt.Println(command, "\n", result)
 	} else {
 		fmt.Println("No specific action could be determined.")
 	}
 }
 
-func executeFunction(fc FunctionConfig, args string) (string, error) {
+func executeFunction(fc FunctionConfig, args string) (string, string, error) {
 	// Parse the JSON arguments
 	var parsedArgs map[string]interface{}
 	if err := json.Unmarshal([]byte(args), &parsedArgs); err != nil {
-		return "", fmt.Errorf("error parsing arguments: %v", err)
+		return "", "", fmt.Errorf("error parsing arguments: %v", err)
 	}
 
 	// Prepare the command by replacing placeholders
@@ -161,6 +161,8 @@ func executeFunction(fc FunctionConfig, args string) (string, error) {
 		command = strings.ReplaceAll(command, placeholder, fmt.Sprintf("%v", value))
 	}
 
+	origCommand := command
+
 	// Expand any home path in the command
 	command = expandHomePath(command)
 
@@ -168,10 +170,10 @@ func executeFunction(fc FunctionConfig, args string) (string, error) {
 	cmd := exec.Command("sh", "-c", command)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf("%v\nCommand: %s\nOutput: %s", err, command, output)
+		return "", "", fmt.Errorf("%v\nCommand: %s\nOutput: %s", err, command, output)
 	}
 
-	return strings.TrimSpace(string(output)), nil
+	return origCommand, strings.TrimSpace(string(output)), nil
 }
 
 func String(args []string) string {
