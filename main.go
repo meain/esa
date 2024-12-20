@@ -14,6 +14,16 @@ import (
 	"github.com/sashabaranov/go-openai"
 )
 
+const systemPrompt = `You are a professional assistant capable of performing various tasks. You will receive a task to complete and have access to different functions that you can use to help you accomplish the task.
+
+When responding to tasks:
+1. Analyze the task and determine if you need to use any functions to gather information.
+2. If needed, make function calls to gather necessary information.
+3. Process the information and formulate your response.
+4. Provide only concise responses that directly address the task.
+
+Remember to keep your responses brief and to the point. Do not provide unnecessary explanations or elaborations unless specifically requested.`
+
 type FunctionConfig struct {
 	Name        string            `toml:"name"`
 	Description string            `toml:"description"`
@@ -121,6 +131,10 @@ func main() {
 
 	// Initialize conversation history
 	messages := []openai.ChatCompletionMessage{
+		{
+			Role:    "system",
+			Content: systemPrompt,
+		},
 		{
 			Role:    "user",
 			Content: commandStr,
