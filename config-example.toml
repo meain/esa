@@ -1,12 +1,28 @@
 [[functions]]
 name = "set_alarm"
 description = "Set an alarm on the system"
-command = "create-alarm '{{time}}'"
+command = ",apple-alarm '{{time}}'"
 
 [[functions.parameters]]
 name = "time"
 type = "string"
 description = "Time to set the alarm (HH:mm)"
+required = true
+
+[[functions]]
+name = "get_datetime"
+description = "Get current date and time"
+command = "date"
+
+[[functions]]
+name = "delete_alarm"
+description = "Delete an alarm already based on time"
+command = ",alarm-delete '{{time}}'"
+
+[[functions.parameters]]
+name = "time"
+type = "string"
+description = "Time of the alarm to be deleted (HH:mm)"
 required = true
 
 [[functions]]
@@ -23,7 +39,7 @@ required = true
 [[functions]]
 name = "adjust_brightness"
 description = "Adjust screen brightness"
-command = "adjust_brightness.scpt '{{level}}'"
+command = ",adjust-brightness '{{level}}'"
 
 [[functions.parameters]]
 name = "level"
