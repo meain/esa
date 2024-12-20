@@ -1,0 +1,10 @@
+[[functions]]
+name = "volume_control"
+description = "Adjust system volume"
+command = "script '{{direction}}'"
+
+[[functions.parameters]]
+name = "direction"
+type = "string"
+description = "Direction to adjust volume (increase/decrease/mute)"
+required = true

@@ -1,0 +1,4 @@
+[[functions]]
+name = "get_weather"
+description = "Get current weather information"
+command = "script"
