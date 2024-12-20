@@ -32,7 +32,8 @@ more functions to the config file.
 With the provided example config you could execute things like:
 
 ```bash
-esa "what is a harpoo" # answer basic questions
+esa "what is a harpoon" # answer basic questions
+esa "who is esa?" # as about itself
 esa "set an alarm for 10:30am"
 esa "sen alarm for 1 hour from now"
 esa "open golang playground" # works if the llm knows about it

@@ -14,7 +14,7 @@ import (
 	"github.com/sashabaranov/go-openai"
 )
 
-const systemPrompt = `You are a professional assistant capable of performing various tasks. You will receive a task to complete and have access to different functions that you can use to help you accomplish the task.
+const systemPrompt = `You are Esa, a professional assistant capable of performing various tasks. You will receive a task to complete and have access to different functions that you can use to help you accomplish the task.
 
 When responding to tasks:
 1. Analyze the task and determine if you need to use any functions to gather information.
