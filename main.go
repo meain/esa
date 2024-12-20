@@ -97,8 +97,21 @@ func main() {
 	fullCommand := os.Args[1:]
 	commandStr := String(fullCommand)
 
-	// Initialize OpenAI client
-	client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
+	// Initialize OpenAI client with configuration from environment
+	llmConfig := openai.DefaultConfig(os.Getenv("OPENAI_API_KEY"))
+
+	// Override base URL if specified
+	if baseURL := os.Getenv("OPENAI_BASE_URL"); baseURL != "" {
+		llmConfig.BaseURL = baseURL
+	}
+
+	// Set model with default fallback
+	model := os.Getenv("OPENAI_MODEL")
+	if model == "" {
+		model = "gpt-4o-mini"
+	}
+
+	client := openai.NewClientWithConfig(llmConfig)
 
 	// Convert function configs to OpenAI function definitions
 	var openAIFunctions []openai.FunctionDefinition
@@ -120,7 +133,7 @@ func main() {
 		resp, err := client.CreateChatCompletion(
 			context.Background(),
 			openai.ChatCompletionRequest{
-				Model:     "gpt-4o-mini",
+				Model:     model,
 				Messages:  messages,
 				Functions: openAIFunctions,
 			})
