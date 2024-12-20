@@ -43,7 +43,7 @@ esa "sen alarm for 1 hour from now"
 esa "open golang playground" # works if the llm knows about it
 esa "reduce brightness"
 esa "increase brightness if it is after 2PM" # is it pointless, yes but it works
-esa "send an email to user@provider.com about the current weather" # something complex
+esa "send an email to user@provider.com reminding to take an umbrella if it will rain tomorrow" # something complex
 ```
 
 _You can find examples of the functions in the `functions` folder._
