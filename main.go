@@ -32,6 +32,13 @@ type Config struct {
 	Functions []FunctionConfig `toml:"functions"`
 }
 
+type ConversationMessage struct {
+	Role         string               `json:"role"`
+	Content      string               `json:"content"`
+	FunctionCall *openai.FunctionCall `json:"function_call,omitempty"`
+	Name         string               `json:"name,omitempty"`
+}
+
 func expandHomePath(path string) string {
 	if strings.HasPrefix(path, "~") {
 		homeDir, err := os.UserHomeDir()
@@ -99,51 +106,72 @@ func main() {
 		openAIFunctions = append(openAIFunctions, convertToOpenAIFunction(fc))
 	}
 
-	// Create chat completion request with function calling
-	resp, err := client.CreateChatCompletion(
-		context.Background(),
-		openai.ChatCompletionRequest{
-			Model: "gpt-4o-mini",
-			Messages: []openai.ChatCompletionMessage{
-				{
-					Role:    "user",
-					Content: commandStr,
-				},
-			},
-			Functions: openAIFunctions,
-		})
-
-	if err != nil {
-		log.Fatalf("Chat completion error: %v", err)
+	// Initialize conversation history
+	messages := []openai.ChatCompletionMessage{
+		{
+			Role:    "user",
+			Content: commandStr,
+		},
 	}
 
-	// Check if a function call was suggested
-	if resp.Choices[0].Message.FunctionCall != nil {
-		functionCall := resp.Choices[0].Message.FunctionCall
+	// Main conversation loop
+	for {
+		// Create chat completion request with function calling
+		resp, err := client.CreateChatCompletion(
+			context.Background(),
+			openai.ChatCompletionRequest{
+				Model:     "gpt-4o-mini",
+				Messages:  messages,
+				Functions: openAIFunctions,
+			})
+
+		if err != nil {
+			log.Fatalf("Chat completion error: %v", err)
+		}
+
+		// Get the assistant's response
+		assistantMsg := resp.Choices[0].Message
+
+		// Add assistant's response to conversation history
+		messages = append(messages, assistantMsg)
+
+		// If no function call is made, we're done
+		if assistantMsg.FunctionCall == nil {
+			fmt.Println(assistantMsg.Content)
+			break
+		}
 
 		// Find the corresponding function config
 		var matchedFunc FunctionConfig
 		for _, fc := range config.Functions {
-			if fc.Name == functionCall.Name {
+			if fc.Name == assistantMsg.FunctionCall.Name {
 				matchedFunc = fc
 				break
 			}
 		}
 
 		if matchedFunc.Name == "" {
-			log.Fatalf("No matching function found for: %s", functionCall.Name)
+			log.Fatalf("No matching function found for: %s", assistantMsg.FunctionCall.Name)
 		}
 
 		// Execute the function
-		command, result, err := executeFunction(matchedFunc, functionCall.Arguments)
+		command, result, err := executeFunction(matchedFunc, assistantMsg.FunctionCall.Arguments)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "[ERROR] %v\n", err)
-			os.Exit(1)
+			// Add error message to conversation
+			messages = append(messages, openai.ChatCompletionMessage{
+				Role:    "function",
+				Name:    assistantMsg.FunctionCall.Name,
+				Content: fmt.Sprintf("Error: %v", err),
+			})
+			continue
 		}
 
-		fmt.Println(command, "\n", result)
-	} else {
-		fmt.Println("No specific action could be determined.")
+		// Add function result to conversation
+		messages = append(messages, openai.ChatCompletionMessage{
+			Role:    "function",
+			Name:    assistantMsg.FunctionCall.Name,
+			Content: fmt.Sprintf("Command: %s\nOutput: %s", command, result),
+		})
 	}
 }
 
