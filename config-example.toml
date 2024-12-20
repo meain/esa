@@ -46,3 +46,42 @@ name = "level"
 type = "string"
 description = "Direction to adjust brightness (increase/decrease)"
 required = true
+
+[[functions]]
+name = "get_weather"
+description = "Get current weather information"
+command = "script"
+
+[[functions]]
+name = "volume_control"
+description = "Adjust system volume"
+command = "script '{{direction}}'"
+
+[[functions.parameters]]
+name = "direction"
+type = "string"
+description = "Direction to adjust volume (increase/decrease/mute)"
+required = true
+
+[[functions]]
+name = "send_email"
+description = "Send an email"
+command = "script '{{recipient}}' '{{subject}}' '{{body}}'"
+
+[[functions.parameters]]
+name = "recipient"
+type = "string"
+description = "Recipient email address"
+required = true
+
+[[functions.parameters]]
+name = "subject"
+type = "string"
+description = "Email subject"
+required = true
+
+[[functions.parameters]]
+name = "body"
+type = "string"
+description = "Email body"
+required = true

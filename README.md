@@ -44,6 +44,10 @@ esa "send an email to user@provider.com about the current weather" # something c
 
 _You can find examples of the functions in the `functions` folder._
 
+> CAUTION: Be careful with the functions you add. If you let it
+> overwrite files or run commands with, it could be dangerous. Just
+> because you can do something doesn't mean you should.
+
 ## Notes
 
 You can connect it to whisper and a voice model to make it a voice assistant.

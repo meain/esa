@@ -1,0 +1,10 @@
+[[functions]]
+name = "read_file"
+description = "Read the content of a file"
+command = "cat '{{filename}}'"
+
+[[functions.parameters]]
+name = "filename"
+type = "string"
+description = "Name of the file to read"
+required = true

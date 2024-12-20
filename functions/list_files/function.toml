@@ -1,0 +1,20 @@
+[[functions]]
+name = "list_files"
+description = "List files in a directory"
+command = "ls -l '{{directory}}'"
+
+[[functions.parameters]]
+name = "directory"
+type = "string"
+description = "Directory to list files from"
+required = true
+[[functions]]
+name = "list_files"
+description = "List files in a directory"
+command = "ls -l '{{directory}}'"
+
+[[functions.parameters]]
+name = "directory"
+type = "string"
+description = "Directory to list files from"
+required = true
