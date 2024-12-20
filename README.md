@@ -33,6 +33,7 @@ esa "set an alarm for 10:30am"
 esa "sen alarm for 1 hour from now"
 esa "open golang playground" # works if the llm knows about it
 esa "reduce brightness"
+esa "increase brightness if it is after 2PM" # is it pointless, yes but it works
 ```
 
 > You can probably combine it with whisper to have a voice assistant
