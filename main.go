@@ -94,6 +94,7 @@ func convertToOpenAIFunction(fc FunctionConfig) openai.FunctionDefinition {
 
 func main() {
 	debug := flag.Bool("debug", false, "Enable debug mode")
+	configPath := flag.String("config", "~/.config/esa/config.toml", "Path to the config file")
 	flag.Parse()
 
 	args := flag.Args()
@@ -106,8 +107,7 @@ func main() {
 	debugMode := *debug
 
 	// Load configuration
-	configPath := "~/.config/esa/config.toml"
-	config, err := loadConfig(configPath)
+	config, err := loadConfig(*configPath)
 	if err != nil {
 		log.Fatalf("Error loading config: %v", err)
 	}
