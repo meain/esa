@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -92,10 +93,17 @@ func convertToOpenAIFunction(fc FunctionConfig) openai.FunctionDefinition {
 }
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Println("Usage: esa <command>")
+	debug := flag.Bool("debug", false, "Enable debug mode")
+	flag.Parse()
+
+	args := flag.Args()
+
+	if len(args) < 1 {
+		fmt.Println("Usage: esa <command> [--debug]")
 		os.Exit(1)
 	}
+
+	debugMode := *debug
 
 	// Load configuration
 	configPath := "~/.config/esa/config.toml"
@@ -104,20 +112,18 @@ func main() {
 		log.Fatalf("Error loading config: %v", err)
 	}
 
-	fullCommand := os.Args[1:]
-	commandStr := String(fullCommand)
+	commandStr := String(args)
 
 	// Initialize OpenAI client with configuration from environment
 	llmConfig := openai.DefaultConfig(os.Getenv("OPENAI_API_KEY"))
 
-	// Override base URL if specified
-	if baseURL := os.Getenv("OPENAI_BASE_URL"); baseURL != "" {
+	if baseURL := os.Getenv("OPENAI_BASE_URL"); len(baseURL) > 0 {
 		llmConfig.BaseURL = baseURL
 	}
 
 	// Set model with default fallback
 	model := os.Getenv("OPENAI_MODEL")
-	if model == "" {
+	if len(model) == 0 {
 		model = "gpt-4o-mini"
 	}
 
@@ -159,6 +165,15 @@ func main() {
 		// Get the assistant's response
 		assistantMsg := resp.Choices[0].Message
 
+		if debugMode {
+			fmt.Println("\n--- Assistant Response ---")
+			fmt.Printf("Role: %s\n", assistantMsg.Role)
+			fmt.Printf("Content: %s\n", assistantMsg.Content)
+			if assistantMsg.FunctionCall != nil {
+				fmt.Printf("Function Call: %+v\n", assistantMsg.FunctionCall)
+			}
+		}
+
 		// Add assistant's response to conversation history
 		messages = append(messages, assistantMsg)
 
@@ -183,6 +198,17 @@ func main() {
 
 		// Execute the function
 		command, result, err := executeFunction(matchedFunc, assistantMsg.FunctionCall.Arguments)
+
+		if debugMode {
+			fmt.Println("\n--- Function Execution ---")
+			fmt.Printf("Function: %s\n", matchedFunc.Name)
+			fmt.Printf("Command: %s\n", command)
+			fmt.Printf("Output: %s\n", result)
+			if err != nil {
+				fmt.Printf("Error: %v\n", err)
+			}
+		}
+
 		if err != nil {
 			// Add error message to conversation
 			messages = append(messages, openai.ChatCompletionMessage{
