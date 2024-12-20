@@ -1,0 +1,10 @@
+[[functions]]
+name = "set_alarm"
+description = "Set an alarm on the system"
+command = "script '{{time}}'"
+
+[[functions.parameters]]
+name = "time"
+type = "string"
+description = "Time to set the alarm (HH:mm)"
+required = true

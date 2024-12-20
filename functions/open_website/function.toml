@@ -1,0 +1,10 @@
+[[functions]]
+name = "open_website"
+description = "Open a website in the default browser"
+command = "open '{{url}}'"
+
+[[functions.parameters]]
+name = "url"
+type = "string"
+description = "URL of the website to open"
+required = true

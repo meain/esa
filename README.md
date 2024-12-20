@@ -41,7 +41,7 @@ esa "reduce brightness"
 esa "increase brightness if it is after 2PM" # is it pointless, yes but it works
 ```
 
-> You can probably combine it with whisper to have a voice assistant
+_You can find examples of the functions in the `functions` folder._
 
 ## Notes
 

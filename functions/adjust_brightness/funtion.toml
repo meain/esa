@@ -1,0 +1,10 @@
+[[functions]]
+name = "adjust_brightness"
+description = "Adjust screen brightness"
+command = "script '{{level}}'"
+
+[[functions.parameters]]
+name = "level"
+type = "string"
+description = "Direction to adjust brightness (increase/decrease)"
+required = true
