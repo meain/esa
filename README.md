@@ -23,8 +23,12 @@ can use the provided `config-example.toml` as a template.
 To use the application, run the following command in your terminal:
 
 ```bash
-esa "<commands>"
+esa "<commands>" [--debug] [--config <path>]
 ```
+
+The available flags are:
+- `--debug`: Enables debug mode, printing additional information about the assistant's response and function execution.
+- `--config <path>`: Specifies the path to the configuration file. Defaults to `~/.config/esa/config.toml`.
 
 The capabilities of your assistant are easily extendable by adding
 more functions to the config file.
