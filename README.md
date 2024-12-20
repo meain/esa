@@ -23,7 +23,7 @@ can use the provided `config-example.toml` as a template.
 To use the application, run the following command in your terminal:
 
 ```bash
-esa "<commands>" [--debug] [--config <path>]
+esa [--debug] [--config <path>] "<command>"
 ```
 
 The available flags are:
