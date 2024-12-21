@@ -144,16 +144,23 @@ func main() {
 	}
 
 	// Initialize conversation history
-	messages := []openai.ChatCompletionMessage{
-		{
-			Role:    "system",
-			Content: systemPrompt,
-		},
-		{
+	messages := []openai.ChatCompletionMessage{{
+		Role:    "system",
+		Content: systemPrompt,
+	}}
+
+	input := readStdin()
+	if len(input) > 0 {
+		messages = append(messages, openai.ChatCompletionMessage{
 			Role:    "user",
-			Content: commandStr,
-		},
+			Content: input,
+		})
 	}
+
+	messages = append(messages, openai.ChatCompletionMessage{
+		Role:    "user",
+		Content: commandStr,
+	})
 
 	// Main conversation loop
 	for {
@@ -277,4 +284,13 @@ func executeFunction(askLevel string, fc FunctionConfig, args string) (string, s
 	}
 
 	return origCommand, strings.TrimSpace(string(output)), nil
+}
+
+func readStdin() string {
+	var input strings.Builder
+	_, err := fmt.Scan(&input) // Modified to read input from stdin
+	if err != nil {
+		return ""
+	}
+	return input.String()
 }
