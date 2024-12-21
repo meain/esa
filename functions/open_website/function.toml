@@ -2,6 +2,7 @@
 name = "open_website"
 description = "Open a website in the default browser"
 command = "open '{{url}}'"
+safe = true
 
 [[functions.parameters]]
 name = "url"

@@ -2,6 +2,7 @@
 name = "read_file"
 description = "Read the content of a file"
 command = "cat '{{filename}}'"
+safe = true
 
 [[functions.parameters]]
 name = "filename"

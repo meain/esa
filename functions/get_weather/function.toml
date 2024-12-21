@@ -2,3 +2,4 @@
 name = "get_weather"
 description = "Get current weather information"
 command = "curl -s wttr.in"
+safe = true

@@ -2,6 +2,7 @@
 name = "list_files"
 description = "List files in a directory"
 command = "ls -l '{{directory}}'"
+safe = true
 
 [[functions.parameters]]
 name = "directory"

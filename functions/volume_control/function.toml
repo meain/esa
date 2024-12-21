@@ -2,6 +2,7 @@
 name = "volume_control"
 description = "Adjust system volume"
 command = "script '{{direction}}'"
+safe = true
 
 [[functions.parameters]]
 name = "direction"

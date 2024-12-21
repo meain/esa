@@ -2,6 +2,7 @@
 name = "adjust_brightness"
 description = "Adjust screen brightness"
 command = "script '{{level}}'"
+safe = true
 
 [[functions.parameters]]
 name = "level"
