@@ -13,11 +13,13 @@ required = true
 name = "get_datetime"
 description = "Get current date and time"
 command = "date"
+safe = true
 
 [[functions]]
 name = "delete_alarm"
 description = "Delete an alarm already based on time"
 command = ",alarm-delete '{{time}}'"
+safe = false
 
 [[functions.parameters]]
 name = "time"
@@ -29,6 +31,7 @@ required = true
 name = "open_website"
 description = "Open a website in the default browser"
 command = "open '{{url}}'"
+safe = true
 
 [[functions.parameters]]
 name = "url"
@@ -51,6 +54,7 @@ required = true
 name = "get_weather"
 description = "Get current weather information"
 command = "script"
+safe = true
 
 [[functions]]
 name = "volume_control"
@@ -67,6 +71,7 @@ required = true
 name = "send_email"
 description = "Send an email"
 command = "script '{{recipient}}' '{{subject}}' '{{body}}'"
+safe = false
 
 [[functions.parameters]]
 name = "recipient"
