@@ -30,6 +30,7 @@ type FunctionConfig struct {
 	Description string            `toml:"description"`
 	Command     string            `toml:"command"`
 	Parameters  []ParameterConfig `toml:"parameters"`
+	Safe        bool              `toml:"safe"`
 }
 
 type ParameterConfig struct {
@@ -41,6 +42,7 @@ type ParameterConfig struct {
 
 type Config struct {
 	Functions []FunctionConfig `toml:"functions"`
+	Ask       string           `toml:"ask"`
 }
 
 type ConversationMessage struct {
@@ -95,12 +97,13 @@ func convertToOpenAIFunction(fc FunctionConfig) openai.FunctionDefinition {
 func main() {
 	debug := flag.Bool("debug", false, "Enable debug mode")
 	configPath := flag.String("config", "~/.config/esa/config.toml", "Path to the config file")
+	ask := flag.String("ask", "none", "Ask level (none, destructive, all)")
 	flag.Parse()
 
 	args := flag.Args()
 
 	if len(args) < 1 {
-		fmt.Println("Usage: esa <command> [--debug]")
+		fmt.Println("Usage: esa <command> [--debug] [--config <path>] [--ask <level>]")
 		os.Exit(1)
 	}
 
@@ -112,7 +115,12 @@ func main() {
 		log.Fatalf("Error loading config: %v", err)
 	}
 
-	commandStr := String(args)
+	// Override ask level if provided via flag
+	if *ask != "none" {
+		config.Ask = *ask
+	}
+
+	commandStr := strings.Join(args, " ")
 
 	// Initialize OpenAI client with configuration from environment
 	llmConfig := openai.DefaultConfig(os.Getenv("OPENAI_API_KEY"))
@@ -197,7 +205,7 @@ func main() {
 		}
 
 		// Execute the function
-		command, result, err := executeFunction(matchedFunc, assistantMsg.FunctionCall.Arguments)
+		command, result, err := executeFunction(config.Ask, matchedFunc, assistantMsg.FunctionCall.Arguments)
 
 		if debugMode {
 			fmt.Println("\n--- Function Execution ---")
@@ -228,7 +236,14 @@ func main() {
 	}
 }
 
-func executeFunction(fc FunctionConfig, args string) (string, string, error) {
+func confirm(prompt string) bool {
+	var response string
+	fmt.Printf("%s (y/n): ", prompt)
+	fmt.Scanln(&response)
+	return strings.ToLower(response) == "y"
+}
+
+func executeFunction(askLevel string, fc FunctionConfig, args string) (string, string, error) {
 	// Parse the JSON arguments
 	var parsedArgs map[string]interface{}
 	if err := json.Unmarshal([]byte(args), &parsedArgs); err != nil {
@@ -247,16 +262,19 @@ func executeFunction(fc FunctionConfig, args string) (string, string, error) {
 	// Expand any home path in the command
 	command = expandHomePath(command)
 
+	// Check if confirmation is needed
+	if askLevel == "all" || (askLevel == "destructive" && !fc.Safe) {
+		if !confirm(fmt.Sprintf("Execute '%s'?", command)) {
+			return command, "Command execution cancelled by user.", nil
+		}
+	}
+
 	// Execute the command
 	cmd := exec.Command("sh", "-c", command)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", "", fmt.Errorf("%v\nCommand: %s\nOutput: %s", err, command, output)
+		return command, "", fmt.Errorf("%v\nCommand: %s\nOutput: %s", err, command, output)
 	}
 
 	return origCommand, strings.TrimSpace(string(output)), nil
-}
-
-func String(args []string) string {
-	return strings.Join(args, " ")
 }
