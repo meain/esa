@@ -60,6 +60,16 @@ esa "increase brightness if it is after 2PM" # is it pointless, yes but it works
 esa "send an email to user@provider.com reminding to take an umbrella if it will rain tomorrow" # something complex
 ```
 
+For more complex tasks, it is advisable to use larger models like
+`gpt-4o`, while `gpt-4o-mini` is sufficient for simpler tasks. Please
+note that function calling may not perform reliably with smaller local
+models, such as the 8b version of llama3.2.
+
+``` bash
+cat main.go |
+  esa 'Summarize the provided code and send an email to mail@meain.io. Send the email only if it will not rain tonight. Also send a notification after that.'
+```
+
 _You can find examples of the functions in the `functions` folder._
 
 > CAUTION: Be careful with the functions you add. If you let it
