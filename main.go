@@ -185,6 +185,11 @@ func main() {
 			log.Fatalf("Chat completion error: %v", err)
 		}
 
+		// Check if we got any response
+		if len(resp.Choices) == 0 {
+			log.Fatal("No response choices received from the API")
+		}
+
 		// Get the assistant's response
 		assistantMsg := resp.Choices[0].Message
 
