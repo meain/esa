@@ -272,10 +272,17 @@ func executeFunction(askLevel string, fc FunctionConfig, args string) (string, s
 
 	// Prepare the command by replacing placeholders
 	command := fc.Command
-	for key, value := range parsedArgs {
-		placeholder := fmt.Sprintf("{{%s}}", key)
-		command = strings.ReplaceAll(command, placeholder, fmt.Sprintf("%v", value))
+	// Replace parameters with their values, using empty space for missing optional parameters
+	for _, param := range fc.Parameters {
+		placeholder := fmt.Sprintf("{{%s}}", param.Name)
+		if value, exists := parsedArgs[param.Name]; exists {
+			command = strings.ReplaceAll(command, placeholder, fmt.Sprintf("%v", value))
+		} else if !param.Required {
+			command = strings.ReplaceAll(command, placeholder, "")
+		}
 	}
+	// Clean up any extra spaces from removed optional parameters
+	command = strings.Join(strings.Fields(command), " ")
 
 	origCommand := command
 
