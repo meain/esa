@@ -94,6 +94,13 @@ func convertToOpenAIFunction(fc FunctionConfig) openai.FunctionDefinition {
 	}
 }
 
+func getEnvWithFallback(primary, fallback string) string {
+	if value, exists := os.LookupEnv(primary); exists {
+		return value
+	}
+	return os.Getenv(fallback)
+}
+
 func main() {
 	debug := flag.Bool("debug", false, "Enable debug mode")
 	configPath := flag.String("config", "~/.config/esa/config.toml", "Path to the config file")
@@ -123,16 +130,17 @@ func main() {
 	commandStr := strings.Join(args, " ")
 
 	// Initialize OpenAI client with configuration from environment
-	llmConfig := openai.DefaultConfig(os.Getenv("OPENAI_API_KEY"))
+	apiKey := getEnvWithFallback("ESA_API_KEY", "OPENAI_API_KEY")
+	baseURL := getEnvWithFallback("ESA_BASE_URL", "OPENAI_BASE_URL")
+	model := getEnvWithFallback("ESA_MODEL", "OPENAI_MODEL")
 
-	if baseURL := os.Getenv("OPENAI_BASE_URL"); len(baseURL) > 0 {
-		llmConfig.BaseURL = baseURL
+	if model == "" {
+		model = "gpt-4o-mini"
 	}
 
-	// Set model with default fallback
-	model := os.Getenv("OPENAI_MODEL")
-	if len(model) == 0 {
-		model = "gpt-4o-mini"
+	llmConfig := openai.DefaultConfig(apiKey)
+	if len(baseURL) > 0 {
+		llmConfig.BaseURL = baseURL
 	}
 
 	client := openai.NewClientWithConfig(llmConfig)
