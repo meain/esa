@@ -1,5 +1,11 @@
 [[functions]]
-name = "get_weather"
-description = "Get current weather information"
-command = "curl -s wttr.in"
+name = "check_weather"
+description = "Get weather forecast for a location"
+command = "curl -s wttr.in/{{location}}"
 safe = true
+
+[[functions.parameters]]
+name = "location"
+type = "string"
+description = "Location to check weather for (If none is provided, current location is used)"
+required = false
