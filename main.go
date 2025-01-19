@@ -134,7 +134,7 @@ func main() {
 	baseURL := getEnvWithFallback("ESA_BASE_URL", "OPENAI_BASE_URL")
 	model := getEnvWithFallback("ESA_MODEL", "OPENAI_MODEL")
 
-	if model == "" {
+	if len(model) == 0 {
 		model = "gpt-4o-mini"
 	}
 
@@ -172,6 +172,11 @@ func main() {
 
 	// Main conversation loop
 	for {
+		if !debugMode {
+			fmt.Fprintf(os.Stderr, "\033[2K")
+			fmt.Fprintf(os.Stderr, "Talking to the assistant...\r")
+		}
+
 		// Create chat completion request with function calling
 		resp, err := client.CreateChatCompletion(
 			context.Background(),
@@ -207,6 +212,7 @@ func main() {
 
 		// If no function call is made, we're done
 		if assistantMsg.FunctionCall == nil {
+			fmt.Fprintf(os.Stderr, "\033[2K")
 			fmt.Println(assistantMsg.Content)
 			break
 		}
@@ -222,6 +228,11 @@ func main() {
 
 		if matchedFunc.Name == "" {
 			log.Fatalf("No matching function found for: %s", assistantMsg.FunctionCall.Name)
+		}
+
+		if !debugMode {
+			fmt.Fprintf(os.Stderr, "\033[2K")
+			fmt.Fprintf(os.Stderr, "Executing function: %s\r", matchedFunc.Name)
 		}
 
 		// Execute the function

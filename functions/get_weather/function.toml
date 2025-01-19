@@ -1,7 +1,7 @@
 [[functions]]
 name = "check_weather"
 description = "Get weather forecast for a location"
-command = "curl -s wttr.in/{{location}}"
+command = "curl -s wttr.in/{{location}}?format=j1"
 safe = true
 
 [[functions.parameters]]
