@@ -41,8 +41,9 @@ type ParameterConfig struct {
 }
 
 type Config struct {
-	Functions []FunctionConfig `toml:"functions"`
-	Ask       string           `toml:"ask"`
+	Functions    []FunctionConfig `toml:"functions"`
+	Ask          string           `toml:"ask"`
+	SystemPrompt string           `toml:"system_prompt"`
 }
 
 type ConversationMessage struct {
@@ -152,9 +153,13 @@ func main() {
 	}
 
 	// Initialize conversation history
+	systemMessage := systemPrompt
+	if config.SystemPrompt != "" {
+		systemMessage = config.SystemPrompt
+	}
 	messages := []openai.ChatCompletionMessage{{
 		Role:    "system",
-		Content: systemPrompt,
+		Content: systemMessage,
 	}}
 
 	input := readStdin()

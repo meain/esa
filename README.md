@@ -13,11 +13,6 @@ script or any executable.
 - Integrate with OpenAI's API to process commands.
 - Execute system commands based on the function definitions.
 
-## Configuration
-
-The configuration file is located at `~/.config/esa/config.toml`. You
-can use the provided `config-example.toml` as a template.
-
 ## Usage
 
 To use the application, run the following command in your terminal:
@@ -75,6 +70,73 @@ _You can find examples of the functions in the `functions` folder._
 > CAUTION: Be careful with the functions you add. If you let it
 > overwrite files or run commands with, it could be dangerous. Just
 > because you can do something doesn't mean you should.
+
+### Configuration File
+
+The configuration file is located at `~/.config/esa/config.toml`.  It
+is a TOML file that defines the functions available to the
+assistant. It includes the following:
+
+-   `functions`: An array of function definitions. Each function has:
+    -   `name`: The name of the function.
+    -   `description`: A description of the function.
+    -   `command`: The command to execute when the function is called.
+    -   `parameters`: An array of parameter definitions. Each parameter has:
+        -   `name`: The name of the parameter.
+        -   `type`: The type of the parameter (e.g., string).
+        -   `description`: A description of the parameter.
+        -   `required`: A boolean indicating if the parameter is required.
+-   `ask`: The confirmation level for command execution.
+-   `system_prompt`: The system prompt for the assistant.
+
+#### Example: Coding Assistant
+
+Here's an example of how to configure a coding assistant that can answer queries about your code:
+
+```toml
+system_prompt = "You are a helpful assistant. Keep your responses short and to the point."
+
+[[functions]]
+name = "list_files"
+description = "List files in a directory"
+command = "ls '{{path}}'"
+
+[[functions.parameters]]
+name = "path"
+type = "string"
+description = "Path to the directory"
+required = true
+
+[[functions]]
+name = "read_file"
+description = "Read the content of a file"
+command = "cat '{{file}}'"
+
+[[functions.parameters]]
+name = "file"
+type = "string"
+description = "Path to the file"
+required = true
+
+[[functions]]
+name = "tree"
+description = "Show the tree structure of a directory"
+command = "tree '{{path}}'"
+
+[[functions.parameters]]
+name = "path"
+type = "string"
+description = "Path to the directory"
+required = true
+```
+
+With this configuration, you can ask questions like:
+
+```bash
+esa "list files in the current directory"
+esa "show me the content of main.go"
+esa "show me the tree structure of the functions directory"
+```
 
 ## Notes
 
