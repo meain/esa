@@ -21,6 +21,14 @@ To use the application, run the following command in your terminal:
 esa [--debug] [--config <path>] [--ask <level>] "<command>"
 ```
 
+You can also specify a different config file by using the `+` syntax:
+
+```bash
+esa +jira "list all open issues"
+```
+
+This will use the config file located at `~/.config/esa/jira.toml`.
+
 The available flags are:
 - `--debug`: Enables debug mode, printing additional information about the assistant's response and function execution.
 - `--config <path>`: Specifies the path to the configuration file. Defaults to `~/.config/esa/config.toml`.
@@ -32,9 +40,9 @@ The available flags are:
 
 The `--ask` flag allows you to specify the level of confirmation required before executing commands. The available options are:
 
--   `none`: No confirmation is required.
--   `unsafe`: Confirmation is required for commands marked as non-safe.
--   `all`: Confirmation is required for all commands.
+- `none`: No confirmation is required.
+- `unsafe`: Confirmation is required for commands marked as non-safe.
+- `all`: Confirmation is required for all commands.
 
 ### Safe Property
 

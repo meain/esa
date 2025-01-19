@@ -104,21 +104,37 @@ func getEnvWithFallback(primary, fallback string) string {
 
 func main() {
 	debug := flag.Bool("debug", false, "Enable debug mode")
-	configPath := flag.String("config", "~/.config/esa/config.toml", "Path to the config file")
+	configPathFromCLI := flag.String("config", "~/.config/esa/config.toml", "Path to the config file")
 	ask := flag.String("ask", "none", "Ask level (none, unsafe, all)")
 	flag.Parse()
 
 	args := flag.Args()
-
 	if len(args) < 1 {
 		fmt.Println("Usage: esa <command> [--debug] [--config <path>] [--ask <level>]")
 		os.Exit(1)
 	}
 
+	var configPath string
+	commandStr := strings.Join(args, " ")
+
+	if strings.HasPrefix(commandStr, "+") {
+		parts := strings.SplitN(commandStr, " ", 2)
+		if len(parts) < 2 {
+			fmt.Println("Usage: esa +<config> <command>")
+			os.Exit(1)
+		}
+		configName := parts[0][1:]
+		commandStr = parts[1]
+		configPath = fmt.Sprintf("~/.config/esa/%s.toml", configName)
+	} else {
+		configPath = *configPathFromCLI
+		commandStr = strings.Join(args, " ")
+	}
+
 	debugMode := *debug
 
 	// Load configuration
-	config, err := loadConfig(*configPath)
+	config, err := loadConfig(configPath)
 	if err != nil {
 		log.Fatalf("Error loading config: %v", err)
 	}
@@ -127,8 +143,6 @@ func main() {
 	if *ask != "none" {
 		config.Ask = *ask
 	}
-
-	commandStr := strings.Join(args, " ")
 
 	// Initialize OpenAI client with configuration from environment
 	apiKey := getEnvWithFallback("ESA_API_KEY", "OPENAI_API_KEY")
