@@ -77,17 +77,17 @@ The configuration file is located at `~/.config/esa/config.toml`.  It
 is a TOML file that defines the functions available to the
 assistant. It includes the following:
 
--   `functions`: An array of function definitions. Each function has:
-    -   `name`: The name of the function.
-    -   `description`: A description of the function.
-    -   `command`: The command to execute when the function is called.
-    -   `parameters`: An array of parameter definitions. Each parameter has:
-        -   `name`: The name of the parameter.
-        -   `type`: The type of the parameter (e.g., string).
-        -   `description`: A description of the parameter.
-        -   `required`: A boolean indicating if the parameter is required.
--   `ask`: The confirmation level for command execution.
--   `system_prompt`: The system prompt for the assistant.
+- `functions`: An array of function definitions. Each function has:
+  - `name`: The name of the function.
+  - `description`: A description of the function.
+  - `command`: The command to execute when the function is called.
+  - `parameters`: An array of parameter definitions. Each parameter has:
+    - `name`: The name of the parameter.
+    - `type`: The type of the parameter (e.g., string).
+    - `description`: A description of the parameter.
+    - `required`: A boolean indicating if the parameter is required.
+- `ask`: The confirmation level for command execution.
+- `system_prompt`: The system prompt for the assistant.
 
 #### Example: Coding Assistant
 
