@@ -106,6 +106,7 @@ func main() {
 	debug := flag.Bool("debug", false, "Enable debug mode")
 	configPathFromCLI := flag.String("config", "~/.config/esa/config.toml", "Path to the config file")
 	ask := flag.String("ask", "none", "Ask level (none, unsafe, all)")
+	showCommands := flag.Bool("show-commands", false, "Show executed commands")
 	flag.Parse()
 
 	args := flag.Args()
@@ -255,7 +256,7 @@ func main() {
 		}
 
 		// Execute the function
-		command, result, err := executeFunction(config.Ask, matchedFunc, assistantMsg.FunctionCall.Arguments)
+		command, result, err := executeFunction(config.Ask, matchedFunc, assistantMsg.FunctionCall.Arguments, *showCommands)
 
 		if debugMode {
 			fmt.Println("\n--- Function Execution ---")
@@ -293,7 +294,7 @@ func confirm(prompt string) bool {
 	return strings.ToLower(response) == "y"
 }
 
-func executeFunction(askLevel string, fc FunctionConfig, args string) (string, string, error) {
+func executeFunction(askLevel string, fc FunctionConfig, args string, showCommands bool) (string, string, error) {
 	// Parse the JSON arguments
 	var parsedArgs map[string]interface{}
 	if err := json.Unmarshal([]byte(args), &parsedArgs); err != nil {
@@ -324,6 +325,10 @@ func executeFunction(askLevel string, fc FunctionConfig, args string) (string, s
 		if !confirm(fmt.Sprintf("Execute '%s'?", command)) {
 			return command, "Command execution cancelled by user.", nil
 		}
+	}
+
+	if showCommands {
+		fmt.Fprintf(os.Stderr, "Command: %s\n", command)
 	}
 
 	// Execute the command
