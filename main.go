@@ -105,7 +105,7 @@ func getEnvWithFallback(primary, fallback string) string {
 func main() {
 	debug := flag.Bool("debug", false, "Enable debug mode")
 	configPath := flag.String("config", "~/.config/esa/config.toml", "Path to the config file")
-	ask := flag.String("ask", "none", "Ask level (none, destructive, all)")
+	ask := flag.String("ask", "none", "Ask level (none, unsafe, all)")
 	flag.Parse()
 
 	args := flag.Args()
@@ -306,7 +306,7 @@ func executeFunction(askLevel string, fc FunctionConfig, args string) (string, s
 	command = expandHomePath(command)
 
 	// Check if confirmation is needed
-	if askLevel == "all" || (askLevel == "destructive" && !fc.Safe) {
+	if askLevel == "all" || (askLevel == "unsafe" && !fc.Safe) {
 		if !confirm(fmt.Sprintf("Execute '%s'?", command)) {
 			return command, "Command execution cancelled by user.", nil
 		}

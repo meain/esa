@@ -24,7 +24,7 @@ esa [--debug] [--config <path>] [--ask <level>] "<command>"
 The available flags are:
 - `--debug`: Enables debug mode, printing additional information about the assistant's response and function execution.
 - `--config <path>`: Specifies the path to the configuration file. Defaults to `~/.config/esa/config.toml`.
-- `--ask <level>`: Specifies the confirmation level for command execution. Options are `none`, `destructive`, and `all`. Default is `none`.
+- `--ask <level>`: Specifies the confirmation level for command execution. Options are `none`, `unsafe`, and `all`. Default is `none`.
 
 ## Configuration
 
@@ -33,12 +33,12 @@ The available flags are:
 The `--ask` flag allows you to specify the level of confirmation required before executing commands. The available options are:
 
 -   `none`: No confirmation is required.
--   `destructive`: Confirmation is required for commands marked as non-safe.
+-   `unsafe`: Confirmation is required for commands marked as non-safe.
 -   `all`: Confirmation is required for all commands.
 
 ### Safe Property
 
-The `safe` property in the function configuration determines whether a command is considered safe or potentially destructive. If `safe` is set to `true`, the command will be executed without confirmation when the `--ask` level is set to `destructive`. If `safe` is set to `false` or not specified, confirmation will be required.
+The `safe` property in the function configuration determines whether a command is considered safe or potentially unsafe. If `safe` is set to `true`, the command will be executed without confirmation when the `--ask` level is set to `unsafe`. If `safe` is set to `false` or not specified, confirmation will be required.
 
 The capabilities of your assistant are easily extendable by adding more functions to the config file.
 
