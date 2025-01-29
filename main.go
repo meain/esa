@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/BurntSushi/toml"
+	"github.com/fatih/color"
 	"github.com/sashabaranov/go-openai"
 )
 
@@ -105,7 +106,7 @@ func getEnvWithFallback(primary, fallback string) string {
 }
 
 func main() {
-	debug := flag.Bool("debug", false, "Enable debug mode")
+	debugMode := flag.Bool("debug", false, "Enable debug mode")
 	configPathFromCLI := flag.String("config", "~/.config/esa/config.toml", "Path to the config file")
 	ask := flag.String("ask", "none", "Ask level (none, unsafe, all)")
 	showCommands := flag.Bool("show-commands", false, "Show executed commands")
@@ -134,7 +135,33 @@ func main() {
 		commandStr = strings.Join(args, " ")
 	}
 
-	debugMode := *debug
+	// Add debug print function
+	debugPrint := func(section string, v ...interface{}) {
+		if *debugMode {
+			width := 80
+			headerColor := color.New(color.FgHiCyan, color.Bold)
+			borderColor := color.New(color.FgCyan)
+			labelColor := color.New(color.FgYellow)
+
+			// Print top border with section
+			borderColor.Printf("+--- ")
+			headerColor.Printf("DEBUG: %s", section)
+			borderColor.Printf(" %s\n", strings.Repeat("-", width-13-len(section)))
+
+			// Print content with proper formatting
+			for _, item := range v {
+				str := fmt.Sprintf("%v", item)
+				if strings.Contains(str, ": ") {
+					parts := strings.SplitN(str, ": ", 2)
+					labelColor.Printf("%s: ", parts[0])
+					fmt.Printf("%s\n", parts[1])
+				} else {
+					fmt.Printf("%s\n", str)
+				}
+			}
+			fmt.Println()
+		}
+	}
 
 	// Load configuration
 	config, err := loadConfig(configPath)
@@ -151,6 +178,12 @@ func main() {
 	apiKey := getEnvWithFallback("ESA_API_KEY", "OPENAI_API_KEY")
 	baseURL := getEnvWithFallback("ESA_BASE_URL", "OPENAI_BASE_URL")
 	model := getEnvWithFallback("ESA_MODEL", "OPENAI_MODEL")
+
+	debugPrint("Configuration",
+		fmt.Sprintf("Config Path: %s", configPath),
+		fmt.Sprintf("Model: %s", model),
+		fmt.Sprintf("Base URL: %s", baseURL),
+		fmt.Sprintf("Ask Level: %s", config.Ask))
 
 	if len(model) == 0 {
 		model = "gpt-4o-mini"
@@ -191,6 +224,10 @@ func main() {
 		Role:    "user",
 		Content: commandStr,
 	})
+
+	debugPrint("Input",
+		fmt.Sprintf("Command: %s", commandStr),
+		fmt.Sprintf("Stdin: %s", input))
 
 	// Main conversation loop
 	for {
@@ -245,6 +282,10 @@ func main() {
 			fmt.Println() // New line after streaming completes
 		}
 
+		debugPrint("Assistant Response",
+			fmt.Sprintf("Content: %s", fullContent.String()),
+			fmt.Sprintf("Function Call: %+v", assistantMsg.FunctionCall))
+
 		// Construct final message for history
 		assistantMsg.Role = "assistant"
 		assistantMsg.Content = fullContent.String()
@@ -271,14 +312,12 @@ func main() {
 		// Execute the function
 		command, result, err := executeFunction(config.Ask, matchedFunc, assistantMsg.FunctionCall.Arguments, *showCommands)
 
-		if debugMode {
-			fmt.Println("\n--- Function Execution ---")
-			fmt.Printf("Function: %s\n", matchedFunc.Name)
-			fmt.Printf("Command: %s\n", command)
-			fmt.Printf("Output: %s\n", result)
-			if err != nil {
-				fmt.Printf("Error: %v\n", err)
-			}
+		debugPrint("Function Execution",
+			fmt.Sprintf("Function: %s", matchedFunc.Name),
+			fmt.Sprintf("Command: %s", command),
+			fmt.Sprintf("Output: %s", result))
+		if err != nil {
+			debugPrint("Function Error", err)
 		}
 
 		if err != nil {
