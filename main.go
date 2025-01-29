@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -342,10 +344,11 @@ func executeFunction(askLevel string, fc FunctionConfig, args string, showComman
 }
 
 func readStdin() string {
-	var input strings.Builder
-	_, err := fmt.Scan(&input) // Modified to read input from stdin
+	var input bytes.Buffer
+	_, err := io.Copy(&input, os.Stdin)
 	if err != nil {
 		return ""
 	}
+
 	return input.String()
 }
