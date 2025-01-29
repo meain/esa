@@ -194,13 +194,8 @@ func main() {
 
 	// Main conversation loop
 	for {
-		if !debugMode {
-			fmt.Fprintf(os.Stderr, "\033[2K")
-			fmt.Fprintf(os.Stderr, "Talking to the assistant...\r")
-		}
-
-		// Create chat completion request with function calling
-		resp, err := client.CreateChatCompletion(
+		// Create streaming chat completion request
+		stream, err := client.CreateChatCompletionStream(
 			context.Background(),
 			openai.ChatCompletionRequest{
 				Model:     model,
@@ -209,33 +204,54 @@ func main() {
 			})
 
 		if err != nil {
-			log.Fatalf("Chat completion error: %v", err)
+			log.Fatalf("ChatCompletionStream error: %v", err)
 		}
+		defer stream.Close()
 
-		// Check if we got any response
-		if len(resp.Choices) == 0 {
-			log.Fatal("No response choices received from the API")
-		}
+		var assistantMsg openai.ChatCompletionMessage
+		var fullContent strings.Builder
 
-		// Get the assistant's response
-		assistantMsg := resp.Choices[0].Message
+		// Stream the response
+		hasContent := false
+		for {
+			response, err := stream.Recv()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				log.Fatalf("Stream error: %v", err)
+			}
 
-		if debugMode {
-			fmt.Println("\n--- Assistant Response ---")
-			fmt.Printf("Role: %s\n", assistantMsg.Role)
-			fmt.Printf("Content: %s\n", assistantMsg.Content)
-			if assistantMsg.FunctionCall != nil {
-				fmt.Printf("Function Call: %+v\n", assistantMsg.FunctionCall)
+			if response.Choices[0].Delta.FunctionCall != nil {
+				// Accumulate function call
+				if assistantMsg.FunctionCall == nil {
+					assistantMsg.FunctionCall = &openai.FunctionCall{
+						Name: response.Choices[0].Delta.FunctionCall.Name,
+					}
+				}
+				assistantMsg.FunctionCall.Arguments += response.Choices[0].Delta.FunctionCall.Arguments
+			} else {
+				// Print content as it arrives
+				content := response.Choices[0].Delta.Content
+				if content != "" {
+					hasContent = true
+					fmt.Print(content)
+					fullContent.WriteString(content)
+				}
 			}
 		}
 
-		// Add assistant's response to conversation history
+		if hasContent {
+			fmt.Println() // New line after streaming completes
+		}
+
+		// Construct final message for history
+		assistantMsg.Role = "assistant"
+		assistantMsg.Content = fullContent.String()
 		messages = append(messages, assistantMsg)
 
 		// If no function call is made, we're done
 		if assistantMsg.FunctionCall == nil {
-			fmt.Fprintf(os.Stderr, "\033[2K")
-			fmt.Println(assistantMsg.Content)
 			break
 		}
 
@@ -250,11 +266,6 @@ func main() {
 
 		if matchedFunc.Name == "" {
 			log.Fatalf("No matching function found for: %s", assistantMsg.FunctionCall.Name)
-		}
-
-		if !debugMode {
-			fmt.Fprintf(os.Stderr, "\033[2K")
-			fmt.Fprintf(os.Stderr, "Executing function: %s\r", matchedFunc.Name)
 		}
 
 		// Execute the function
@@ -345,10 +356,12 @@ func executeFunction(askLevel string, fc FunctionConfig, args string, showComman
 
 func readStdin() string {
 	var input bytes.Buffer
-	_, err := io.Copy(&input, os.Stdin)
-	if err != nil {
-		return ""
+	// Check if there's data available in stdin
+	if fi, err := os.Stdin.Stat(); err == nil && fi.Size() > 0 {
+		_, err := io.Copy(&input, os.Stdin)
+		if err != nil {
+			return ""
+		}
 	}
-
 	return input.String()
 }
