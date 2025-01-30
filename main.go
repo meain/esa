@@ -294,6 +294,11 @@ func main() {
 				log.Fatalf("Stream error: %v", err)
 			}
 
+			// Some providers be crazy (looking at you, GitHub Models)
+			if len(response.Choices) == 0 {
+				continue
+			}
+
 			if response.Choices[0].Delta.FunctionCall != nil {
 				// Accumulate function call
 				if assistantMsg.FunctionCall == nil {
