@@ -354,6 +354,20 @@ func executeFunction(askLevel string, fc FunctionConfig, args string, showComman
 		return "", "", fmt.Errorf("error parsing arguments: %v", err)
 	}
 
+	// Validate required parameters
+	var missingParams []string
+	for _, param := range fc.Parameters {
+		if param.Required {
+			if value, exists := parsedArgs[param.Name]; !exists || value == nil {
+				missingParams = append(missingParams, param.Name)
+			}
+		}
+	}
+
+	if len(missingParams) > 0 {
+		return "", "", fmt.Errorf("missing required parameters: %s", strings.Join(missingParams, ", "))
+	}
+
 	// Prepare the command by replacing placeholders
 	command := fc.Command
 	// Replace parameters with their values, using empty space for missing optional parameters
@@ -408,10 +422,10 @@ func executeFunction(askLevel string, fc FunctionConfig, args string, showComman
 
 func readStdin() string {
 	var input bytes.Buffer
-	// Check if there's data available in stdin
-	if _, err := os.Stdin.Stat(); err == nil {
-		_, err := io.Copy(&input, os.Stdin)
-		if err != nil {
+	// Check if stdin is not a terminal and has data
+	stat, err := os.Stdin.Stat()
+	if err == nil && (stat.Mode()&os.ModeCharDevice) == 0 {
+		if _, err := io.Copy(&input, os.Stdin); err != nil {
 			return ""
 		}
 	}
