@@ -111,31 +111,32 @@ func main() {
 	configPathFromCLI := flag.String("config", "~/.config/esa/config.toml", "Path to the config file")
 	ask := flag.String("ask", "none", "Ask level (none, unsafe, all)")
 	showCommands := flag.Bool("show-commands", false, "Show executed commands")
+	help := flag.Bool("help", false, "Show help message")
 	flag.Parse()
 
 	args := flag.Args()
-	if len(args) < 1 {
+	if *help {
 		fmt.Println("Usage: esa <command> [--debug] [--config <path>] [--ask <level>]")
 		fmt.Println("\nCommands:")
 		fmt.Println("  list-functions    List all available functions")
-		fmt.Println("  <text>           Send text command to the assistant")
+		fmt.Println("  <text>            Send text command to the assistant")
 		os.Exit(1)
 	}
 
 	// Handle list-functions command
-	if args[0] == "list-functions" {
+	if len(args) > 0 && args[0] == "list-functions" {
 		config, err := loadConfig(*configPathFromCLI)
 		if err != nil {
 			log.Fatalf("Error loading config: %v", err)
 		}
-		
+
 		fmt.Println("Available Functions:")
 		fmt.Println()
-		
+
 		for _, fn := range config.Functions {
 			fmt.Printf("%s\n", fn.Name)
 			fmt.Printf("  %s\n", fn.Description)
-			
+
 			if len(fn.Parameters) > 0 {
 				for _, p := range fn.Parameters {
 					required := ""
@@ -252,10 +253,12 @@ func main() {
 		})
 	}
 
-	messages = append(messages, openai.ChatCompletionMessage{
-		Role:    "user",
-		Content: commandStr,
-	})
+	if len(commandStr) != 0 {
+		messages = append(messages, openai.ChatCompletionMessage{
+			Role:    "user",
+			Content: commandStr,
+		})
+	}
 
 	debugPrint("Input",
 		fmt.Sprintf("Command: %s", commandStr),
