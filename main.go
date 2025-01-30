@@ -34,6 +34,7 @@ type FunctionConfig struct {
 	Command     string            `toml:"command"`
 	Parameters  []ParameterConfig `toml:"parameters"`
 	Safe        bool              `toml:"safe"`
+	Stdin       string            `toml:"stdin,omitempty"`
 }
 
 type ParameterConfig struct {
@@ -385,6 +386,18 @@ func executeFunction(askLevel string, fc FunctionConfig, args string, showComman
 
 	// Execute the command
 	cmd := exec.Command("sh", "-c", command)
+
+	// Handle stdin if specified
+	if fc.Stdin != "" {
+		stdinContent := fc.Stdin
+		// Replace all {{variable}} placeholders with their values
+		for key, value := range parsedArgs {
+			placeholder := fmt.Sprintf("{{%s}}", key)
+			stdinContent = strings.ReplaceAll(stdinContent, placeholder, fmt.Sprintf("%v", value))
+		}
+		cmd.Stdin = strings.NewReader(stdinContent)
+	}
+
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return command, "", fmt.Errorf("%v\nCommand: %s\nOutput: %s", err, command, output)
@@ -396,7 +409,7 @@ func executeFunction(askLevel string, fc FunctionConfig, args string, showComman
 func readStdin() string {
 	var input bytes.Buffer
 	// Check if there's data available in stdin
-	if fi, err := os.Stdin.Stat(); err == nil && fi.Size() > 0 {
+	if _, err := os.Stdin.Stat(); err == nil {
 		_, err := io.Copy(&input, os.Stdin)
 		if err != nil {
 			return ""
