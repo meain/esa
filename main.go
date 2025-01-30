@@ -116,7 +116,38 @@ func main() {
 	args := flag.Args()
 	if len(args) < 1 {
 		fmt.Println("Usage: esa <command> [--debug] [--config <path>] [--ask <level>]")
+		fmt.Println("\nCommands:")
+		fmt.Println("  list-functions    List all available functions")
+		fmt.Println("  <text>           Send text command to the assistant")
 		os.Exit(1)
+	}
+
+	// Handle list-functions command
+	if args[0] == "list-functions" {
+		config, err := loadConfig(*configPathFromCLI)
+		if err != nil {
+			log.Fatalf("Error loading config: %v", err)
+		}
+		
+		fmt.Println("Available Functions:")
+		fmt.Println()
+		
+		for _, fn := range config.Functions {
+			fmt.Printf("%s\n", fn.Name)
+			fmt.Printf("  %s\n", fn.Description)
+			
+			if len(fn.Parameters) > 0 {
+				for _, p := range fn.Parameters {
+					required := ""
+					if p.Required {
+						required = " (required)"
+					}
+					fmt.Printf("  • %s: %s%s\n", p.Name, p.Description, required)
+				}
+			}
+			fmt.Println()
+		}
+		os.Exit(0)
 	}
 
 	var configPath string
