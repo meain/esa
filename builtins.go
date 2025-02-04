@@ -15,10 +15,17 @@ AGENT CONFIGURATION:
    - Do not create functions for tasks that an LLM can do, only for
      retrieving external information or for things LLMs are not good
      at like performing math calculations.
+   - Do not assume what cli is available and what they can do. Use the
+     help output of the command to find out what it can do and create
+     functions based on that
+   - Be as specific as possible but compact about using cli command as
+     functions. Do not have a generic {{options}} parameter.
+   - Make sure the llm will have ways to get information that it needs
+     to use. For example if it has to provide a directory path, ensure
+     that it will have some way to get the current path.
 
 3. Best Practices
    - Single Responsibility Principle for agents
-   - Clear error handling
    - Appropriate function selection
 
 EXAMPLE CONFIG:
