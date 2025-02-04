@@ -29,6 +29,14 @@ esa +jira "list all open issues"
 
 This will use the config file located at `~/.config/esa/jira.toml`.
 
+You can create a new agent configuration using the `+new` syntax:
+
+```bash
+esa +new "Create a coding assistant with read_file and list_files functions"
+```
+
+It will output a config file which you can use for a coding assistant agent.
+
 The available flags are:
 - `--debug`: Enables debug mode, printing additional information about the assistant's response and function execution.
 - `--config <path>`: Specifies the path to the configuration file. Defaults to `~/.config/esa/config.toml`.

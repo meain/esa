@@ -151,8 +151,11 @@ func main() {
 		os.Exit(0)
 	}
 
-	var configPath string
-	commandStr := strings.Join(args, " ")
+	var (
+		configPath string
+		agentName  = ""
+		commandStr = strings.Join(args, " ")
+	)
 
 	if strings.HasPrefix(commandStr, "+") {
 		parts := strings.SplitN(commandStr, " ", 2)
@@ -160,9 +163,10 @@ func main() {
 			fmt.Println("Usage: esa +<config> <command>")
 			os.Exit(1)
 		}
-		configName := parts[0][1:]
+
+		agentName = parts[0][1:]
 		commandStr = parts[1]
-		configPath = fmt.Sprintf("~/.config/esa/%s.toml", configName)
+		configPath = fmt.Sprintf("~/.config/esa/%s.toml", agentName)
 	} else {
 		configPath = *configPathFromCLI
 		commandStr = strings.Join(args, " ")
@@ -196,10 +200,20 @@ func main() {
 		}
 	}
 
+	var (
+		config Config
+		err    error
+	)
+
 	// Load configuration
-	config, err := loadConfig(configPath)
-	if err != nil {
-		log.Fatalf("Error loading config: %v", err)
+	switch agentName {
+	case "new":
+		config.SystemPrompt = agentModePrompt
+	default:
+		config, err = loadConfig(configPath)
+		if err != nil {
+			log.Fatalf("Error loading config: %v", err)
+		}
 	}
 
 	// Override ask level if provided via flag
