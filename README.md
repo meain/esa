@@ -41,6 +41,7 @@ The available flags are:
 - `--debug`: Enables debug mode, printing additional information about the assistant's response and function execution.
 - `--config <path>`: Specifies the path to the configuration file. Defaults to `~/.config/esa/config.toml`.
 - `--ask <level>`: Specifies the confirmation level for command execution. Options are `none`, `unsafe`, and `all`. Default is `none`.
+- `-c, --continue`: Continue the last conversation with the assistant. The conversation history is stored per configuration file.
 
 ## Configuration
 

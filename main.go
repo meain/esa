@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/md5"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -108,6 +109,8 @@ func getEnvWithFallback(primary, fallback string) string {
 
 func main() {
 	debugMode := flag.Bool("debug", false, "Enable debug mode")
+	continueChat := flag.Bool("c", false, "Continue last conversation")
+	flag.BoolVar(continueChat, "continue", false, "Continue last conversation")
 	configPathFromCLI := flag.String("config", "~/.config/esa/config.toml", "Path to the config file")
 	ask := flag.String("ask", "none", "Ask level (none, unsafe, all)")
 	showCommands := flag.Bool("show-commands", false, "Show executed commands")
@@ -124,6 +127,16 @@ func main() {
 	}
 
 	// Handle list-functions command
+	// Get cache directory
+	cacheDir, err := os.UserCacheDir()
+	if err != nil {
+		log.Fatalf("Error getting cache directory: %v", err)
+	}
+	esaDir := filepath.Join(cacheDir, "esa")
+	if err := os.MkdirAll(esaDir, 0755); err != nil {
+		log.Fatalf("Error creating cache directory: %v", err)
+	}
+
 	if len(args) > 0 && args[0] == "list-functions" {
 		config, err := loadConfig(*configPathFromCLI)
 		if err != nil {
@@ -202,7 +215,6 @@ func main() {
 
 	var (
 		config Config
-		err    error
 	)
 
 	// Load configuration
@@ -284,10 +296,28 @@ func main() {
 	if config.SystemPrompt != "" {
 		systemMessage = config.SystemPrompt
 	}
-	messages := []openai.ChatCompletionMessage{{
-		Role:    "system",
-		Content: systemMessage,
-	}}
+	var messages []openai.ChatCompletionMessage
+
+	// Generate cache key based on config path
+	cacheKey := fmt.Sprintf("%x", md5.Sum([]byte(configPath)))
+	historyFile := filepath.Join(esaDir, cacheKey+".json")
+
+	if *continueChat {
+		// Try to load previous conversation
+		if data, err := os.ReadFile(historyFile); err == nil {
+			if err := json.Unmarshal(data, &messages); err == nil {
+				debugPrint("History", fmt.Sprintf("Loaded %d previous messages", len(messages)))
+			}
+		}
+	}
+
+	// Initialize new conversation if no history or not continuing
+	if len(messages) == 0 {
+		messages = []openai.ChatCompletionMessage{{
+			Role:    "system",
+			Content: systemMessage,
+		}}
+	}
 
 	input := readStdin()
 	if len(input) > 0 {
@@ -377,6 +407,12 @@ func main() {
 
 		// If no function call is made, we're done
 		if assistantMsg.FunctionCall == nil {
+			// Save conversation history before exiting
+			if data, err := json.Marshal(messages); err == nil {
+				if err := os.WriteFile(historyFile, data, 0644); err != nil {
+					debugPrint("Error", fmt.Sprintf("Failed to save history: %v", err))
+				}
+			}
 			break
 		}
 
