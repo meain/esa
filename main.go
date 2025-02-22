@@ -467,6 +467,11 @@ func confirm(prompt string) bool {
 }
 
 func executeFunction(askLevel string, fc FunctionConfig, args string, showCommands bool) (string, string, error) {
+	// Set defaults
+	if askLevel == "" {
+		askLevel = "unsafe"
+	}
+
 	// Parse the JSON arguments
 	var parsedArgs map[string]interface{}
 	if err := json.Unmarshal([]byte(args), &parsedArgs); err != nil {
