@@ -52,10 +52,10 @@ type Config struct {
 }
 
 type ConversationMessage struct {
-	Role         string               `json:"role"`
-	Content      string               `json:"content"`
-	FunctionCall *openai.FunctionCall `json:"function_call,omitempty"`
-	Name         string               `json:"name,omitempty"`
+	Role      string            `json:"role"`
+	Content   string            `json:"content"`
+	ToolCalls []openai.ToolCall `json:"tool_calls,omitempty"`
+	Name      string            `json:"name,omitempty"`
 }
 
 func expandHomePath(path string) string {
@@ -286,9 +286,15 @@ func main() {
 	client := openai.NewClientWithConfig(llmConfig)
 
 	// Convert function configs to OpenAI function definitions
-	var openAIFunctions []openai.FunctionDefinition
+	var openAITools []openai.Tool
 	for _, fc := range config.Functions {
-		openAIFunctions = append(openAIFunctions, convertToOpenAIFunction(fc))
+		function := convertToOpenAIFunction(fc)
+		openAITools = append(
+			openAITools,
+			openai.Tool{
+				Type:     openai.ToolTypeFunction,
+				Function: &function,
+			})
 	}
 
 	// Initialize conversation history
@@ -344,9 +350,10 @@ func main() {
 		stream, err := client.CreateChatCompletionStream(
 			context.Background(),
 			openai.ChatCompletionRequest{
-				Model:     model,
-				Messages:  messages,
-				Functions: openAIFunctions,
+				Model:      model,
+				Messages:   messages,
+				Tools:      openAITools,
+				ToolChoice: "auto",
 			})
 
 		if err != nil {
@@ -373,14 +380,17 @@ func main() {
 				continue
 			}
 
-			if response.Choices[0].Delta.FunctionCall != nil {
-				// Accumulate function call
-				if assistantMsg.FunctionCall == nil {
-					assistantMsg.FunctionCall = &openai.FunctionCall{
-						Name: response.Choices[0].Delta.FunctionCall.Name,
+			if response.Choices[0].Delta.ToolCalls != nil {
+				// Accumulate tool calls
+				for _, toolCall := range response.Choices[0].Delta.ToolCalls {
+					if toolCall.ID != "" {
+						assistantMsg.ToolCalls = append(assistantMsg.ToolCalls, toolCall)
+					} else {
+						lastToolCall := assistantMsg.ToolCalls[len(assistantMsg.ToolCalls)-1]
+						lastToolCall.Function.Arguments += toolCall.Function.Arguments
+						assistantMsg.ToolCalls[len(assistantMsg.ToolCalls)-1] = lastToolCall
 					}
 				}
-				assistantMsg.FunctionCall.Arguments += response.Choices[0].Delta.FunctionCall.Arguments
 			} else {
 				// Print content as it arrives
 				content := response.Choices[0].Delta.Content
@@ -398,15 +408,15 @@ func main() {
 
 		debugPrint("Assistant Response",
 			fmt.Sprintf("Content: %s", fullContent.String()),
-			fmt.Sprintf("Function Call: %+v", assistantMsg.FunctionCall))
+			fmt.Sprintf("Tool Calls: %+v", assistantMsg.ToolCalls))
 
 		// Construct final message for history
 		assistantMsg.Role = "assistant"
 		assistantMsg.Content = fullContent.String()
 		messages = append(messages, assistantMsg)
 
-		// If no function call is made, we're done
-		if assistantMsg.FunctionCall == nil {
+		// If no tool calls are made, we're done
+		if len(assistantMsg.ToolCalls) == 0 {
 			// Save conversation history before exiting
 			if data, err := json.Marshal(messages); err == nil {
 				if err := os.WriteFile(historyFile, data, 0644); err != nil {
@@ -416,46 +426,59 @@ func main() {
 			break
 		}
 
-		// Find the corresponding function config
-		var matchedFunc FunctionConfig
-		for _, fc := range config.Functions {
-			if fc.Name == assistantMsg.FunctionCall.Name {
-				matchedFunc = fc
-				break
+		// Process each tool call
+		for _, toolCall := range assistantMsg.ToolCalls {
+			if toolCall.Type != "function" {
+				continue
 			}
-		}
 
-		if matchedFunc.Name == "" {
-			log.Fatalf("No matching function found for: %s", assistantMsg.FunctionCall.Name)
-		}
+			if toolCall.Function.Name == "" {
+				continue
+			}
 
-		// Execute the function
-		command, result, err := executeFunction(config.Ask, matchedFunc, assistantMsg.FunctionCall.Arguments, *showCommands)
+			// Find the corresponding function config
+			var matchedFunc FunctionConfig
+			for _, fc := range config.Functions {
+				if fc.Name == toolCall.Function.Name {
+					matchedFunc = fc
+					break
+				}
+			}
 
-		debugPrint("Function Execution",
-			fmt.Sprintf("Function: %s", matchedFunc.Name),
-			fmt.Sprintf("Command: %s", command),
-			fmt.Sprintf("Output: %s", result))
-		if err != nil {
-			debugPrint("Function Error", err)
-		}
+			if matchedFunc.Name == "" {
+				log.Fatalf("No matching function found for: %s", toolCall.Function.Name)
+			}
 
-		if err != nil {
-			// Add error message to conversation
+			// Execute the function
+			command, result, err := executeFunction(config.Ask, matchedFunc, toolCall.Function.Arguments, *showCommands)
+
+			debugPrint("Function Execution",
+				fmt.Sprintf("Function: %s", matchedFunc.Name),
+				fmt.Sprintf("Command: %s", command),
+				fmt.Sprintf("Output: %s", result))
+			if err != nil {
+				debugPrint("Function Error", err)
+			}
+
+			if err != nil {
+				// Add error message to conversation
+				messages = append(messages, openai.ChatCompletionMessage{
+					Role:       "tool",
+					Name:       toolCall.Function.Name,
+					Content:    fmt.Sprintf("Error: %v", err),
+					ToolCallID: toolCall.ID,
+				})
+				continue
+			}
+
+			// Add function result to conversation
 			messages = append(messages, openai.ChatCompletionMessage{
-				Role:    "function",
-				Name:    assistantMsg.FunctionCall.Name,
-				Content: fmt.Sprintf("Error: %v", err),
+				Role:       "tool",
+				Name:       toolCall.Function.Name,
+				Content:    result,
+				ToolCallID: toolCall.ID,
 			})
-			continue
 		}
-
-		// Add function result to conversation
-		messages = append(messages, openai.ChatCompletionMessage{
-			Role:    "function",
-			Name:    assistantMsg.FunctionCall.Name,
-			Content: fmt.Sprintf("Command: %s\nOutput: %s", command, result),
-		})
 	}
 }
 
@@ -474,8 +497,10 @@ func executeFunction(askLevel string, fc FunctionConfig, args string, showComman
 
 	// Parse the JSON arguments
 	var parsedArgs map[string]interface{}
-	if err := json.Unmarshal([]byte(args), &parsedArgs); err != nil {
-		return "", "", fmt.Errorf("error parsing arguments: %v", err)
+	if args != "" {
+		if err := json.Unmarshal([]byte(args), &parsedArgs); err != nil {
+			return "", "", fmt.Errorf("error parsing arguments: %v", err)
+		}
 	}
 
 	// Validate required parameters
