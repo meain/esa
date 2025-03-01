@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -302,6 +303,20 @@ func main() {
 	if config.SystemPrompt != "" {
 		systemMessage = config.SystemPrompt
 	}
+
+	// System message with contain {{}} placeholders to be replaced
+	// with the output of running these shell commands
+	blocksRegex := regexp.MustCompile(`{{(.*?)}}`)
+	systemMessage = blocksRegex.ReplaceAllStringFunc(systemMessage, func(match string) string {
+		command := match[2 : len(match)-2]
+		cmd := exec.Command("sh", "-c", command)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Sprintf("Error: %v", err)
+		}
+		return strings.TrimSpace(string(output))
+	})
+
 	var messages []openai.ChatCompletionMessage
 
 	// Generate cache key based on config path
