@@ -28,6 +28,11 @@ When responding to tasks:
 3. Process the information and formulate your response.
 4. Provide only concise responses that directly address the task.
 
+Other information:
+- Date: {{date '+%Y-%m-%d %A'}}
+- OS: {{uname}}
+- Current directory: {{pwd}}
+
 Remember to keep your responses brief and to the point. Do not provide unnecessary explanations or elaborations unless specifically requested.`
 
 type FunctionConfig struct {
