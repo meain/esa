@@ -19,12 +19,14 @@ import (
 )
 
 type Application struct {
-	config      Config
-	client      *openai.Client
-	debug       bool
-	historyFile string
-	messages    []openai.ChatCompletionMessage
-	debugPrint  func(section string, v ...interface{})
+	config          Config
+	client          *openai.Client
+	debug           bool
+	historyFile     string
+	messages        []openai.ChatCompletionMessage
+	debugPrint      func(section string, v ...interface{})
+	showProgress    bool
+	lastProgressLen int
 }
 
 func NewApplication(opts CLIOptions) (*Application, error) {
@@ -44,10 +46,11 @@ func NewApplication(opts CLIOptions) (*Application, error) {
 	}
 
 	app := &Application{
-		config:      config,
-		client:      client,
-		debug:       opts.DebugMode,
-		historyFile: filepath.Join(cacheDir, fmt.Sprintf("%x.json", md5.Sum([]byte(opts.ConfigPath)))),
+		config:       config,
+		client:       client,
+		debug:        opts.DebugMode,
+		showProgress: !opts.ShowProgress, // Invert hide-progress flag
+		historyFile:  filepath.Join(cacheDir, fmt.Sprintf("%x.json", md5.Sum([]byte(opts.ConfigPath)))),
 	}
 
 	app.debugPrint = createDebugPrinter(app.debug)
@@ -179,6 +182,49 @@ func (app *Application) saveConversationHistory() {
 	}
 }
 
+func (app *Application) generateProgressSummary(funcName string, args string) string {
+	if !app.showProgress {
+		return ""
+	}
+
+	prompt := fmt.Sprintf(`Summarize what this function is doing
+Function: %s
+Arguments: %s
+
+Examples:
+- Reading file main.go
+- Accessing webpage from blog.meain.io
+- Computing average of list of numbers
+- Opening page google.com in browser
+- Searching for 'improvements in AI'
+
+Notes:
+- Include names of files, URLs, or search queries
+- Use present continuous tense (e.g., 'Reading file')
+- Keep it concise (1 line, max 8 words)
+- Do not include function name or arguments`, funcName, args)
+	resp, err := app.client.CreateChatCompletion(
+		context.Background(),
+		openai.ChatCompletionRequest{
+			Model: getEnvWithFallback("ESA_MODEL", "OPENAI_MODEL"),
+			Messages: []openai.ChatCompletionMessage{{
+				Role:    "user",
+				Content: prompt,
+			}},
+		},
+	)
+
+	if err != nil {
+		app.debugPrint("Progress", fmt.Sprintf("Failed to generate progress summary: %v", err))
+		return ""
+	}
+
+	if len(resp.Choices) > 0 {
+		return resp.Choices[0].Message.Content
+	}
+	return ""
+}
+
 func (app *Application) handleToolCalls(toolCalls []openai.ToolCall, opts CLIOptions) {
 	for _, toolCall := range toolCalls {
 		if toolCall.Type != "function" || toolCall.Function.Name == "" {
@@ -195,6 +241,18 @@ func (app *Application) handleToolCalls(toolCalls []openai.ToolCall, opts CLIOpt
 
 		if matchedFunc.Name == "" {
 			log.Fatalf("No matching function found for: %s", toolCall.Function.Name)
+		}
+
+		if app.showProgress {
+			if summary := app.generateProgressSummary(matchedFunc.Name, toolCall.Function.Arguments); summary != "" {
+				// Clear previous line if exists
+				if app.lastProgressLen > 0 {
+					fmt.Fprintf(os.Stderr, "\r%s\r", strings.Repeat(" ", app.lastProgressLen))
+				}
+				msg := fmt.Sprintf("⋮ %s", summary)
+				color.New(color.FgBlue).Fprint(os.Stderr, msg)
+				app.lastProgressLen = len(msg)
+			}
 		}
 
 		command, result, err := executeFunction(app.config.Ask, matchedFunc, toolCall.Function.Arguments, opts.ShowCommands)
