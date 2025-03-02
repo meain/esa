@@ -513,34 +513,41 @@ func executeFunction(askLevel string, fc FunctionConfig, args string, showComman
 
 	// Prepare the command by replacing placeholders
 	command := fc.Command
+
 	// Replace parameters with their values, using empty space for missing optional parameters
 	for _, param := range fc.Parameters {
 		placeholder := fmt.Sprintf("{{%s}}", param.Name)
-		if value, exists := parsedArgs[param.Name]; exists {
-			if param.Format != "" {
-				if !strings.Contains(param.Format, "%") {
-					if param.Format == "boolean" {
-						boolValue, err := strconv.ParseBool(value.(string))
-						if err != nil {
-							return "", "", fmt.Errorf("invalid boolean value: %v", value)
-						}
 
-						if boolValue {
-							command = strings.ReplaceAll(command, placeholder, param.Format)
-						}
-					} else {
-						command = strings.ReplaceAll(command, placeholder, param.Format)
-					}
-				} else {
-					command = strings.ReplaceAll(command, placeholder, fmt.Sprintf(param.Format, value))
+		if value, exists := parsedArgs[param.Name]; exists {
+			replacement := ""
+
+			switch {
+			case param.Format == "boolean":
+				boolValue, err := strconv.ParseBool(value.(string))
+				if err != nil {
+					return "", "", fmt.Errorf("invalid boolean value: %v", value)
 				}
-			} else {
-				command = strings.ReplaceAll(command, placeholder, fmt.Sprintf("%v", value))
+				if boolValue {
+					replacement = param.Format
+				}
+
+			case param.Format != "" && !strings.Contains(param.Format, "%"):
+				replacement = param.Format
+
+			case param.Format != "":
+				replacement = fmt.Sprintf(param.Format, value)
+
+			default:
+				replacement = fmt.Sprintf("%v", value)
 			}
+
+			command = strings.ReplaceAll(command, placeholder, replacement)
+
 		} else if !param.Required {
 			command = strings.ReplaceAll(command, placeholder, "")
 		}
 	}
+
 	// Clean up any extra spaces from removed optional parameters
 	command = strings.Join(strings.Fields(command), " ")
 
