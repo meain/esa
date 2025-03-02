@@ -283,7 +283,7 @@ func main() {
 
 	// System message with contain {{}} placeholders to be replaced
 	// with the output of running these shell commands
-	blocksRegex := regexp.MustCompile(`{{(.*?)}}`)
+	blocksRegex := regexp.MustCompile(`{{\$(.*?)}}`)
 	systemMessage = blocksRegex.ReplaceAllStringFunc(systemMessage, func(match string) string {
 		command := match[2 : len(match)-2]
 		cmd := exec.Command("sh", "-c", command)

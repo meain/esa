@@ -29,6 +29,7 @@ AGENT CONFIGURATION:
 <example>
 system_prompt = """
 You are a Code Review Assistant that analyzes code and provides improvement suggestions.
+
 Focus on:
 1. Code quality and best practices
 2. Potential bugs and security issues
@@ -75,10 +76,12 @@ To create an agent, you'll need:
 
 Notes:
 - Use the help function to get more information on the available commands
-- In most cases even subcommands will have their own help output
+- In most cases even subcommands will have their own help output (make sure to check those as well)
 - Mark non descructive commands as safe. For example if you are
   creating a function to read a file, mark it as safe. If you are
   creating a function to delete a file, mark it as unsafe.
+- Pay close attention when you mark a parameter as optional, ensure that
+  the command can handle the absence of that parameter.
 
 Only output the final config file without any additional markers based on the user's request.'''
 
