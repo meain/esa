@@ -49,7 +49,7 @@ func NewApplication(opts CLIOptions) (*Application, error) {
 		config:       config,
 		client:       client,
 		debug:        opts.DebugMode,
-		showProgress: !opts.ShowProgress, // Invert hide-progress flag
+		showProgress: !opts.HideProgress && !opts.DebugMode, // Hide progress if debug mode is enabled
 		historyFile:  filepath.Join(cacheDir, fmt.Sprintf("%x.json", md5.Sum([]byte(opts.ConfigPath)))),
 	}
 
@@ -263,6 +263,12 @@ func (app *Application) handleToolCalls(toolCalls []openai.ToolCall, opts CLIOpt
 
 		if err != nil {
 			app.debugPrint("Function Error", err)
+			// Clear progress line before showing error
+			if app.showProgress && app.lastProgressLen > 0 {
+				fmt.Fprintf(os.Stderr, "\r%s\r", strings.Repeat(" ", app.lastProgressLen))
+				app.lastProgressLen = 0
+			}
+
 			app.messages = append(app.messages, openai.ChatCompletionMessage{
 				Role:       "tool",
 				Name:       toolCall.Function.Name,
@@ -270,6 +276,12 @@ func (app *Application) handleToolCalls(toolCalls []openai.ToolCall, opts CLIOpt
 				ToolCallID: toolCall.ID,
 			})
 			continue
+		}
+
+		// Clear progress line before showing result
+		if app.showProgress && app.lastProgressLen > 0 {
+			fmt.Fprintf(os.Stderr, "\r%s\r", strings.Repeat(" ", app.lastProgressLen))
+			app.lastProgressLen = 0
 		}
 
 		app.messages = append(app.messages, openai.ChatCompletionMessage{

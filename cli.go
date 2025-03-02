@@ -13,7 +13,7 @@ type CLIOptions struct {
 	ConfigPath   string
 	AskLevel     string
 	ShowCommands bool
-	ShowProgress bool
+	HideProgress bool
 	CommandStr   string
 	AgentName    string
 }
@@ -27,7 +27,7 @@ func parseFlags() CLIOptions {
 	configPath := flag.String("config", "~/.config/esa/config.toml", "Path to the config file")
 	flag.StringVar(&opts.AskLevel, "ask", "none", "Ask level (none, unsafe, all)")
 	flag.BoolVar(&opts.ShowCommands, "show-commands", false, "Show executed commands")
-	flag.BoolVar(&opts.ShowProgress, "hide-progress", false, "Disable LLM-generated progress summary for each function")
+	flag.BoolVar(&opts.HideProgress, "hide-progress", false, "Disable LLM-generated progress summary for each function")
 	help := flag.Bool("help", false, "Show help message")
 	flag.Parse()
 
