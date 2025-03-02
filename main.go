@@ -224,40 +224,12 @@ func main() {
 	)
 
 	// Load configuration
-	switch agentName {
-	case "new":
-		config.SystemPrompt = agentModePrompt
-		config.Functions = []FunctionConfig{
-			{
-				Name:        "check_help",
-				Description: "Get the help output of a command",
-				Command:     "{{command}} --help",
-				Parameters: []ParameterConfig{
-					{
-						Name:        "command",
-						Type:        "string",
-						Description: "Command to get the help text for",
-						Required:    true,
-					},
-				},
-				Safe: true,
-			},
-			{
-				Name:        "read_file",
-				Description: "Read the contents of a file",
-				Command:     "cat {{file}}",
-				Parameters: []ParameterConfig{
-					{
-						Name:        "file",
-						Type:        "string",
-						Description: "Path to the file to read",
-						Required:    true,
-					},
-				},
-				Safe: true,
-			},
+	if agentName == "new" {
+		// Load embedded new agent config
+		if _, err := toml.DecodeReader(bytes.NewReader([]byte(newAgentToml)), &config); err != nil {
+			log.Fatalf("Error loading embedded new agent config: %v", err)
 		}
-	default:
+	} else {
 		config, err = loadConfig(configPath)
 		if err != nil {
 			log.Fatalf("Error loading config: %v", err)
