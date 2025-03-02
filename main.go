@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -49,6 +50,7 @@ type ParameterConfig struct {
 	Type        string `toml:"type"`
 	Description string `toml:"description"`
 	Required    bool   `toml:"required"`
+	Format      string `toml:"format,omitempty"`
 }
 
 type Config struct {
@@ -515,7 +517,26 @@ func executeFunction(askLevel string, fc FunctionConfig, args string, showComman
 	for _, param := range fc.Parameters {
 		placeholder := fmt.Sprintf("{{%s}}", param.Name)
 		if value, exists := parsedArgs[param.Name]; exists {
-			command = strings.ReplaceAll(command, placeholder, fmt.Sprintf("%v", value))
+			if param.Format != "" {
+				if !strings.Contains(param.Format, "%") {
+					if param.Format == "boolean" {
+						boolValue, err := strconv.ParseBool(value.(string))
+						if err != nil {
+							return "", "", fmt.Errorf("invalid boolean value: %v", value)
+						}
+
+						if boolValue {
+							command = strings.ReplaceAll(command, placeholder, param.Format)
+						}
+					} else {
+						command = strings.ReplaceAll(command, placeholder, param.Format)
+					}
+				} else {
+					command = strings.ReplaceAll(command, placeholder, fmt.Sprintf(param.Format, value))
+				}
+			} else {
+				command = strings.ReplaceAll(command, placeholder, fmt.Sprintf("%v", value))
+			}
 		} else if !param.Required {
 			command = strings.ReplaceAll(command, placeholder, "")
 		}
