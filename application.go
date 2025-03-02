@@ -156,6 +156,12 @@ func (app *Application) handleStreamResponse(stream *openai.ChatCompletionStream
 				}
 			}
 		} else {
+			// Clear progress line before showing result
+			if app.showProgress && app.lastProgressLen > 0 {
+				fmt.Fprintf(os.Stderr, "\r%s\r", strings.Repeat(" ", app.lastProgressLen))
+				app.lastProgressLen = 0
+			}
+
 			content := response.Choices[0].Delta.Content
 			if content != "" {
 				hasContent = true
@@ -276,12 +282,6 @@ func (app *Application) handleToolCalls(toolCalls []openai.ToolCall, opts CLIOpt
 				ToolCallID: toolCall.ID,
 			})
 			continue
-		}
-
-		// Clear progress line before showing result
-		if app.showProgress && app.lastProgressLen > 0 {
-			fmt.Fprintf(os.Stderr, "\r%s\r", strings.Repeat(" ", app.lastProgressLen))
-			app.lastProgressLen = 0
 		}
 
 		app.messages = append(app.messages, openai.ChatCompletionMessage{
