@@ -42,12 +42,13 @@ func parseFlags() CLIOptions {
 
 	if strings.HasPrefix(opts.CommandStr, "+") {
 		parts := strings.SplitN(opts.CommandStr, " ", 2)
-		if len(parts) < 2 {
-			fmt.Println("Usage: esa +<config> <command>")
-			os.Exit(1)
-		}
 		opts.AgentName = parts[0][1:]
-		opts.CommandStr = parts[1]
+		if len(parts) < 2 {
+			// Clear CommandStr so it can use initial_message
+			opts.CommandStr = ""
+		} else {
+			opts.CommandStr = parts[1]
+		}
 		opts.ConfigPath = fmt.Sprintf("~/.config/esa/%s.toml", opts.AgentName)
 	}
 

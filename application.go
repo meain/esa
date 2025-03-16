@@ -94,6 +94,19 @@ func (app *Application) processInput(commandStr string) {
 			Content: commandStr,
 		})
 	}
+
+	// If no input from stdin or command line, use initial message from config
+	if len(input) == 0 && len(commandStr) == 0 && app.config.InitialMessage != "" {
+		app.messages = append(app.messages, openai.ChatCompletionMessage{
+			Role:    "user",
+			Content: app.processInitialMessage(app.config.InitialMessage),
+		})
+	}
+}
+
+func (app *Application) processInitialMessage(message string) string {
+	// Use the same processing logic as system prompt
+	return app.processSystemPrompt(message)
 }
 
 func (app *Application) runConversationLoop(opts CLIOptions) {

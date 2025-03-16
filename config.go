@@ -11,9 +11,10 @@ import (
 )
 
 type Config struct {
-	Functions    []FunctionConfig `toml:"functions"`
-	Ask          string           `toml:"ask"`
-	SystemPrompt string           `toml:"system_prompt"`
+	Functions      []FunctionConfig `toml:"functions"`
+	Ask            string           `toml:"ask"`
+	SystemPrompt   string           `toml:"system_prompt"`
+	InitialMessage string           `toml:"initial_message"`
 }
 
 type FunctionConfig struct {
