@@ -362,7 +362,7 @@ func (app *Application) processSystemPrompt(prompt string) string {
 	blocksRegex := regexp.MustCompile(`{{\$(.*?)}}`)
 	return blocksRegex.ReplaceAllStringFunc(prompt, func(match string) string {
 		command := match[2 : len(match)-2]
-		cmd := exec.Command("sh", "-c", command)
+		cmd := exec.Command("sh", "-c", command[1:])
 		output, err := cmd.CombinedOutput()
 		if err != nil {
 			return fmt.Sprintf("Error: %v", err)
