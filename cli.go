@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/fatih/color"
 )
 
 type CLIOptions struct {
@@ -17,6 +19,39 @@ type CLIOptions struct {
 	HideProgress bool
 	CommandStr   string
 	AgentName    string
+}
+
+func handleShowAgent(configPath string) {
+	config, err := loadConfig(configPath)
+	if err != nil {
+		color.Red("Error loading config: %v\n", err)
+		return
+	}
+
+	labelStyle := color.New(color.FgHiCyan, color.Bold).SprintFunc()
+
+	// Print agent name and description if available
+	if config.Name != "" {
+		fmt.Printf("%s %s (%s)\n", labelStyle("Agent:"), config.Name, filepath.Base(configPath))
+	} else {
+		fmt.Printf("%s %s\n", labelStyle("Agent:"), filepath.Base(configPath))
+	}
+
+	if config.Description != "" {
+		fmt.Printf("%s %s\n", labelStyle("Description:"), config.Description)
+	}
+	fmt.Println()
+
+	// Print available functions
+	if len(config.Functions) > 0 {
+		fmt.Printf("%s\n\n", labelStyle("Available functions"))
+		for _, fn := range config.Functions {
+			printFunctionInfo(fn)
+		}
+	} else {
+		noFuncStyle := color.New(color.FgYellow, color.Italic).SprintFunc()
+		fmt.Printf("%s\n", noFuncStyle("No functions available."))
+	}
 }
 
 func parseFlags() CLIOptions {
@@ -52,7 +87,7 @@ func parseFlags() CLIOptions {
 
 // handleSpecialCommands processes special command prefixes and modifies options accordingly
 func handleSpecialCommands(opts *CLIOptions) {
-	// Handle show-agent command
+	// Handle show-agent command (support both singular and plural forms)
 	if strings.HasPrefix(opts.CommandStr, "show-agent") {
 		handleShowAgent(opts.ConfigPath)
 		os.Exit(0)
@@ -98,22 +133,26 @@ func printHelp() {
 	fmt.Println("  --show-commands Show executed commands")
 	fmt.Println("  --hide-progress Disable progress summary for each function (enabled by default)")
 	fmt.Println("\nCommands:")
-	fmt.Println("  list-agents      List all available agents")
-	fmt.Println("  show-agent       Show agent details and available functions")
-	fmt.Println("  +<agent> <text>  Use specific agent with the given command")
-	fmt.Println("  <text>           Send text command to the assistant")
+	fmt.Println("  list-agents          List all available agents")
+	fmt.Println("  show-agent +<agent>  Show agent details and available functions")
+	fmt.Println("  +<agent> <text>      Use specific agent with the given command")
+	fmt.Println("  <text>               Send text command to the assistant")
 }
 
 func printFunctionInfo(fn FunctionConfig) {
-	fmt.Printf("%s\n", fn.Name)
-	fmt.Printf("  %s\n", fn.Description)
+	functionName := color.New(color.FgHiGreen, color.Bold).SprintFunc()
+	paramName := color.New(color.FgYellow).SprintFunc()
+	requiredTag := color.New(color.FgRed, color.Bold).SprintFunc()
+
+	fmt.Printf("%s\n", functionName(fn.Name))
+	fmt.Printf("%s\n", fn.Description)
 	if len(fn.Parameters) > 0 {
 		for _, p := range fn.Parameters {
 			required := ""
 			if p.Required {
-				required = " (required)"
+				required = requiredTag(" (required)")
 			}
-			fmt.Printf("  • %s: %s%s\n", p.Name, p.Description, required)
+			fmt.Printf("  • %s: %s%s\n", paramName(p.Name), p.Description, required)
 		}
 	}
 	fmt.Println()
@@ -124,7 +163,7 @@ func listAgents() {
 	// Get the default config directory
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		fmt.Printf("Error getting home directory: %v\n", err)
+		color.Red("Error getting home directory: %v\n", err)
 		return
 	}
 
@@ -132,18 +171,22 @@ func listAgents() {
 
 	// Check if the directory exists
 	if _, err := os.Stat(configDir); os.IsNotExist(err) {
-		fmt.Printf("Config directory does not exist: %s\n", configDir)
+		color.Red("Config directory does not exist: %s\n", configDir)
 		return
 	}
 
 	// Read all .toml files in the directory
 	files, err := os.ReadDir(configDir)
 	if err != nil {
-		fmt.Printf("Error reading config directory: %v\n", err)
+		color.Red("Error reading config directory: %v\n", err)
 		return
 	}
 
 	foundAgents := false
+
+	agentNameStyle := color.New(color.FgHiCyan, color.Bold).SprintFunc()
+	configNameStyle := color.New(color.FgHiGreen).SprintFunc()
+	noDescStyle := color.New(color.FgHiBlack, color.Italic).SprintFunc()
 
 	for _, file := range files {
 		if !file.IsDir() && strings.HasSuffix(file.Name(), ".toml") {
@@ -155,28 +198,28 @@ func listAgents() {
 			config, err := loadConfig(configPath)
 
 			if err != nil {
-				fmt.Printf("%s: Error loading config\n", agentName)
+				color.Red("%s: Error loading config\n", agentName)
 				continue
 			}
 
 			// Print agent filename and name from config
 			if config.Name != "" {
-				fmt.Printf("%s (%s)\n", agentName, config.Name)
+				fmt.Printf("%s (%s)\n", agentNameStyle(agentName), configNameStyle(config.Name))
 			} else {
-				fmt.Printf("%s\n", agentName)
+				fmt.Printf("%s\n", agentNameStyle(agentName))
 			}
 
 			// Print description
 			if config.Description != "" {
-				fmt.Printf("  %s\n", config.Description)
+				fmt.Println(config.Description)
 			} else {
-				fmt.Printf("  (No description available)\n")
+				fmt.Printf("%s\n", noDescStyle("(No description available)"))
 			}
 			fmt.Println()
 		}
 	}
 
 	if !foundAgents {
-		fmt.Println("No agents found in the config directory.")
+		color.Yellow("No agents found in the config directory.")
 	}
 }

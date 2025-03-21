@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -69,31 +68,6 @@ func getEnvWithFallback(primary, fallback string) string {
 		return value
 	}
 	return os.Getenv(fallback)
-}
-
-func handleShowAgent(configPath string) {
-	config, err := loadConfig(configPath)
-	if err != nil {
-		log.Fatalf("Error loading config: %v", err)
-	}
-
-	// Print agent name and description if available
-	if config.Name != "" {
-		fmt.Printf("Agent: %s\n", config.Name)
-	} else {
-		fmt.Printf("Agent: %s\n", filepath.Base(configPath))
-	}
-	
-	if config.Description != "" {
-		fmt.Printf("Description: %s\n", config.Description)
-	}
-	fmt.Println()
-
-	fmt.Println("Available Functions:")
-	fmt.Println()
-	for _, fn := range config.Functions {
-		printFunctionInfo(fn)
-	}
 }
 
 const systemPrompt = `You are Esa, a professional assistant capable of performing various tasks. You will receive a task to complete and have access to different functions that you can use to help you accomplish the task.
