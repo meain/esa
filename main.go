@@ -6,10 +6,6 @@ import (
 
 func main() {
 	opts := parseFlags()
-	if opts.CommandStr == "list-functions" {
-		handleListFunctions(opts.ConfigPath)
-		return
-	}
 
 	app, err := NewApplication(opts)
 	if err != nil {

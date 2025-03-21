@@ -11,6 +11,8 @@ import (
 )
 
 type Config struct {
+	Name           string           `toml:"name"`
+	Description    string           `toml:"description"`
 	Functions      []FunctionConfig `toml:"functions"`
 	Ask            string           `toml:"ask"`
 	SystemPrompt   string           `toml:"system_prompt"`
@@ -69,18 +71,29 @@ func getEnvWithFallback(primary, fallback string) string {
 	return os.Getenv(fallback)
 }
 
-func handleListFunctions(configPath string) {
+func handleShowAgent(configPath string) {
 	config, err := loadConfig(configPath)
 	if err != nil {
 		log.Fatalf("Error loading config: %v", err)
 	}
+
+	// Print agent name and description if available
+	if config.Name != "" {
+		fmt.Printf("Agent: %s\n", config.Name)
+	} else {
+		fmt.Printf("Agent: %s\n", filepath.Base(configPath))
+	}
+	
+	if config.Description != "" {
+		fmt.Printf("Description: %s\n", config.Description)
+	}
+	fmt.Println()
 
 	fmt.Println("Available Functions:")
 	fmt.Println()
 	for _, fn := range config.Functions {
 		printFunctionInfo(fn)
 	}
-	os.Exit(0)
 }
 
 const systemPrompt = `You are Esa, a professional assistant capable of performing various tasks. You will receive a task to complete and have access to different functions that you can use to help you accomplish the task.

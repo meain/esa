@@ -40,6 +40,15 @@ func parseFlags() CLIOptions {
 	opts.CommandStr = strings.Join(args, " ")
 	opts.ConfigPath = *configPath
 
+	// Check if the command is show-agent (before we potentially modify CommandStr)
+	isShowAgent := strings.HasPrefix(opts.CommandStr, "show-agent")
+
+	// Handle show-agent command after agent name is potentially extracted
+	if isShowAgent {
+		handleShowAgent(opts.ConfigPath)
+		os.Exit(0)
+	}
+
 	if strings.HasPrefix(opts.CommandStr, "+") {
 		parts := strings.SplitN(opts.CommandStr, " ", 2)
 		opts.AgentName = parts[0][1:]
@@ -64,7 +73,7 @@ func printHelp() {
 	fmt.Println("  --show-commands Show executed commands")
 	fmt.Println("  --hide-progress Disable progress summary for each function (enabled by default)")
 	fmt.Println("\nCommands:")
-	fmt.Println("  list-functions    List all available functions")
+	fmt.Println("  show-agent       Show agent details and available functions")
 	fmt.Println("  <text>           Send text command to the assistant")
 }
 
