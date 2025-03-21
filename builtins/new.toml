@@ -26,6 +26,10 @@ AGENT CONFIGURATION:
    - Single Responsibility Principle for agents
    - Appropriate function selection
 
+Notes:
+    - Always use existing agents as reference for creating new agents
+    - You can look at existing agents to understand the functions used
+
 <example>
 system_prompt = """
 You are a Code Review Assistant that analyzes code and provides improvement suggestions.
@@ -129,3 +133,21 @@ type = "boolean"
 description = "Should show line number"
 required = false
 format = "-n "
+
+[[functions]]
+name = "list_existing_agents"
+description = "List names of all existing agents"
+command = "ls -1 ~/.config/esa | cut -d'.' -f1"
+safe = true
+
+[[functions]]
+name = "get_agent_config"
+description = "Get the configuration of an existing agent"
+command = "cat ~/.config/esa/{{agent_name}}.toml"
+safe = true
+
+[[functions.parameters]]
+name = "agent_name"
+type = "string"
+description = "Name of the agent"
+required = true
