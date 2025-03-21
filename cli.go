@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -21,6 +22,7 @@ type CLIOptions struct {
 func parseFlags() CLIOptions {
 	opts := CLIOptions{}
 
+	// Define command-line flags
 	flag.BoolVar(&opts.DebugMode, "debug", false, "Enable debug mode")
 	flag.BoolVar(&opts.ContinueChat, "c", false, "Continue last conversation")
 	flag.BoolVar(&opts.ContinueChat, "continue", false, "Continue last conversation")
@@ -31,37 +33,60 @@ func parseFlags() CLIOptions {
 	help := flag.Bool("help", false, "Show help message")
 	flag.Parse()
 
+	// Handle help flag
 	if *help {
 		printHelp()
 		os.Exit(0)
 	}
 
+	// Process command arguments
 	args := flag.Args()
 	opts.CommandStr = strings.Join(args, " ")
 	opts.ConfigPath = *configPath
 
-	// Check if the command is show-agent (before we potentially modify CommandStr)
-	isShowAgent := strings.HasPrefix(opts.CommandStr, "show-agent")
+	// Handle special commands
+	handleSpecialCommands(&opts)
 
-	// Handle show-agent command after agent name is potentially extracted
-	if isShowAgent {
+	return opts
+}
+
+// handleSpecialCommands processes special command prefixes and modifies options accordingly
+func handleSpecialCommands(opts *CLIOptions) {
+	// Handle show-agent command
+	if strings.HasPrefix(opts.CommandStr, "show-agent") {
 		handleShowAgent(opts.ConfigPath)
 		os.Exit(0)
 	}
 
-	if strings.HasPrefix(opts.CommandStr, "+") {
-		parts := strings.SplitN(opts.CommandStr, " ", 2)
-		opts.AgentName = parts[0][1:]
-		if len(parts) < 2 {
-			// Clear CommandStr so it can use initial_message
-			opts.CommandStr = ""
-		} else {
-			opts.CommandStr = parts[1]
-		}
-		opts.ConfigPath = fmt.Sprintf("~/.config/esa/%s.toml", opts.AgentName)
+	// Handle list-agents command
+	if strings.HasPrefix(opts.CommandStr, "list-agents") {
+		listAgents()
+		os.Exit(0)
 	}
 
-	return opts
+	// Handle agent selection with + prefix
+	if strings.HasPrefix(opts.CommandStr, "+") {
+		parseAgentCommand(opts)
+	}
+}
+
+// parseAgentCommand handles the +agent syntax, extracting agent name and remaining command
+func parseAgentCommand(opts *CLIOptions) {
+	parts := strings.SplitN(opts.CommandStr, " ", 2)
+
+	// Extract agent name (remove + prefix)
+	opts.AgentName = parts[0][1:]
+
+	// Update command string if there's content after the agent name
+	if len(parts) < 2 {
+		// Clear CommandStr so it can use initial_message
+		opts.CommandStr = ""
+	} else {
+		opts.CommandStr = parts[1]
+	}
+
+	// Set config path based on agent name
+	opts.ConfigPath = fmt.Sprintf("~/.config/esa/%s.toml", opts.AgentName)
 }
 
 func printHelp() {
@@ -69,11 +94,13 @@ func printHelp() {
 	fmt.Println("\nOptions:")
 	fmt.Println("  --debug         Enable debug mode")
 	fmt.Println("  --config        Path to the config file")
-	fmt.Println("  --ask          Ask level (none, unsafe, all)")
+	fmt.Println("  --ask           Ask level (none, unsafe, all)")
 	fmt.Println("  --show-commands Show executed commands")
 	fmt.Println("  --hide-progress Disable progress summary for each function (enabled by default)")
 	fmt.Println("\nCommands:")
+	fmt.Println("  list-agents      List all available agents")
 	fmt.Println("  show-agent       Show agent details and available functions")
+	fmt.Println("  +<agent> <text>  Use specific agent with the given command")
 	fmt.Println("  <text>           Send text command to the assistant")
 }
 
@@ -90,4 +117,66 @@ func printFunctionInfo(fn FunctionConfig) {
 		}
 	}
 	fmt.Println()
+}
+
+// listAgents lists all available agents in the default config directory
+func listAgents() {
+	// Get the default config directory
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		fmt.Printf("Error getting home directory: %v\n", err)
+		return
+	}
+
+	configDir := filepath.Join(homeDir, ".config", "esa")
+
+	// Check if the directory exists
+	if _, err := os.Stat(configDir); os.IsNotExist(err) {
+		fmt.Printf("Config directory does not exist: %s\n", configDir)
+		return
+	}
+
+	// Read all .toml files in the directory
+	files, err := os.ReadDir(configDir)
+	if err != nil {
+		fmt.Printf("Error reading config directory: %v\n", err)
+		return
+	}
+
+	foundAgents := false
+
+	for _, file := range files {
+		if !file.IsDir() && strings.HasSuffix(file.Name(), ".toml") {
+			foundAgents = true
+			agentName := strings.TrimSuffix(file.Name(), ".toml")
+
+			// Load the config to get the description
+			configPath := filepath.Join(configDir, file.Name())
+			config, err := loadConfig(configPath)
+
+			if err != nil {
+				fmt.Printf("%s: Error loading config\n", agentName)
+				continue
+			}
+
+			// Print agent filename and name from config
+			if config.Name != "" {
+				fmt.Printf("%s (%s)\n", agentName, config.Name)
+			} else {
+				fmt.Printf("%s\n", agentName)
+			}
+
+			// Print description
+			if config.Description != "" {
+				fmt.Printf("  %s\n", config.Description)
+			} else {
+				fmt.Printf("  (No description available)\n")
+			}
+			fmt.Println()
+		}
+	}
+
+	if !foundAgents {
+		fmt.Println("No agents found in the config directory.")
+	}
 }
