@@ -5,12 +5,19 @@ import (
 )
 
 func main() {
-	opts := parseFlags()
+	opts, commandType := parseFlags()
 
-	app, err := NewApplication(opts)
-	if err != nil {
-		log.Fatalf("Failed to initialize application: %v", err)
+	switch commandType {
+	case ShowAgent:
+		handleShowAgent(opts.ConfigPath)
+	case ListAgents:
+		listAgents()
+	case NormalExecution:
+		app, err := NewApplication(opts)
+		if err != nil {
+			log.Fatalf("Failed to initialize application: %v", err)
+		}
+
+		app.Run(opts)
 	}
-
-	app.Run(opts)
 }

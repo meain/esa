@@ -10,6 +10,12 @@ import (
 	"github.com/fatih/color"
 )
 
+// DefaultConfigDir is the default directory for agent configuration files
+const DefaultConfigDir = "~/.config/esa"
+
+// DefaultConfigPath is the default location for the configuration file
+const DefaultConfigPath = DefaultConfigDir + "/config.toml"
+
 type CLIOptions struct {
 	DebugMode    bool
 	ContinueChat bool
@@ -54,14 +60,23 @@ func handleShowAgent(configPath string) {
 	}
 }
 
-func parseFlags() CLIOptions {
+// CommandType represents the type of command to execute
+type CommandType int
+
+const (
+	NormalExecution CommandType = iota
+	ShowAgent
+	ListAgents
+)
+
+func parseFlags() (CLIOptions, CommandType) {
 	opts := CLIOptions{}
 
 	// Define command-line flags
 	flag.BoolVar(&opts.DebugMode, "debug", false, "Enable debug mode")
 	flag.BoolVar(&opts.ContinueChat, "c", false, "Continue last conversation")
 	flag.BoolVar(&opts.ContinueChat, "continue", false, "Continue last conversation")
-	configPath := flag.String("config", "~/.config/esa/config.toml", "Path to the config file")
+	configPath := flag.String("config", DefaultConfigPath, "Path to the config file")
 	flag.StringVar(&opts.AskLevel, "ask", "none", "Ask level (none, unsafe, all)")
 	flag.BoolVar(&opts.ShowCommands, "show-commands", false, "Show executed commands")
 	flag.BoolVar(&opts.HideProgress, "hide-progress", false, "Disable LLM-generated progress summary for each function")
@@ -79,30 +94,38 @@ func parseFlags() CLIOptions {
 	opts.CommandStr = strings.Join(args, " ")
 	opts.ConfigPath = *configPath
 
-	// Handle special commands
-	handleSpecialCommands(&opts)
+	// Determine command type and parse agent information
+	commandType := parseCommandType(&opts)
 
-	return opts
+	return opts, commandType
 }
 
-// handleSpecialCommands processes special command prefixes and modifies options accordingly
-func handleSpecialCommands(opts *CLIOptions) {
-	// Handle show-agent command (support both singular and plural forms)
+// parseCommandType determines what type of command is being executed and
+// updates the options accordingly
+func parseCommandType(opts *CLIOptions) CommandType {
+	// Check for show-agent command
 	if strings.HasPrefix(opts.CommandStr, "show-agent") {
-		handleShowAgent(opts.ConfigPath)
-		os.Exit(0)
+		parts := strings.SplitN(opts.CommandStr, " ", 2)
+		if len(parts) > 1 && strings.HasPrefix(parts[1], "+") {
+			// Extract agent name (remove + prefix)
+			agentName := parts[1][1:]
+			opts.AgentName = agentName
+			opts.ConfigPath = fmt.Sprintf("%s/%s.toml", DefaultConfigDir, agentName)
+		}
+		return ShowAgent
 	}
 
-	// Handle list-agents command
+	// Check for list-agents command
 	if strings.HasPrefix(opts.CommandStr, "list-agents") {
-		listAgents()
-		os.Exit(0)
+		return ListAgents
 	}
 
-	// Handle agent selection with + prefix
+	// Check for agent selection with + prefix
 	if strings.HasPrefix(opts.CommandStr, "+") {
 		parseAgentCommand(opts)
 	}
+
+	return NormalExecution
 }
 
 // parseAgentCommand handles the +agent syntax, extracting agent name and remaining command
@@ -121,7 +144,7 @@ func parseAgentCommand(opts *CLIOptions) {
 	}
 
 	// Set config path based on agent name
-	opts.ConfigPath = fmt.Sprintf("~/.config/esa/%s.toml", opts.AgentName)
+	opts.ConfigPath = fmt.Sprintf("%s/%s.toml", DefaultConfigDir, opts.AgentName)
 }
 
 func printHelp() {
@@ -160,14 +183,8 @@ func printFunctionInfo(fn FunctionConfig) {
 
 // listAgents lists all available agents in the default config directory
 func listAgents() {
-	// Get the default config directory
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		color.Red("Error getting home directory: %v\n", err)
-		return
-	}
-
-	configDir := filepath.Join(homeDir, ".config", "esa")
+	// Expand the default config directory
+	configDir := expandHomePath(DefaultConfigDir)
 
 	// Check if the directory exists
 	if _, err := os.Stat(configDir); os.IsNotExist(err) {
