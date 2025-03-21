@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -111,6 +112,13 @@ func parseAndValidateArgs(fc FunctionConfig, args string) (map[string]interface{
 func prepareCommand(fc FunctionConfig, parsedArgs map[string]interface{}) (string, error) {
 	command := fc.Command
 
+	// First, process any shell command blocks in the command
+	var err error
+	command, err = processShellBlocks(command)
+	if err != nil {
+		return "", fmt.Errorf("error processing shell blocks in command: %v", err)
+	}
+
 	// Replace parameters with their values
 	for _, param := range fc.Parameters {
 		placeholder := fmt.Sprintf("{{%s}}", param.Name)
@@ -128,6 +136,22 @@ func prepareCommand(fc FunctionConfig, parsedArgs map[string]interface{}) (strin
 
 	// Clean up any extra spaces from removed optional parameters
 	return strings.Join(strings.Fields(command), " "), nil
+}
+
+// processShellBlocks processes {{$...}} blocks in a string by executing them as shell commands
+// and replacing them with the command output
+func processShellBlocks(input string) (string, error) {
+	blocksRegex := regexp.MustCompile(`{{\$(.*?)}}`)
+	result := blocksRegex.ReplaceAllStringFunc(input, func(match string) string {
+		command := match[3 : len(match)-2] // Extract command without {{$ and }}
+		cmd := exec.Command("sh", "-c", command)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Sprintf("Error: %v", err)
+		}
+		return strings.TrimSpace(string(output))
+	})
+	return result, nil
 }
 
 func getParameterReplacement(param ParameterConfig, value interface{}) (string, error) {
@@ -177,9 +201,17 @@ func executeShellCommand(command string, fc FunctionConfig, args map[string]inte
 }
 
 func prepareStdinContent(stdinTemplate string, args map[string]interface{}) string {
+	// First, process any shell command blocks
+	processed, err := processShellBlocks(stdinTemplate)
+	if err != nil {
+		// If there's an error, just continue with the original template
+		processed = stdinTemplate
+	}
+	
+	// Then replace parameter placeholders
 	for key, value := range args {
 		placeholder := fmt.Sprintf("{{%s}}", key)
-		stdinTemplate = strings.ReplaceAll(stdinTemplate, placeholder, fmt.Sprintf("%v", value))
+		processed = strings.ReplaceAll(processed, placeholder, fmt.Sprintf("%v", value))
 	}
-	return stdinTemplate
+	return processed
 }
