@@ -59,6 +59,14 @@ func NewApplication(opts CLIOptions) (*Application, error) {
 
 func (app *Application) Run(opts CLIOptions) {
 	app.loadConversationHistory(opts.ContinueChat)
+
+	// Debug prints before starting communication
+	app.debugPrint("System Message", app.messages[0].Content)
+	app.debugPrint("Input State",
+		fmt.Sprintf("Command string: %q", opts.CommandStr),
+		fmt.Sprintf("Stdin: %q", readStdin()),
+	)
+
 	app.processInput(opts.CommandStr)
 	app.runConversationLoop(opts)
 }
