@@ -14,7 +14,7 @@ import (
 const DefaultConfigDir = "~/.config/esa"
 
 // DefaultConfigPath is the default location for the configuration file
-const DefaultConfigPath = DefaultConfigDir + "/config.toml"
+const DefaultConfigPath = DefaultConfigDir + "/default.toml"
 
 type CLIOptions struct {
 	DebugMode    bool

@@ -15,21 +15,53 @@ script or any executable.
 
 ## Usage
 
-To use the application, run the following command in your terminal:
+By default, ESA uses a configuration file located at `~/.config/esa/default.toml`. This default agent provides basic capabilities, but you can create and use different specialized agents for specific tasks.
+
+To use the application with the default agent, run:
 
 ```bash
 esa [--debug] [--config <path>] [--ask <level>] "<command>"
 ```
 
-You can also specify a different config file by using the `+` syntax:
+To list all available agents:
 
 ```bash
-esa +jira "list all open issues"
+esa list-agents
 ```
 
-This will use the config file located at `~/.config/esa/jira.toml`.
+To see details about a specific agent:
 
-You can create a new agent configuration using the `+new` syntax:
+```bash
+esa show-agent +<agent-name>
+```
+
+You can use different agents by using the `+` syntax followed by the agent name:
+
+```bash
+esa +jira "list all open issues"     # Uses ~/.config/esa/jira.toml
+esa +k8s "show pod status"           # Uses ~/.config/esa/k8s.toml
+esa +commit "summarize changes"      # Uses ~/.config/esa/commit.toml
+```
+
+Each agent is defined by its own TOML configuration file in `~/.config/esa/`. The agent name corresponds to the filename (without the .toml extension). You can create your own agents by defining custom TOML configuration files in this directory.
+
+Several example agent configurations are included in the repository under `examples/`:
+
+- `commit.toml` - A Git commit message assistant that analyzes diffs and generates structured commit messages
+- `k8s.toml` - A Kubernetes assistant for safe read-only cluster operations
+- `jira.toml` - A JIRA issue management assistant for tracking tasks and sprints
+- `help.toml` - A command documentation assistant that explains tool usage and options
+- `fixer.toml` - A code analysis assistant that helps fix linter issues
+- `summarizer.toml` - A web content summarization assistant
+
+You can study these examples to learn how to structure your own agents, or copy and modify them for your needs. Each example demonstrates different patterns like:
+- Safe vs unsafe command handling
+- Parameter validation
+- Input/output processing
+- Tool integration (git, kubectl, etc)
+- Complex workflows
+
+You can also create a new agent configuration using the `+new` syntax:
 
 ```bash
 esa +new "Create a coding assistant with read_file and list_files functions"
@@ -39,7 +71,7 @@ It will output a config file which you can use for a coding assistant agent.
 
 The available flags are:
 - `--debug`: Enables debug mode, printing additional information about the assistant's response and function execution.
-- `--config <path>`: Specifies the path to the configuration file. Defaults to `~/.config/esa/config.toml`.
+- `--config <path>`: Specifies the path to the configuration file. Defaults to `~/.config/esa/default.toml`.
 - `--ask <level>`: Specifies the confirmation level for command execution. Options are `none`, `unsafe`, and `all`. Default is `none`.
 - `-c, --continue`: Continue the last conversation with the assistant. The conversation history is stored per configuration file.
 
@@ -90,7 +122,7 @@ _You can find examples of the functions in the `functions` folder._
 
 ### Configuration File
 
-The configuration file is located at `~/.config/esa/config.toml`.  It
+The configuration file is located at `~/.config/esa/default.toml`.  It
 is a TOML file that defines the functions available to the
 assistant. It includes the following:
 
