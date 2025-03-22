@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"crypto/md5"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,13 +12,17 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/sashabaranov/go-openai"
 )
 
+const historyTimeFormat = "20060102-150405"
+
 type Application struct {
 	config          Config
+	configPath      string
 	client          *openai.Client
 	debug           bool
 	historyFile     string
@@ -29,10 +32,39 @@ type Application struct {
 	lastProgressLen int
 }
 
-func NewApplication(opts CLIOptions) (*Application, error) {
+func NewApplication(opts *CLIOptions) (*Application, error) {
 	cacheDir, err := setupCacheDir()
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup cache directory: %v", err)
+	}
+
+	var (
+		messages   []openai.ChatCompletionMessage
+		configPath string
+	)
+
+	historyFile, hasHistory := getHistoryFilePath(cacheDir, opts)
+	if hasHistory && opts.ContinueChat {
+		messages, configPath, err = loadConversationHistory(historyFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load conversation history: %v", err)
+		}
+
+		app := &Application{debug: opts.DebugMode}
+		app.debugPrint = createDebugPrinter(app.debug)
+		app.debugPrint("History",
+			fmt.Sprintf("Loaded %d messages from history", len(messages)),
+			fmt.Sprintf("Agent: %s", configPath),
+			fmt.Sprintf("History file: %q", historyFile),
+		)
+
+		if configPath != "" && opts.ConfigPath == "" {
+			opts.ConfigPath = configPath
+		}
+	}
+
+	if opts.ConfigPath == "" {
+		opts.ConfigPath = DefaultConfigPath
 	}
 
 	config, err := loadConfiguration(opts)
@@ -47,10 +79,12 @@ func NewApplication(opts CLIOptions) (*Application, error) {
 
 	app := &Application{
 		config:       config,
+		configPath:   opts.ConfigPath,
 		client:       client,
 		debug:        opts.DebugMode,
 		showProgress: !opts.HideProgress && !opts.DebugMode, // Hide progress if debug mode is enabled
-		historyFile:  filepath.Join(cacheDir, fmt.Sprintf("%x.json", md5.Sum([]byte(opts.ConfigPath)))),
+		historyFile:  historyFile,
+		messages:     messages,
 	}
 
 	app.debugPrint = createDebugPrinter(app.debug)
@@ -58,33 +92,40 @@ func NewApplication(opts CLIOptions) (*Application, error) {
 }
 
 func (app *Application) Run(opts CLIOptions) {
-	app.loadConversationHistory(opts.ContinueChat)
+	if app.messages == nil {
+		app.messages = []openai.ChatCompletionMessage{{
+			Role:    "system",
+			Content: app.getSystemPrompt(),
+		}}
+	}
 
 	// Debug prints before starting communication
 	app.debugPrint("System Message", app.messages[0].Content)
 	app.debugPrint("Input State",
 		fmt.Sprintf("Command string: %q", opts.CommandStr),
 		fmt.Sprintf("Stdin: %q", readStdin()),
+		fmt.Sprintf("Config path: %q", opts.ConfigPath),
 	)
 
 	app.processInput(opts.CommandStr)
 	app.runConversationLoop(opts)
 }
 
-func (app *Application) loadConversationHistory(continueChat bool) {
-	if continueChat {
-		if data, err := os.ReadFile(app.historyFile); err == nil {
-			if err := json.Unmarshal(data, &app.messages); err == nil {
-				app.debugPrint("History", fmt.Sprintf("Loaded %d previous messages", len(app.messages)))
-				return
-			}
-		}
+func loadConversationHistory(historyFile string) ([]openai.ChatCompletionMessage, string, error) {
+	data, err := os.ReadFile(historyFile)
+	if err != nil {
+		return nil, "", err
 	}
 
-	app.messages = []openai.ChatCompletionMessage{{
-		Role:    "system",
-		Content: app.getSystemPrompt(),
-	}}
+	var history ConversationHistory
+
+	err = json.Unmarshal(data, &history)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return history.Messages, history.ConfigPath, nil
+
 }
 
 func (app *Application) processInput(commandStr string) {
@@ -201,8 +242,18 @@ func (app *Application) handleStreamResponse(stream *openai.ChatCompletionStream
 	return assistantMsg
 }
 
+type ConversationHistory struct {
+	ConfigPath string                         `json:"config_path"`
+	Messages   []openai.ChatCompletionMessage `json:"messages"`
+}
+
 func (app *Application) saveConversationHistory() {
-	if data, err := json.Marshal(app.messages); err == nil {
+	history := ConversationHistory{
+		ConfigPath: app.configPath,
+		Messages:   app.messages,
+	}
+
+	if data, err := json.Marshal(history); err == nil {
 		if err := os.WriteFile(app.historyFile, data, 0644); err != nil {
 			app.debugPrint("Error", fmt.Sprintf("Failed to save history: %v", err))
 		}
@@ -377,6 +428,54 @@ func (app *Application) processSystemPrompt(prompt string) string {
 		}
 		return strings.TrimSpace(string(output))
 	})
+}
+
+func createNewHistoryFile(cacheDir string, agentName string) string {
+	if agentName == "" {
+		agentName = "default"
+	}
+	timestamp := time.Now().Format(historyTimeFormat)
+	return filepath.Join(cacheDir, fmt.Sprintf("%s-%s.json", agentName, timestamp))
+}
+
+func findLatestHistoryFile(cacheDir string) (string, error) {
+	entries, err := os.ReadDir(cacheDir)
+	if err != nil {
+		return "", err
+	}
+
+	var latestFile string
+	var latestTime time.Time
+
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".json") {
+			info, err := entry.Info()
+			if err != nil {
+				continue
+			}
+			if latestFile == "" || info.ModTime().After(latestTime) {
+				latestFile = entry.Name()
+				latestTime = info.ModTime()
+			}
+		}
+	}
+
+	if latestFile == "" {
+		return "", fmt.Errorf("no history files found")
+	}
+	return filepath.Join(cacheDir, latestFile), nil
+}
+
+func getHistoryFilePath(cacheDir string, opts *CLIOptions) (string, bool) {
+	if !opts.ContinueChat {
+		return createNewHistoryFile(cacheDir, opts.AgentName), false
+	}
+
+	if latestFile, err := findLatestHistoryFile(cacheDir); err == nil {
+		return latestFile, true
+	}
+
+	return createNewHistoryFile(cacheDir, opts.AgentName), false
 }
 
 func setupCacheDir() (string, error) {

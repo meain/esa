@@ -76,7 +76,7 @@ func parseFlags() (CLIOptions, CommandType) {
 	flag.BoolVar(&opts.DebugMode, "debug", false, "Enable debug mode")
 	flag.BoolVar(&opts.ContinueChat, "c", false, "Continue last conversation")
 	flag.BoolVar(&opts.ContinueChat, "continue", false, "Continue last conversation")
-	configPath := flag.String("config", DefaultConfigPath, "Path to the config file")
+	configPath := flag.String("config", "", "Path to the config file")
 	flag.StringVar(&opts.AskLevel, "ask", "none", "Ask level (none, unsafe, all)")
 	flag.BoolVar(&opts.ShowCommands, "show-commands", false, "Show executed commands")
 	flag.BoolVar(&opts.HideProgress, "hide-progress", false, "Disable LLM-generated progress summary for each function")

@@ -41,7 +41,7 @@ func loadConfig(configPath string) (Config, error) {
 	return config, err
 }
 
-func loadConfiguration(opts CLIOptions) (Config, error) {
+func loadConfiguration(opts *CLIOptions) (Config, error) {
 	if opts.AgentName == "new" {
 		var config Config
 		if _, err := toml.Decode(newAgentToml, &config); err != nil {

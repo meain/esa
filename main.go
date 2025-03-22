@@ -15,7 +15,7 @@ func main() {
 	case ListAgents:
 		listAgents()
 	case NormalExecution:
-		app, err := NewApplication(opts)
+		app, err := NewApplication(&opts)
 		if err != nil {
 			if opts.ConfigPath == DefaultConfigPath {
 				fmt.Printf(`Default config not found at %s
