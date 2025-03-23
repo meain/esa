@@ -27,10 +27,14 @@ AGENT CONFIGURATION:
    - Appropriate function selection
 
 Notes:
-    - Always use existing agents as reference for creating new agents
-    - You can look at existing agents to understand the functions used
+  - Always use existing agents as reference for creating new agents
+  - You can look at existing agents to understand the functions used
+  - Provide multiple examples in the system prompt of how you want the output to look like
+  - Mention a name, description, system_prompt and functions
 
 <example>
+name = "Code Reviewer"
+description = "An agent that analyzes code and provides improvement suggestions"
 system_prompt = """
 You are a Code Review Assistant that analyzes code and provides improvement suggestions.
 
@@ -39,6 +43,16 @@ Focus on:
 2. Potential bugs and security issues
 3. Performance optimizations
 4. Documentation and readability
+
+Example:
+<user_query>
+    def add(a, b):
+        return a - b
+</user_query>
+
+<response>
+    Function add should return a + b instead of a - b
+</response>
 """
 
 [[functions]]
