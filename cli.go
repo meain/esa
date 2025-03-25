@@ -25,6 +25,7 @@ type CLIOptions struct {
 	HideProgress bool
 	CommandStr   string
 	AgentName    string
+	Model        string
 }
 
 func handleShowAgent(configPath string) {
@@ -76,6 +77,7 @@ func parseFlags() (CLIOptions, CommandType) {
 	flag.BoolVar(&opts.ContinueChat, "c", false, "Continue last conversation")
 	flag.BoolVar(&opts.ContinueChat, "continue", false, "Continue last conversation")
 	configPath := flag.String("config", "", "Path to the config file")
+	flag.StringVar(&opts.Model, "model", "", "Model to use (e.g., openai/gpt-4)")
 	flag.StringVar(&opts.AskLevel, "ask", "none", "Ask level (none, unsafe, all)")
 	flag.BoolVar(&opts.ShowCommands, "show-commands", false, "Show executed commands")
 	flag.BoolVar(&opts.HideProgress, "hide-progress", false, "Disable LLM-generated progress summary for each function")
@@ -151,6 +153,7 @@ func printHelp() {
 	fmt.Println("\nOptions:")
 	fmt.Println("  --debug         Enable debug mode")
 	fmt.Println("  --config        Path to the config file")
+	fmt.Println("  --model         Model to use (e.g., openai/gpt-4)")
 	fmt.Println("  --ask           Ask level (none, unsafe, all)")
 	fmt.Println("  --show-commands Show executed commands")
 	fmt.Println("  --hide-progress Disable progress summary for each function (enabled by default)")

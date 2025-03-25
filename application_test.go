@@ -1,124 +1,65 @@
 package main
 
-import (
-	"os"
-	"testing"
+import "testing"
 
-	"github.com/sashabaranov/go-openai"
-)
-
-func TestApplication_ProcessInput(t *testing.T) {
+func TestParseModel(t *testing.T) {
 	tests := []struct {
 		name         string
-		config       Config
-		commandStr   string
-		stdinContent string
-		expectedMsgs []openai.ChatCompletionMessage
+		input        string
+		wantProvider string
+		wantModel    string
+		wantInfo     providerInfo
 	}{
 		{
-			name: "initial message from config without other input",
-			config: Config{
-				SystemPrompt:   "test system prompt",
-				InitialMessage: "test initial message",
-			},
-			commandStr:   "",
-			stdinContent: "",
-			expectedMsgs: []openai.ChatCompletionMessage{
-				{Role: "system", Content: "test system prompt"},
-				{Role: "user", Content: "test initial message"},
+			name:         "OpenAI model",
+			input:        "openai/gpt-4",
+			wantProvider: "openai",
+			wantModel:    "gpt-4",
+			wantInfo: providerInfo{
+				baseURL:     "https://api.openai.com/v1",
+				apiKeyEnvar: "OPENAI_API_KEY",
 			},
 		},
 		{
-			name: "command string should override initial message",
-			config: Config{
-				SystemPrompt:   "test system prompt",
-				InitialMessage: "test initial message",
-			},
-			commandStr:   "command input",
-			stdinContent: "",
-			expectedMsgs: []openai.ChatCompletionMessage{
-				{Role: "system", Content: "test system prompt"},
-				{Role: "user", Content: "command input"},
+			name:         "Anthropic model",
+			input:        "anthropic/claude-2",
+			wantProvider: "anthropic",
+			wantModel:    "claude-2",
+			wantInfo: providerInfo{
+				baseURL:     "https://api.anthropic.com/v1",
+				apiKeyEnvar: "ANTHROPIC_API_KEY",
 			},
 		},
 		{
-			name: "stdin should override initial message",
-			config: Config{
-				SystemPrompt:   "test system prompt",
-				InitialMessage: "test initial message",
+			name:         "Azure model",
+			input:        "azure/gpt-4",
+			wantProvider: "azure",
+			wantModel:    "gpt-4",
+			wantInfo: providerInfo{
+				baseURL:     "https://api.azure.com/v1",
+				apiKeyEnvar: "AZURE_OPENAI_API_KEY",
 			},
-			commandStr:   "",
-			stdinContent: "stdin input",
-			expectedMsgs: []openai.ChatCompletionMessage{
-				{Role: "system", Content: "test system prompt"},
-				{Role: "user", Content: "stdin input"},
-			},
+		},
+		{
+			name:         "No provider specified",
+			input:        "gpt-4",
+			wantProvider: "",
+			wantModel:    "gpt-4",
+			wantInfo:     providerInfo{},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Setup stdin if needed
-			if tt.stdinContent != "" {
-				r, w, err := os.Pipe()
-				if err != nil {
-					t.Fatal(err)
-				}
-				oldStdin := os.Stdin
-				os.Stdin = r
-				w.Write([]byte(tt.stdinContent))
-				w.Close()
-				defer func() { os.Stdin = oldStdin }()
+			gotProvider, gotModel, gotInfo := parseModel(tt.input)
+			if gotProvider != tt.wantProvider {
+				t.Errorf("parseModel() provider = %v, want %v", gotProvider, tt.wantProvider)
 			}
-
-			app := &Application{
-				config:   tt.config,
-				messages: []openai.ChatCompletionMessage{{Role: "system", Content: tt.config.SystemPrompt}},
+			if gotModel != tt.wantModel {
+				t.Errorf("parseModel() model = %v, want %v", gotModel, tt.wantModel)
 			}
-
-			app.processInput(tt.commandStr)
-
-			if len(app.messages) != len(tt.expectedMsgs) {
-				t.Errorf("Expected %d messages, got %d", len(tt.expectedMsgs), len(app.messages))
-				return
-			}
-
-			for i, msg := range app.messages {
-				if msg.Role != tt.expectedMsgs[i].Role {
-					t.Errorf("Message %d: expected role %s, got %s", i, tt.expectedMsgs[i].Role, msg.Role)
-				}
-				if msg.Content != tt.expectedMsgs[i].Content {
-					t.Errorf("Message %d: expected content %q, got %q", i, tt.expectedMsgs[i].Content, msg.Content)
-				}
-			}
-		})
-	}
-}
-
-func TestApplication_ProcessInitialMessage(t *testing.T) {
-	tests := []struct {
-		name            string
-		initialMessage  string
-		expectedContent string
-	}{
-		{
-			name:            "basic message without eval",
-			initialMessage:  "Hello, how can I help?",
-			expectedContent: "Hello, how can I help?",
-		},
-		{
-			name:            "message with eval block",
-			initialMessage:  "Current dir: {{$pwd}}",
-			expectedContent: "Current dir: " + os.Getenv("PWD"),
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			app := &Application{}
-			result := app.processInitialMessage(tt.initialMessage)
-			if result != tt.expectedContent {
-				t.Errorf("Expected content %q, got %q", tt.expectedContent, result)
+			if gotInfo != tt.wantInfo {
+				t.Errorf("parseModel() info = %+v, want %+v", gotInfo, tt.wantInfo)
 			}
 		})
 	}

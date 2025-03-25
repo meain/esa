@@ -30,6 +30,45 @@ type Application struct {
 	debugPrint      func(section string, v ...interface{})
 	showProgress    bool
 	lastProgressLen int
+	modelFlag       string
+}
+
+// providerInfo contains provider-specific configuration
+type providerInfo struct {
+	baseURL     string
+	apiKeyEnvar string
+}
+
+// parseModel parses model string in format "provider/model" and returns provider, model name, base URL and API key environment variable
+func parseModel(modelStr string) (provider string, model string, info providerInfo) {
+	parts := strings.SplitN(modelStr, "/", 2)
+	if len(parts) != 2 {
+		return "", modelStr, providerInfo{} // Default to just using model name if no provider specified
+	}
+
+	provider = parts[0]
+	model = parts[1]
+
+	// Map providers to their configurations
+	switch provider {
+	case "openai":
+		info = providerInfo{
+			baseURL:     "https://api.openai.com/v1",
+			apiKeyEnvar: "OPENAI_API_KEY",
+		}
+	case "anthropic":
+		info = providerInfo{
+			baseURL:     "https://api.anthropic.com/v1",
+			apiKeyEnvar: "ANTHROPIC_API_KEY",
+		}
+	case "azure":
+		info = providerInfo{
+			baseURL:     "https://api.azure.com/v1",
+			apiKeyEnvar: "AZURE_OPENAI_API_KEY",
+		}
+	}
+
+	return provider, model, info
 }
 
 func NewApplication(opts *CLIOptions) (*Application, error) {
@@ -72,7 +111,7 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 		return nil, fmt.Errorf("failed to load configuration: %v", err)
 	}
 
-	client, err := setupOpenAIClient()
+	client, err := setupOpenAIClient(opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup OpenAI client: %v", err)
 	}
@@ -85,6 +124,7 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 		showProgress: !opts.HideProgress && !opts.DebugMode, // Hide progress if debug mode is enabled
 		historyFile:  historyFile,
 		messages:     messages,
+		modelFlag:    opts.Model,
 	}
 
 	app.debugPrint = createDebugPrinter(app.debug)
@@ -125,7 +165,6 @@ func loadConversationHistory(historyFile string) ([]openai.ChatCompletionMessage
 	}
 
 	return history.Messages, history.ConfigPath, nil
-
 }
 
 func (app *Application) processInput(commandStr string) {
@@ -165,7 +204,7 @@ func (app *Application) runConversationLoop(opts CLIOptions) {
 		stream, err := app.client.CreateChatCompletionStream(
 			context.Background(),
 			openai.ChatCompletionRequest{
-				Model:      getEnvWithFallback("ESA_MODEL", "OPENAI_MODEL"),
+				Model:      app.getModel(),
 				Messages:   app.messages,
 				Tools:      openAITools,
 				ToolChoice: "auto",
@@ -185,6 +224,17 @@ func (app *Application) runConversationLoop(opts CLIOptions) {
 
 		app.handleToolCalls(assistantMsg.ToolCalls, opts)
 	}
+}
+
+func (app *Application) getModel() string {
+	modelStr := ""
+	if app.modelFlag != "" {
+		modelStr = app.modelFlag
+	} else {
+		modelStr = os.Getenv("ESA_MODEL")
+	}
+	_, model, _ := parseModel(modelStr)
+	return model
 }
 
 func (app *Application) handleStreamResponse(stream *openai.ChatCompletionStream) openai.ChatCompletionMessage {
@@ -281,10 +331,11 @@ Notes:
 - Use present continuous tense (e.g., 'Reading file')
 - Keep it concise (1 line, max 8 words)
 - Do not include function name or arguments`, funcName, args)
+
 	resp, err := app.client.CreateChatCompletion(
 		context.Background(),
 		openai.ChatCompletionRequest{
-			Model: getEnvWithFallback("ESA_MODEL", "OPENAI_MODEL"),
+			Model: app.getModel(),
 			Messages: []openai.ChatCompletionMessage{{
 				Role:    "user",
 				Content: prompt,
@@ -365,17 +416,36 @@ func (app *Application) handleToolCalls(toolCalls []openai.ToolCall, opts CLIOpt
 	}
 }
 
-func setupOpenAIClient() (*openai.Client, error) {
-	apiKey := getEnvWithFallback("ESA_API_KEY", "OPENAI_API_KEY")
-	baseURL := getEnvWithFallback("ESA_BASE_URL", "OPENAI_BASE_URL")
+func setupOpenAIClient(opts *CLIOptions) (*openai.Client, error) {
+	modelStr := ""
+	if opts != nil && opts.Model != "" {
+		modelStr = opts.Model
+	} else {
+		modelStr = os.Getenv("ESA_MODEL")
+	}
+	configuredBaseURL := os.Getenv("ESA_BASE_URL")
+	configuredAPIKey := getEnvWithFallback("ESA_API_KEY", "OPENAI_API_KEY")
 
-	if apiKey == "" {
+	// Get provider info
+	_, _, info := parseModel(modelStr)
+
+	// If ESA_API_KEY is not set, try to use provider-specific API key
+	if configuredAPIKey == "" && info.apiKeyEnvar != "" {
+		configuredAPIKey = os.Getenv(info.apiKeyEnvar)
+	}
+
+	if configuredAPIKey == "" {
 		return nil, fmt.Errorf("API key not found in environment variables")
 	}
 
-	llmConfig := openai.DefaultConfig(apiKey)
-	if baseURL != "" {
-		llmConfig.BaseURL = baseURL
+	llmConfig := openai.DefaultConfig(configuredAPIKey)
+
+	// If base URL is explicitly configured, use it
+	if configuredBaseURL != "" {
+		llmConfig.BaseURL = configuredBaseURL
+	} else if info.baseURL != "" {
+		// Otherwise try to use provider-specific base URL
+		llmConfig.BaseURL = info.baseURL
 	}
 
 	return openai.NewClientWithConfig(llmConfig), nil

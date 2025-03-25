@@ -77,6 +77,37 @@ The available flags are:
 
 ## Configuration
 
+### Model Configuration
+
+ESA supports a provider-based model specification format that automatically configures the appropriate base URL and API keys. You can specify models in the format `provider/model`, for example:
+
+```bash
+# Using OpenAI models
+ESA_MODEL="openai/gpt-4" # Uses OPENAI_API_KEY
+ESA_MODEL="openai/gpt-4-turbo" # Uses OPENAI_API_KEY
+
+# Using Anthropic models
+ESA_MODEL="anthropic/claude-2" # Uses ANTHROPIC_API_KEY
+
+# Using Azure OpenAI models
+ESA_MODEL="azure/gpt-4" # Uses AZURE_OPENAI_API_KEY
+```
+
+The system will:
+1. Automatically use the appropriate API key environment variable for the provider
+2. Configure the correct base URL for the API
+3. Use ESA_API_KEY and ESA_BASE_URL if provided
+
+Supported providers:
+- `openai`: Uses OPENAI_API_KEY and OpenAI's base URL
+- `anthropic`: Uses ANTHROPIC_API_KEY and Anthropic's base URL
+- `azure`: Uses AZURE_OPENAI_API_KEY and Azure's base URL
+
+Environment variables:
+- ESA_API_KEY: Override the provider-specific API key
+- ESA_BASE_URL: Override the provider-specific base URL
+- ESA_MODEL: Specify the model (with or without provider prefix)
+
 ### Confirmation Levels
 
 The `--ask` flag allows you to specify the level of confirmation required before executing commands. The available options are:
