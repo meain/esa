@@ -204,10 +204,9 @@ func (app *Application) runConversationLoop(opts CLIOptions) {
 		stream, err := app.client.CreateChatCompletionStream(
 			context.Background(),
 			openai.ChatCompletionRequest{
-				Model:      app.getModel(),
-				Messages:   app.messages,
-				Tools:      openAITools,
-				ToolChoice: "auto",
+				Model:    app.getModel(),
+				Messages: app.messages,
+				Tools:    openAITools,
 			})
 
 		if err != nil {
