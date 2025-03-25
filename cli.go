@@ -50,7 +50,6 @@ func handleShowAgent(configPath string) {
 
 	// Print available functions
 	if len(config.Functions) > 0 {
-		fmt.Printf("%s\n\n", labelStyle("Available functions"))
 		for _, fn := range config.Functions {
 			printFunctionInfo(fn)
 		}
