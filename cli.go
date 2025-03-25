@@ -221,9 +221,9 @@ func listAgents() {
 
 			// Print agent filename and name from config
 			if config.Name != "" {
-				fmt.Printf("%s (%s)\n", agentNameStyle(agentName), configNameStyle(config.Name))
+				fmt.Printf("%s (%s): ", configNameStyle(config.Name), agentNameStyle(agentName))
 			} else {
-				fmt.Printf("%s\n", agentNameStyle(agentName))
+				fmt.Printf("%s: ", agentNameStyle(agentName))
 			}
 
 			// Print description
@@ -232,7 +232,6 @@ func listAgents() {
 			} else {
 				fmt.Printf("%s\n", noDescStyle("(No description available)"))
 			}
-			fmt.Println()
 		}
 	}
 
