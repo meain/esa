@@ -40,10 +40,17 @@ type providerInfo struct {
 }
 
 // parseModel parses model string in format "provider/model" and returns provider, model name, base URL and API key environment variable
-func parseModel(modelStr string) (provider string, model string, info providerInfo) {
+func parseModel(modelFlag string) (provider string, model string, info providerInfo) {
+	modelStr := ""
+	if modelFlag != "" {
+		modelStr = modelFlag
+	} else {
+		modelStr = os.Getenv("ESA_MODEL")
+	}
+
 	parts := strings.SplitN(modelStr, "/", 2)
 	if len(parts) != 2 {
-		return "", modelStr, providerInfo{} // Default to just using model name if no provider specified
+		return "openai", modelStr, providerInfo{} // Default to just using model name if no provider specified
 	}
 
 	provider = parts[0]
@@ -74,7 +81,7 @@ func parseModel(modelStr string) (provider string, model string, info providerIn
 	case "github":
 		info = providerInfo{
 			baseURL:     "https://models.inference.ai.azure.com",
-			apiKeyEnvar: "GITHUB_MODELS_API_KEY=",
+			apiKeyEnvar: "GITHUB_MODELS_API_KEY",
 		}
 	}
 
@@ -138,6 +145,19 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 	}
 
 	app.debugPrint = createDebugPrinter(app.debug)
+	provider, model, info := parseModel(opts.Model)
+
+	app.debugPrint("Configuration",
+		fmt.Sprintf("Provider: %q", provider),
+		fmt.Sprintf("Model: %q", model),
+		fmt.Sprintf("Base URL: %q", info.baseURL),
+		fmt.Sprintf("API key envar: %q", info.apiKeyEnvar),
+		fmt.Sprintf("Config path: %q", opts.ConfigPath),
+		fmt.Sprintf("History file: %q", historyFile),
+		fmt.Sprintf("Debug mode: %v", app.debug),
+		fmt.Sprintf("Show progress: %v", app.showProgress),
+	)
+
 	return app, nil
 }
 
@@ -154,7 +174,6 @@ func (app *Application) Run(opts CLIOptions) {
 	app.debugPrint("Input State",
 		fmt.Sprintf("Command string: %q", opts.CommandStr),
 		fmt.Sprintf("Stdin: %q", readStdin()),
-		fmt.Sprintf("Config path: %q", opts.ConfigPath),
 	)
 
 	app.processInput(opts.CommandStr)
@@ -236,13 +255,7 @@ func (app *Application) runConversationLoop(opts CLIOptions) {
 }
 
 func (app *Application) getModel() string {
-	modelStr := ""
-	if app.modelFlag != "" {
-		modelStr = app.modelFlag
-	} else {
-		modelStr = os.Getenv("ESA_MODEL")
-	}
-	_, model, _ := parseModel(modelStr)
+	_, model, _ := parseModel(app.modelFlag)
 	return model
 }
 
@@ -426,17 +439,11 @@ func (app *Application) handleToolCalls(toolCalls []openai.ToolCall, opts CLIOpt
 }
 
 func setupOpenAIClient(opts *CLIOptions) (*openai.Client, error) {
-	modelStr := ""
-	if opts != nil && opts.Model != "" {
-		modelStr = opts.Model
-	} else {
-		modelStr = os.Getenv("ESA_MODEL")
-	}
 	configuredBaseURL := os.Getenv("ESA_BASE_URL")
-	configuredAPIKey := getEnvWithFallback("ESA_API_KEY", "OPENAI_API_KEY")
+	configuredAPIKey := os.Getenv("ESA_API_KEY")
 
 	// Get provider info
-	_, _, info := parseModel(modelStr)
+	_, _, info := parseModel(opts.Model)
 
 	// If ESA_API_KEY is not set, try to use provider-specific API key
 	if configuredAPIKey == "" && info.apiKeyEnvar != "" {
