@@ -56,15 +56,25 @@ func parseModel(modelStr string) (provider string, model string, info providerIn
 			baseURL:     "https://api.openai.com/v1",
 			apiKeyEnvar: "OPENAI_API_KEY",
 		}
-	case "anthropic":
+	case "ollama":
 		info = providerInfo{
-			baseURL:     "https://api.anthropic.com/v1",
-			apiKeyEnvar: "ANTHROPIC_API_KEY",
+			baseURL:     "http://localhost:11434/v1",
+			apiKeyEnvar: "ESA_API_KEY",
 		}
-	case "azure":
+	case "openrouter":
 		info = providerInfo{
-			baseURL:     "https://api.azure.com/v1",
-			apiKeyEnvar: "AZURE_OPENAI_API_KEY",
+			baseURL:     "https://openrouter.ai/api/v1",
+			apiKeyEnvar: "OPENROUTER_API_KEY",
+		}
+	case "groq":
+		info = providerInfo{
+			baseURL:     "https://api.groq.com/openai/v1",
+			apiKeyEnvar: "GROQ_API_KEY",
+		}
+	case "github":
+		info = providerInfo{
+			baseURL:     "https://models.inference.ai.azure.com",
+			apiKeyEnvar: "GITHUB_MODELS_API_KEY=",
 		}
 	}
 
