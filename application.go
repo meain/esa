@@ -407,6 +407,12 @@ func (app *Application) handleToolCalls(toolCalls []openai.ToolCall, opts CLIOpt
 			}
 		}
 
+		// Set the provider and model env so that nested esa calls
+		// make use of it. Users can override this by setting the
+		// value explicitly in the nested esa calls.
+		provider, model, _ := parseModel(opts.Model)
+		os.Setenv("ESA_MODEL", fmt.Sprintf("%s/%s", provider, model))
+
 		command, result, err := executeFunction(app.config.Ask, matchedFunc, toolCall.Function.Arguments, opts.ShowCommands)
 		app.debugPrint("Function Execution",
 			fmt.Sprintf("Function: %s", matchedFunc.Name),
