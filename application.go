@@ -171,12 +171,14 @@ func (app *Application) Run(opts CLIOptions) {
 
 	// Debug prints before starting communication
 	app.debugPrint("System Message", app.messages[0].Content)
+
+	input := readStdin()
 	app.debugPrint("Input State",
 		fmt.Sprintf("Command string: %q", opts.CommandStr),
-		fmt.Sprintf("Stdin: %q", readStdin()),
+		fmt.Sprintf("Stdin: %q", input),
 	)
 
-	app.processInput(opts.CommandStr)
+	app.processInput(opts.CommandStr, input)
 	app.runConversationLoop(opts)
 }
 
@@ -196,8 +198,7 @@ func loadConversationHistory(historyFile string) ([]openai.ChatCompletionMessage
 	return history.Messages, history.ConfigPath, nil
 }
 
-func (app *Application) processInput(commandStr string) {
-	input := readStdin()
+func (app *Application) processInput(commandStr, input string) {
 	if len(input) > 0 {
 		app.messages = append(app.messages, openai.ChatCompletionMessage{
 			Role:    "user",
