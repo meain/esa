@@ -464,6 +464,11 @@ func (app *Application) handleToolCalls(toolCalls []openai.ToolCall, opts CLIOpt
 			continue
 		}
 
+		// If we sent empty sting, OpenAI freaks out
+		if result == "" {
+			result = "--- EMPTY RESPONSE ---"
+		}
+
 		app.messages = append(app.messages, openai.ChatCompletionMessage{
 			Role:       "tool",
 			Name:       toolCall.Function.Name,
