@@ -1,7 +1,0 @@
-#!/bin/bash
-
-filename="$1"
-content="$2"
-
-echo "$content" > "$filename"
-echo "File '$filename' written successfully."
