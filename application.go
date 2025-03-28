@@ -21,8 +21,8 @@ import (
 const historyTimeFormat = "20060102-150405"
 
 type Application struct {
-	config          Config
-	configPath      string
+	agent           Agent
+	agentPath       string
 	client          *openai.Client
 	debug           bool
 	historyFile     string
@@ -95,13 +95,13 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 	}
 
 	var (
-		messages   []openai.ChatCompletionMessage
-		configPath string
+		messages  []openai.ChatCompletionMessage
+		agentPath string
 	)
 
 	historyFile, hasHistory := getHistoryFilePath(cacheDir, opts)
 	if hasHistory && opts.ContinueChat {
-		messages, configPath, err = loadConversationHistory(historyFile)
+		messages, agentPath, err = loadConversationHistory(historyFile)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load conversation history: %v", err)
 		}
@@ -110,22 +110,22 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 		app.debugPrint = createDebugPrinter(app.debug)
 		app.debugPrint("History",
 			fmt.Sprintf("Loaded %d messages from history", len(messages)),
-			fmt.Sprintf("Agent: %s", configPath),
+			fmt.Sprintf("Agent: %s", agentPath),
 			fmt.Sprintf("History file: %q", historyFile),
 		)
 
-		if configPath != "" && opts.ConfigPath == "" {
-			opts.ConfigPath = configPath
+		if agentPath != "" && opts.AgentPath == "" {
+			opts.AgentPath = agentPath
 		}
 	}
 
-	if opts.ConfigPath == "" {
-		opts.ConfigPath = DefaultConfigPath
+	if opts.AgentPath == "" {
+		opts.AgentPath = DefaultAgentPath
 	}
 
-	config, err := loadConfiguration(opts)
+	agent, err := loadConfiguration(opts)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load configuration: %v", err)
+		return nil, fmt.Errorf("failed to load agent configuration: %v", err)
 	}
 
 	client, err := setupOpenAIClient(opts)
@@ -134,8 +134,8 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 	}
 
 	app := &Application{
-		config:       config,
-		configPath:   opts.ConfigPath,
+		agent:        agent,
+		agentPath:    opts.AgentPath,
 		client:       client,
 		debug:        opts.DebugMode,
 		showProgress: !opts.HideProgress && !opts.DebugMode, // Hide progress if debug mode is enabled
@@ -152,7 +152,7 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 		fmt.Sprintf("Model: %q", model),
 		fmt.Sprintf("Base URL: %q", info.baseURL),
 		fmt.Sprintf("API key envar: %q", info.apiKeyEnvar),
-		fmt.Sprintf("Config path: %q", opts.ConfigPath),
+		fmt.Sprintf("Agent path: %q", opts.AgentPath),
 		fmt.Sprintf("History file: %q", historyFile),
 		fmt.Sprintf("Debug mode: %v", app.debug),
 		fmt.Sprintf("Show progress: %v", app.showProgress),
@@ -195,7 +195,7 @@ func loadConversationHistory(historyFile string) ([]openai.ChatCompletionMessage
 		return nil, "", err
 	}
 
-	return history.Messages, history.ConfigPath, nil
+	return history.Messages, history.AgentPath, nil
 }
 
 func (app *Application) processInput(commandStr, input string) {
@@ -213,11 +213,11 @@ func (app *Application) processInput(commandStr, input string) {
 		})
 	}
 
-	// If no input from stdin or command line, use initial message from config
-	if len(input) == 0 && len(commandStr) == 0 && app.config.InitialMessage != "" {
+	// If no input from stdin or command line, use initial message from agent config
+	if len(input) == 0 && len(commandStr) == 0 && app.agent.InitialMessage != "" {
 		app.messages = append(app.messages, openai.ChatCompletionMessage{
 			Role:    "user",
-			Content: app.processInitialMessage(app.config.InitialMessage),
+			Content: app.processInitialMessage(app.agent.InitialMessage),
 		})
 	}
 }
@@ -228,7 +228,7 @@ func (app *Application) processInitialMessage(message string) string {
 }
 
 func (app *Application) runConversationLoop(opts CLIOptions) {
-	openAITools := convertFunctionsToTools(app.config.Functions)
+	openAITools := convertFunctionsToTools(app.agent.Functions)
 
 	for {
 		stream, err := app.client.CreateChatCompletionStream(
@@ -316,14 +316,14 @@ func (app *Application) handleStreamResponse(stream *openai.ChatCompletionStream
 }
 
 type ConversationHistory struct {
-	ConfigPath string                         `json:"config_path"`
-	Messages   []openai.ChatCompletionMessage `json:"messages"`
+	AgentPath string                         `json:"agent_path"`
+	Messages  []openai.ChatCompletionMessage `json:"messages"`
 }
 
 func (app *Application) saveConversationHistory() {
 	history := ConversationHistory{
-		ConfigPath: app.configPath,
-		Messages:   app.messages,
+		AgentPath: app.agentPath,
+		Messages:  app.messages,
 	}
 
 	if data, err := json.Marshal(history); err == nil {
@@ -384,7 +384,7 @@ func (app *Application) handleToolCalls(toolCalls []openai.ToolCall, opts CLIOpt
 		}
 
 		var matchedFunc FunctionConfig
-		for _, fc := range app.config.Functions {
+		for _, fc := range app.agent.Functions {
 			if fc.Name == toolCall.Function.Name {
 				matchedFunc = fc
 				break
@@ -413,7 +413,7 @@ func (app *Application) handleToolCalls(toolCalls []openai.ToolCall, opts CLIOpt
 		provider, model, _ := parseModel(opts.Model)
 		os.Setenv("ESA_MODEL", fmt.Sprintf("%s/%s", provider, model))
 
-		command, result, err := executeFunction(app.config.Ask, matchedFunc, toolCall.Function.Arguments, opts.ShowCommands)
+		command, result, err := executeFunction(app.agent.Ask, matchedFunc, toolCall.Function.Arguments, opts.ShowCommands)
 		app.debugPrint("Function Execution",
 			fmt.Sprintf("Function: %s", matchedFunc.Name),
 			fmt.Sprintf("Command: %s", command),
@@ -504,8 +504,8 @@ func createDebugPrinter(debugMode bool) func(string, ...interface{}) {
 }
 
 func (app *Application) getSystemPrompt() string {
-	if app.config.SystemPrompt != "" {
-		return app.processSystemPrompt(app.config.SystemPrompt)
+	if app.agent.SystemPrompt != "" {
+		return app.processSystemPrompt(app.agent.SystemPrompt)
 	}
 	return app.processSystemPrompt(systemPrompt)
 }

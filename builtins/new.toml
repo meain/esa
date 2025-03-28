@@ -156,13 +156,13 @@ format = "-n "
 [[functions]]
 name = "list_existing_agents"
 description = "List names of all existing agents"
-command = "ls -1 ~/.config/esa | cut -d'.' -f1"
+command = "ls -1 ~/.config/esa/agents | cut -d'.' -f1"
 safe = true
 
 [[functions]]
 name = "get_agent_config"
 description = "Get the configuration of an existing agent"
-command = "cat ~/.config/esa/{{agent_name}}.toml"
+command = "cat ~/.config/esa/agents/{{agent_name}}.toml"
 safe = true
 
 [[functions.parameters]]

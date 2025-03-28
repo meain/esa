@@ -15,12 +15,12 @@ script or any executable.
 
 ## Usage
 
-By default, ESA uses a configuration file located at `~/.config/esa/default.toml`. This default agent provides basic capabilities, but you can create and use different specialized agents for specific tasks.
+By default, ESA uses a configuration file located at `~/.config/esa/agents/default.toml`. This default agent provides basic capabilities, but you can create and use different specialized agents for specific tasks.
 
 To use the application with the default agent, run:
 
 ```bash
-esa [--debug] [--config <path>] [--ask <level>] "<command>"
+esa [--debug] [--agent <path>] [--ask <level>] "<command>"
 ```
 
 To list all available agents:
@@ -38,12 +38,12 @@ esa show-agent +<agent-name>
 You can use different agents by using the `+` syntax followed by the agent name:
 
 ```bash
-esa +jira "list all open issues"     # Uses ~/.config/esa/jira.toml
-esa +k8s "show pod status"           # Uses ~/.config/esa/k8s.toml
-esa +commit "summarize changes"      # Uses ~/.config/esa/commit.toml
+esa +jira "list all open issues"     # Uses ~/.config/esa/agents/jira.toml
+esa +k8s "show pod status"           # Uses ~/.config/esa/agents/k8s.toml
+esa +commit "summarize changes"      # Uses ~/.config/esa/agents/commit.toml
 ```
 
-Each agent is defined by its own TOML configuration file in `~/.config/esa/`. The agent name corresponds to the filename (without the .toml extension). You can create your own agents by defining custom TOML configuration files in this directory.
+Each agent is defined by its own TOML configuration file in `~/.config/esa/agents`. The agent name corresponds to the filename (without the .toml extension). You can create your own agents by defining custom TOML configuration files in this directory.
 
 Several example agent configurations are included in the repository under `examples/`:
 
@@ -67,13 +67,13 @@ You can also create a new agent configuration using the `+new` syntax:
 esa +new "Create a coding assistant with read_file and list_files functions"
 ```
 
-It will output a config file which you can use for a coding assistant agent.
+It will output a agent config file which you can use for a coding assistant agent.
 
 The available flags are:
 - `--debug`: Enables debug mode, printing additional information about the assistant's response and function execution.
-- `--config <path>`: Specifies the path to the configuration file. Defaults to `~/.config/esa/default.toml`.
+- `--agent <path>`: Specifies the path to the agent configuration file. Defaults to `~/.config/esa/agents/default.toml`.
 - `--ask <level>`: Specifies the confirmation level for command execution. Options are `none`, `unsafe`, and `all`. Default is `none`.
-- `-c, --continue`: Continue the last conversation with the assistant. The conversation history is stored per configuration file.
+- `-c, --continue`: Continue the last conversation with the assistant.
 
 ## Configuration
 
@@ -120,9 +120,9 @@ The `--ask` flag allows you to specify the level of confirmation required before
 
 The `safe` property in the function configuration determines whether a command is considered safe or potentially unsafe. If `safe` is set to `true`, the command will be executed without confirmation when the `--ask` level is set to `unsafe`. If `safe` is set to `false` or not specified, confirmation will be required.
 
-The capabilities of your assistant are easily extendable by adding more functions to the config file.
+The capabilities of your assistant are easily extendable by adding more functions to the agent config file.
 
-With the provided example config you could execute things like:
+With the provided example agent config you could execute things like:
 
 ```bash
 esa "what is a harpoon" # answer basic questions
@@ -153,9 +153,9 @@ _You can find examples of the functions in the `functions` folder._
 
 ### Configuration File
 
-The configuration file is located at `~/.config/esa/default.toml`.  It
-is a TOML file that defines the functions available to the
-assistant. It includes the following:
+The default agent configuration file is located at
+`~/.config/esa/agents/default.toml`.  It is a TOML file that defines
+the functions available to the assistant. It includes the following:
 
 - `functions`: An array of function definitions. Each function has:
   - `name`: The name of the function.

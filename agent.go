@@ -9,7 +9,7 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-type Config struct {
+type Agent struct {
 	Name           string           `toml:"name"`
 	Description    string           `toml:"description"`
 	Functions      []FunctionConfig `toml:"functions"`
@@ -36,21 +36,21 @@ type ParameterConfig struct {
 	Format      string `toml:"format,omitempty"`
 }
 
-func loadConfig(configPath string) (Config, error) {
-	var config Config
-	_, err := toml.DecodeFile(expandHomePath(configPath), &config)
-	return config, err
+func loadAgent(agentPath string) (Agent, error) {
+	var agent Agent
+	_, err := toml.DecodeFile(expandHomePath(agentPath), &agent)
+	return agent, err
 }
 
-func loadConfiguration(opts *CLIOptions) (Config, error) {
+func loadConfiguration(opts *CLIOptions) (Agent, error) {
 	if opts.AgentName == "new" {
-		var config Config
-		if _, err := toml.Decode(newAgentToml, &config); err != nil {
-			return Config{}, fmt.Errorf("error loading embedded new agent config: %v", err)
+		var agent Agent
+		if _, err := toml.Decode(newAgentToml, &agent); err != nil {
+			return Agent{}, fmt.Errorf("error loading embedded new agent config: %v", err)
 		}
-		return config, nil
+		return agent, nil
 	}
-	return loadConfig(opts.ConfigPath)
+	return loadAgent(opts.AgentPath)
 }
 
 func expandHomePath(path string) string {

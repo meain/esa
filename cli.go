@@ -10,16 +10,16 @@ import (
 	"github.com/fatih/color"
 )
 
-// DefaultConfigDir is the default directory for agent configuration files
-const DefaultConfigDir = "~/.config/esa"
+// DefaultAgentsDir is the default directory for agent configuration files
+const DefaultAgentsDir = "~/.config/esa/agents"
 
-// DefaultConfigPath is the default location for the configuration file
-const DefaultConfigPath = DefaultConfigDir + "/default.toml"
+// DefaultAgentPath is the default location for the agent configuration file
+const DefaultAgentPath = DefaultAgentsDir + "/default.toml"
 
 type CLIOptions struct {
 	DebugMode    bool
 	ContinueChat bool
-	ConfigPath   string
+	AgentPath    string
 	AskLevel     string
 	ShowCommands bool
 	HideProgress bool
@@ -28,30 +28,30 @@ type CLIOptions struct {
 	Model        string
 }
 
-func handleShowAgent(configPath string) {
-	config, err := loadConfig(configPath)
+func handleShowAgent(agentPath string) {
+	agent, err := loadAgent(agentPath)
 	if err != nil {
-		color.Red("Error loading config: %v\n", err)
+		color.Red("Error loading agent: %v\n", err)
 		return
 	}
 
 	labelStyle := color.New(color.FgHiCyan, color.Bold).SprintFunc()
 
 	// Print agent name and description if available
-	if config.Name != "" {
-		fmt.Printf("%s %s (%s)\n", labelStyle("Agent:"), config.Name, filepath.Base(configPath))
+	if agent.Name != "" {
+		fmt.Printf("%s %s (%s)\n", labelStyle("Agent:"), agent.Name, filepath.Base(agentPath))
 	} else {
-		fmt.Printf("%s %s\n", labelStyle("Agent:"), filepath.Base(configPath))
+		fmt.Printf("%s %s\n", labelStyle("Agent:"), filepath.Base(agentPath))
 	}
 
-	if config.Description != "" {
-		fmt.Printf("%s %s\n", labelStyle("Description:"), config.Description)
+	if agent.Description != "" {
+		fmt.Printf("%s %s\n", labelStyle("Description:"), agent.Description)
 	}
 	fmt.Println()
 
 	// Print available functions
-	if len(config.Functions) > 0 {
-		for _, fn := range config.Functions {
+	if len(agent.Functions) > 0 {
+		for _, fn := range agent.Functions {
 			printFunctionInfo(fn)
 		}
 	} else {
@@ -76,7 +76,7 @@ func parseFlags() (CLIOptions, CommandType) {
 	flag.BoolVar(&opts.DebugMode, "debug", false, "Enable debug mode")
 	flag.BoolVar(&opts.ContinueChat, "c", false, "Continue last conversation")
 	flag.BoolVar(&opts.ContinueChat, "continue", false, "Continue last conversation")
-	configPath := flag.String("config", "", "Path to the config file")
+	agentPath := flag.String("agent", "", "Path to the agent config file")
 	flag.StringVar(&opts.Model, "model", "", "Model to use (e.g., openai/gpt-4)")
 	flag.StringVar(&opts.AskLevel, "ask", "none", "Ask level (none, unsafe, all)")
 	flag.BoolVar(&opts.ShowCommands, "show-commands", false, "Show executed commands")
@@ -93,7 +93,7 @@ func parseFlags() (CLIOptions, CommandType) {
 	// Process command arguments
 	args := flag.Args()
 	opts.CommandStr = strings.Join(args, " ")
-	opts.ConfigPath = *configPath
+	opts.AgentPath = *agentPath
 
 	// Determine command type and parse agent information
 	commandType := parseCommandType(&opts)
@@ -111,7 +111,7 @@ func parseCommandType(opts *CLIOptions) CommandType {
 			// Extract agent name (remove + prefix)
 			agentName := parts[1][1:]
 			opts.AgentName = agentName
-			opts.ConfigPath = fmt.Sprintf("%s/%s.toml", DefaultConfigDir, agentName)
+			opts.AgentPath = fmt.Sprintf("%s/%s.toml", DefaultAgentsDir, agentName)
 		}
 		return ShowAgent
 	}
@@ -144,15 +144,15 @@ func parseAgentCommand(opts *CLIOptions) {
 		opts.CommandStr = parts[1]
 	}
 
-	// Set config path based on agent name
-	opts.ConfigPath = fmt.Sprintf("%s/%s.toml", DefaultConfigDir, opts.AgentName)
+	// Set agent path based on agent name
+	opts.AgentPath = fmt.Sprintf("%s/%s.toml", DefaultAgentsDir, opts.AgentName)
 }
 
 func printHelp() {
-	fmt.Println("Usage: esa <command> [--debug] [--config <path>] [--ask <level>] [--show-progress]")
+	fmt.Println("Usage: esa <command> [--debug] [--agent <path>] [--ask <level>] [--show-progress]")
 	fmt.Println("\nOptions:")
 	fmt.Println("  --debug         Enable debug mode")
-	fmt.Println("  --config        Path to the config file")
+	fmt.Println("  --agent         Path to the agent config file")
 	fmt.Println("  --model         Model to use (e.g., openai/gpt-4)")
 	fmt.Println("  --ask           Ask level (none, unsafe, all)")
 	fmt.Println("  --show-commands Show executed commands")
@@ -186,25 +186,25 @@ func printFunctionInfo(fn FunctionConfig) {
 // listAgents lists all available agents in the default config directory
 func listAgents() {
 	// Expand the default config directory
-	configDir := expandHomePath(DefaultConfigDir)
+	agentDir := expandHomePath(DefaultAgentsDir)
 
 	// Check if the directory exists
-	if _, err := os.Stat(configDir); os.IsNotExist(err) {
-		color.Red("Config directory does not exist: %s\n", configDir)
+	if _, err := os.Stat(agentDir); os.IsNotExist(err) {
+		color.Red("Agent directory does not exist: %s\n", agentDir)
 		return
 	}
 
 	// Read all .toml files in the directory
-	files, err := os.ReadDir(configDir)
+	files, err := os.ReadDir(agentDir)
 	if err != nil {
-		color.Red("Error reading config directory: %v\n", err)
+		color.Red("Error reading agent directory: %v\n", err)
 		return
 	}
 
 	foundAgents := false
 
 	agentNameStyle := color.New(color.FgHiCyan, color.Bold).SprintFunc()
-	configNameStyle := color.New(color.FgHiGreen).SprintFunc()
+	nameStyle := color.New(color.FgHiGreen).SprintFunc()
 	noDescStyle := color.New(color.FgHiBlack, color.Italic).SprintFunc()
 
 	for _, file := range files {
@@ -212,25 +212,25 @@ func listAgents() {
 			foundAgents = true
 			agentName := strings.TrimSuffix(file.Name(), ".toml")
 
-			// Load the config to get the description
-			configPath := filepath.Join(configDir, file.Name())
-			config, err := loadConfig(configPath)
+			// Load the agent config to get the description
+			agentPath := filepath.Join(agentDir, file.Name())
+			agent, err := loadAgent(agentPath)
 
 			if err != nil {
-				color.Red("%s: Error loading config\n", agentName)
+				color.Red("%s: Error loading agent\n", agentName)
 				continue
 			}
 
 			// Print agent filename and name from config
-			if config.Name != "" {
-				fmt.Printf("%s (%s): ", configNameStyle(config.Name), agentNameStyle(agentName))
+			if agent.Name != "" {
+				fmt.Printf("%s (%s): ", nameStyle(agent.Name), agentNameStyle(agentName))
 			} else {
 				fmt.Printf("%s: ", agentNameStyle(agentName))
 			}
 
 			// Print description
-			if config.Description != "" {
-				fmt.Println(config.Description)
+			if agent.Description != "" {
+				fmt.Println(agent.Description)
 			} else {
 				fmt.Printf("%s\n", noDescStyle("(No description available)"))
 			}
@@ -238,6 +238,6 @@ func listAgents() {
 	}
 
 	if !foundAgents {
-		color.Yellow("No agents found in the config directory.")
+		color.Yellow("No agents found in the agent directory.")
 	}
 }
