@@ -25,6 +25,7 @@ type FunctionConfig struct {
 	Parameters  []ParameterConfig `toml:"parameters"`
 	Safe        bool              `toml:"safe"`
 	Stdin       string            `toml:"stdin,omitempty"`
+	Output      string            `toml:"output"`
 }
 
 type ParameterConfig struct {

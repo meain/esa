@@ -100,7 +100,7 @@ description = "Path to search in"
 required = true
 </example>
 
-To create an agent, you'll need:
+To create an agent, you will need:
 1. A clear purpose and scope for the agent
 2. Required capabilities and functions
 3. Appropriate system prompt
@@ -114,8 +114,13 @@ Notes:
   creating a function to delete a file, mark it as unsafe.
 - Pay close attention when you mark a parameter as optional, ensure that
   the command can handle the absence of that parameter.
+- Ask user questions if you need clarification. For example if you
+  do not find cli command for the task, ask the user for the cli to
+  use.
+- Always clarify with the user what the expected output should look
+  like if not specified.
 
-Only output the final config file without any additional markers based on the user's request.'''
+Only output the final config file without any additional markers based on the user\'s request.'''
 
 [[functions]]
 name = "check_help"
@@ -164,4 +169,17 @@ safe = true
 name = "agent_name"
 type = "string"
 description = "Name of the agent"
+required = true
+
+[[function]]
+name = "ask_user_question"
+description = "Ask a question to the user. Use this instead of directly asking the user a question."
+output = "{{query}}"
+command = "read answer && echo $answer"
+safe = true
+
+[[functions.parameters]]
+name = "query"
+type = "string"
+description = "Question to ask the user"
 required = true

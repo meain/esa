@@ -395,7 +395,7 @@ func (app *Application) handleToolCalls(toolCalls []openai.ToolCall, opts CLIOpt
 			log.Fatalf("No matching function found for: %s", toolCall.Function.Name)
 		}
 
-		if app.showProgress {
+		if app.showProgress && len(matchedFunc.Output) == 0 {
 			if summary := app.generateProgressSummary(matchedFunc.Name, toolCall.Function.Arguments); summary != "" {
 				// Clear previous line if exists
 				if app.lastProgressLen > 0 {

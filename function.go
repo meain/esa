@@ -185,11 +185,35 @@ func needsConfirmation(askLevel string, isSafe bool) bool {
 }
 
 func executeShellCommand(command string, fc FunctionConfig, args map[string]interface{}) ([]byte, error) {
+	if fc.Output != "" {
+		// Process output template similar to command
+		formattedOutput, err := processShellBlocks(fc.Output)
+		if err != nil {
+			return nil, fmt.Errorf("error processing output template: %v", err)
+		}
+
+		// Replace parameters in output template
+		for _, param := range fc.Parameters {
+			placeholder := fmt.Sprintf("{{%s}}", param.Name)
+			if value, exists := args[param.Name]; exists {
+				replacement, err := getParameterReplacement(param, value)
+				if err != nil {
+					return nil, err
+				}
+				formattedOutput = strings.ReplaceAll(formattedOutput, placeholder, replacement)
+			}
+		}
+
+		fmt.Print(formattedOutput)
+	}
+
 	cmd := exec.Command("sh", "-c", command)
 
 	if fc.Stdin != "" {
 		stdinContent := prepareStdinContent(fc.Stdin, args)
 		cmd.Stdin = strings.NewReader(stdinContent)
+	} else {
+		cmd.Stdin = os.Stdin
 	}
 
 	output, err := cmd.CombinedOutput()
@@ -207,7 +231,7 @@ func prepareStdinContent(stdinTemplate string, args map[string]interface{}) stri
 		// If there's an error, just continue with the original template
 		processed = stdinTemplate
 	}
-	
+
 	// Then replace parameter placeholders
 	for key, value := range args {
 		placeholder := fmt.Sprintf("{{%s}}", key)
