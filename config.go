@@ -12,13 +12,21 @@ const DefaultConfigPath = "~/.config/esa/config.toml"
 
 // Config represents the global configuration structure
 type Config struct {
-	ModelAliases map[string]string `toml:"model_aliases"`
+	ModelAliases map[string]string         `toml:"model_aliases"`
+	Providers    map[string]ProviderConfig `toml:"providers"`
+}
+
+// ProviderConfig represents the configuration for a model provider
+type ProviderConfig struct {
+	BaseURL     string `toml:"base_url"`
+	APIKeyEnvar string `toml:"api_key_envar"`
 }
 
 // LoadConfig loads the configuration from the specified path
 func LoadConfig(configPath string) (*Config, error) {
 	config := &Config{
 		ModelAliases: make(map[string]string),
+		Providers:    make(map[string]ProviderConfig),
 	}
 
 	// Expand home directory if needed
@@ -37,10 +45,8 @@ func LoadConfig(configPath string) (*Config, error) {
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		// Create default config file
 		defaultConfig := Config{
-			ModelAliases: map[string]string{
-				"mini":     "openai/gpt-4-mini",
-				"deepseek": "openrouter/deepseek/deepseek-chat-v3-0324:free",
-			},
+			ModelAliases: map[string]string{},
+			Providers:    map[string]ProviderConfig{},
 		}
 		file, err := os.Create(configPath)
 		if err != nil {

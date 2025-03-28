@@ -5,14 +5,16 @@ import "testing"
 func TestParseModel(t *testing.T) {
 	tests := []struct {
 		name         string
-		input        string
+		modelFlag    string
+		config       *Config
 		wantProvider string
 		wantModel    string
 		wantInfo     providerInfo
 	}{
 		{
-			name:         "OpenAI model",
-			input:        "openai/gpt-4",
+			name:         "OpenAI default model",
+			modelFlag:    "openai/gpt-4",
+			config:       nil,
 			wantProvider: "openai",
 			wantModel:    "gpt-4",
 			wantInfo: providerInfo{
@@ -21,37 +23,90 @@ func TestParseModel(t *testing.T) {
 			},
 		},
 		{
-			name:         "Anthropic model",
-			input:        "anthropic/claude-2",
-			wantProvider: "anthropic",
-			wantModel:    "claude-2",
+			name:      "Custom provider from config",
+			modelFlag: "custom/model-1",
+			config: &Config{
+				Providers: map[string]ProviderConfig{
+					"custom": {
+						BaseURL:     "https://custom.api/v1",
+						APIKeyEnvar: "CUSTOM_API_KEY",
+					},
+				},
+			},
+			wantProvider: "custom",
+			wantModel:    "model-1",
 			wantInfo: providerInfo{
-				baseURL:     "https://api.anthropic.com/v1",
-				apiKeyEnvar: "ANTHROPIC_API_KEY",
+				baseURL:     "https://custom.api/v1",
+				apiKeyEnvar: "CUSTOM_API_KEY",
 			},
 		},
 		{
-			name:         "Azure model",
-			input:        "azure/gpt-4",
-			wantProvider: "azure",
+			name:      "Partial provider override in config",
+			modelFlag: "openai/gpt-4",
+			config: &Config{
+				Providers: map[string]ProviderConfig{
+					"openai": {
+						BaseURL: "https://custom-openai.api/v2",
+						// APIKeyEnvar not specified, should use default
+					},
+				},
+			},
+			wantProvider: "openai",
 			wantModel:    "gpt-4",
 			wantInfo: providerInfo{
-				baseURL:     "https://api.azure.com/v1",
-				apiKeyEnvar: "AZURE_OPENAI_API_KEY",
+				baseURL:     "https://custom-openai.api/v2",
+				apiKeyEnvar: "OPENAI_API_KEY", // Should keep default
+			},
+		},
+		{
+			name:      "Custom provider with builtin still available",
+			modelFlag: "custom/model-1",
+			config: &Config{
+				Providers: map[string]ProviderConfig{
+					"custom": {
+						BaseURL:     "https://custom.api/v1",
+						APIKeyEnvar: "CUSTOM_API_KEY",
+					},
+				},
+			},
+			wantProvider: "custom",
+			wantModel:    "model-1",
+			wantInfo: providerInfo{
+				baseURL:     "https://custom.api/v1",
+				apiKeyEnvar: "CUSTOM_API_KEY",
+			},
+		},
+		{
+			name:         "Built-in provider unchanged",
+			modelFlag:    "ollama/llama2",
+			config:       &Config{}, // Empty config
+			wantProvider: "ollama",
+			wantModel:    "llama2",
+			wantInfo: providerInfo{
+				baseURL:     "http://localhost:11434/v1",
+				apiKeyEnvar: "ESA_API_KEY",
 			},
 		},
 		{
 			name:         "No provider specified",
-			input:        "gpt-4",
-			wantProvider: "",
+			modelFlag:    "gpt-4",
+			config:       nil,
+			wantProvider: "openai",
 			wantModel:    "gpt-4",
-			wantInfo:     providerInfo{},
+			wantInfo: providerInfo{
+				baseURL:     "https://api.openai.com/v1",
+				apiKeyEnvar: "OPENAI_API_KEY",
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotProvider, gotModel, gotInfo := parseModel(tt.input)
+			app := &Application{
+				modelFlag: tt.modelFlag,
+				config:    tt.config,
+			}
+			gotProvider, gotModel, gotInfo := app.parseModel()
 			if gotProvider != tt.wantProvider {
 				t.Errorf("parseModel() provider = %v, want %v", gotProvider, tt.wantProvider)
 			}

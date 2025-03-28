@@ -64,7 +64,7 @@ func (app *Application) parseModel() (provider string, model string, info provid
 	provider = parts[0]
 	model = parts[1]
 
-	// Map providers to their configurations
+	// Start with default provider info
 	switch provider {
 	case "openai":
 		info = providerInfo{
@@ -90,6 +90,19 @@ func (app *Application) parseModel() (provider string, model string, info provid
 		info = providerInfo{
 			baseURL:     "https://models.inference.ai.azure.com",
 			apiKeyEnvar: "GITHUB_MODELS_API_KEY",
+		}
+	}
+
+	// Override with config if present
+	if app.config != nil {
+		if providerCfg, ok := app.config.Providers[provider]; ok {
+			// Only override non-empty values
+			if providerCfg.BaseURL != "" {
+				info.baseURL = providerCfg.BaseURL
+			}
+			if providerCfg.APIKeyEnvar != "" {
+				info.apiKeyEnvar = providerCfg.APIKeyEnvar
+			}
 		}
 	}
 
