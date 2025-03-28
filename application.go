@@ -31,6 +31,7 @@ type Application struct {
 	showProgress    bool
 	lastProgressLen int
 	modelFlag       string
+	config          *Config
 }
 
 // providerInfo contains provider-specific configuration
@@ -40,12 +41,19 @@ type providerInfo struct {
 }
 
 // parseModel parses model string in format "provider/model" and returns provider, model name, base URL and API key environment variable
-func parseModel(modelFlag string) (provider string, model string, info providerInfo) {
+func (app *Application) parseModel() (provider string, model string, info providerInfo) {
 	modelStr := ""
-	if modelFlag != "" {
-		modelStr = modelFlag
+	if app.modelFlag != "" {
+		modelStr = app.modelFlag
 	} else {
 		modelStr = os.Getenv("ESA_MODEL")
+	}
+
+	// Check if the model string is an alias
+	if app.config != nil {
+		if aliasedModel, ok := app.config.ModelAliases[modelStr]; ok {
+			modelStr = aliasedModel
+		}
 	}
 
 	parts := strings.SplitN(modelStr, "/", 2)
@@ -89,6 +97,12 @@ func parseModel(modelFlag string) (provider string, model string, info providerI
 }
 
 func NewApplication(opts *CLIOptions) (*Application, error) {
+	// Load global config first
+	config, err := LoadConfig(opts.ConfigPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load global config: %v", err)
+	}
+
 	cacheDir, err := setupCacheDir()
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup cache directory: %v", err)
@@ -142,10 +156,11 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 		historyFile:  historyFile,
 		messages:     messages,
 		modelFlag:    opts.Model,
+		config:       config,
 	}
 
 	app.debugPrint = createDebugPrinter(app.debug)
-	provider, model, info := parseModel(opts.Model)
+	provider, model, info := app.parseModel()
 
 	app.debugPrint("Configuration",
 		fmt.Sprintf("Provider: %q", provider),
@@ -256,7 +271,7 @@ func (app *Application) runConversationLoop(opts CLIOptions) {
 }
 
 func (app *Application) getModel() string {
-	_, model, _ := parseModel(app.modelFlag)
+	_, model, _ := app.parseModel()
 	return model
 }
 
@@ -410,7 +425,7 @@ func (app *Application) handleToolCalls(toolCalls []openai.ToolCall, opts CLIOpt
 		// Set the provider and model env so that nested esa calls
 		// make use of it. Users can override this by setting the
 		// value explicitly in the nested esa calls.
-		provider, model, _ := parseModel(opts.Model)
+		provider, model, _ := app.parseModel()
 		os.Setenv("ESA_MODEL", fmt.Sprintf("%s/%s", provider, model))
 
 		command, result, err := executeFunction(app.agent.Ask, matchedFunc, toolCall.Function.Arguments, opts.ShowCommands)
@@ -450,7 +465,8 @@ func setupOpenAIClient(opts *CLIOptions) (*openai.Client, error) {
 	configuredAPIKey := os.Getenv("ESA_API_KEY")
 
 	// Get provider info
-	_, _, info := parseModel(opts.Model)
+	app := &Application{config: &Config{}} // Temporary app instance just for parsing model
+	_, _, info := app.parseModel()
 
 	// If ESA_API_KEY is not set, try to use provider-specific API key
 	if configuredAPIKey == "" && info.apiKeyEnvar != "" {

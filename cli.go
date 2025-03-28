@@ -26,6 +26,7 @@ type CLIOptions struct {
 	CommandStr   string
 	AgentName    string
 	Model        string
+	ConfigPath   string
 }
 
 func handleShowAgent(agentPath string) {
@@ -77,6 +78,7 @@ func parseFlags() (CLIOptions, CommandType) {
 	flag.BoolVar(&opts.ContinueChat, "c", false, "Continue last conversation")
 	flag.BoolVar(&opts.ContinueChat, "continue", false, "Continue last conversation")
 	agentPath := flag.String("agent", "", "Path to the agent config file")
+	configPath := flag.String("config", "", "Path to the global config file (default: ~/.config/esa/config.toml)")
 	flag.StringVar(&opts.Model, "model", "", "Model to use (e.g., openai/gpt-4)")
 	flag.StringVar(&opts.AskLevel, "ask", "none", "Ask level (none, unsafe, all)")
 	flag.BoolVar(&opts.ShowCommands, "show-commands", false, "Show executed commands")
@@ -94,7 +96,7 @@ func parseFlags() (CLIOptions, CommandType) {
 	args := flag.Args()
 	opts.CommandStr = strings.Join(args, " ")
 	opts.AgentPath = *agentPath
-
+	opts.ConfigPath = *configPath
 	// Determine command type and parse agent information
 	commandType := parseCommandType(&opts)
 
@@ -149,10 +151,11 @@ func parseAgentCommand(opts *CLIOptions) {
 }
 
 func printHelp() {
-	fmt.Println("Usage: esa <command> [--debug] [--agent <path>] [--ask <level>] [--show-progress]")
+	fmt.Println("Usage: esa <command> [--debug] [--agent <path>] [--config <path>] [--ask <level>] [--show-progress]")
 	fmt.Println("\nOptions:")
 	fmt.Println("  --debug         Enable debug mode")
 	fmt.Println("  --agent         Path to the agent config file")
+	fmt.Println("  --config        Path to the global config file (default: ~/.config/esa/config.toml)")
 	fmt.Println("  --model         Model to use (e.g., openai/gpt-4)")
 	fmt.Println("  --ask           Ask level (none, unsafe, all)")
 	fmt.Println("  --show-commands Show executed commands")
