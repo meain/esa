@@ -77,17 +77,32 @@ The available flags are:
 
 ## Configuration
 
-### Model Configuration
+### Configuration
 
-ESA supports a provider-based model specification format that automatically configures the appropriate base URL and API keys. You can specify models in the format `provider/model`, for example:
+The configuration file at `~/.config/esa/config.toml` allows you to define model aliases and additional providers.
+
+### Global Config Structure
+
+```toml
+[model_aliases]
+# Define model aliases for easier reference
+gemini = "openrouter/google/gemini-2.5-pro-exp-03-25:free"
+4o = "openai/gpt-4o"
+mini = "openai/gpt-4o-mini"
+
+[providers]
+# Configure additional providers that follow the OpenAI API specification
+[providers.custom]
+base_url = "https://api.custom-llm.com/v1"    # API endpoint that follows OpenAI spec
+api_key_env = "CUSTOM_API_KEY"                # Environment variable for API key
+```
+
+When specifying models, you can use either the provider/model format or defined aliases:
 
 ```bash
 # Using OpenAI models
 ESA_MODEL="openai/gpt-4" # Uses OPENAI_API_KEY
 ESA_MODEL="openai/gpt-4-turbo" # Uses OPENAI_API_KEY
-
-# Using Anthropic models
-ESA_MODEL="anthropic/claude-2" # Uses ANTHROPIC_API_KEY
 
 # Using Azure OpenAI models
 ESA_MODEL="azure/gpt-4" # Uses AZURE_OPENAI_API_KEY
@@ -98,10 +113,22 @@ The system will:
 2. Configure the correct base URL for the API
 3. Use ESA_API_KEY and ESA_BASE_URL if provided
 
-Supported providers:
-- `openai`: Uses OPENAI_API_KEY and OpenAI's base URL
-- `anthropic`: Uses ANTHROPIC_API_KEY and Anthropic's base URL
-- `azure`: Uses AZURE_OPENAI_API_KEY and Azure's base URL
+To use a custom provider:
+1. Add the provider configuration in config.toml
+2. Set the appropriate API key in your environment
+3. Use the provider with `ESA_MODEL="custom-provider/model-name"`
+
+Example using a custom provider:
+```bash
+# In ~/.config/esa/config.toml
+[providers.localai]
+base_url = "http://localhost:8080/v1"
+api_key_env = "LOCALAI_API_KEY"
+
+# In shell
+export LOCALAI_API_KEY="your-key"
+ESA_MODEL="localai/llama2" esa "your command"
+```
 
 Environment variables:
 - ESA_API_KEY: Override the provider-specific API key
@@ -151,23 +178,64 @@ _You can find examples of the functions in the `functions` folder._
 > overwrite files or run commands with, it could be dangerous. Just
 > because you can do something doesn't mean you should.
 
-### Configuration File
+### Agent Configuration File Structure
 
-The default agent configuration file is located at
-`~/.config/esa/agents/default.toml`.  It is a TOML file that defines
-the functions available to the assistant. It includes the following:
+The default agent configuration file is located at `~/.config/esa/agents/default.toml`. It is a TOML file that defines the functions available to the assistant and its behavior. Here's the detailed structure:
 
-- `functions`: An array of function definitions. Each function has:
-  - `name`: The name of the function.
-  - `description`: A description of the function.
-  - `command`: The command to execute when the function is called.
-  - `parameters`: An array of parameter definitions. Each parameter has:
-    - `name`: The name of the parameter.
-    - `type`: The type of the parameter (e.g., string).
-    - `description`: A description of the parameter.
-    - `required`: A boolean indicating if the parameter is required.
-- `ask`: The confirmation level for command execution.
-- `system_prompt`: The system prompt for the assistant.
+#### System Prompt
+```toml
+system_prompt = """
+You are a helpful assistant. Define your role, behavior, and any specific instructions here.
+Keep your responses short and to the point.
+"""
+```
+
+#### Function Definitions
+Functions are defined as an array of TOML tables. Each function includes:
+
+```toml
+[[functions]]
+name = "function_name"              # Name of the function
+description = "function details"    # Description for the LLM
+command = "command {{param}}"       # Command template with parameter placeholders
+safe = true                        # Whether the function is considered safe (optional)
+
+[[functions.parameters]]
+name = "param"                     # Parameter name
+type = "string"                    # Parameter type (string, number, boolean)
+description = "param details"      # Parameter description
+required = true                    # Whether the parameter is required
+```
+
+Key components:
+- `name`: The name of the function that the LLM will call
+- `description`: Detailed description helping the LLM understand when to use the function
+- `command`: The actual command to execute, using `{{param}}` syntax for parameter substitution
+- `safe`: Boolean flag indicating if the function is safe to execute without confirmation
+- `parameters`: Array of parameter definitions that the function accepts
+  - `name`: Parameter name used in command templating
+  - `type`: Parameter data type
+  - `description`: Parameter description for the LLM
+  - `required`: Whether the parameter must be provided
+
+Example: A function to read a file's contents:
+```toml
+[[functions]]
+name = "read_file"
+description = "Read the content of a file"
+command = "cat '{{file}}'"
+safe = true
+
+[[functions.parameters]]
+name = "file"
+type = "string"
+description = "Path to the file"
+required = true
+```
+
+Other configuration options:
+- `ask`: The confirmation level for command execution (none/unsafe/all)
+- `system_prompt`: The main prompt that defines the assistant's behavior
 
 #### Example: Coding Assistant
 
