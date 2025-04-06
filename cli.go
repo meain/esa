@@ -19,6 +19,7 @@ const DefaultAgentPath = DefaultAgentsDir + "/default.toml"
 type CLIOptions struct {
 	DebugMode    bool
 	ContinueChat bool
+	RetryChat    bool
 	AgentPath    string
 	AskLevel     string
 	ShowCommands bool
@@ -77,6 +78,8 @@ func parseFlags() (CLIOptions, CommandType) {
 	flag.BoolVar(&opts.DebugMode, "debug", false, "Enable debug mode")
 	flag.BoolVar(&opts.ContinueChat, "c", false, "Continue last conversation")
 	flag.BoolVar(&opts.ContinueChat, "continue", false, "Continue last conversation")
+	flag.BoolVar(&opts.RetryChat, "r", false, "Retry last command")
+	flag.BoolVar(&opts.RetryChat, "retry", false, "Retry last command")
 	agentPath := flag.String("agent", "", "Path to the agent config file")
 	configPath := flag.String("config", "", "Path to the global config file (default: ~/.config/esa/config.toml)")
 	flag.StringVar(&opts.Model, "model", "", "Model to use (e.g., openai/gpt-4)")
@@ -154,6 +157,8 @@ func printHelp() {
 	fmt.Println("Usage: esa <command> [--debug] [--agent <path>] [--config <path>] [--ask <level>] [--show-progress]")
 	fmt.Println("\nOptions:")
 	fmt.Println("  --debug         Enable debug mode")
+	fmt.Println("  -c, --continue  Continue last conversation")
+	fmt.Println("  -r, --retry     Retry the last command")
 	fmt.Println("  --agent         Path to the agent config file")
 	fmt.Println("  --config        Path to the global config file (default: ~/.config/esa/config.toml)")
 	fmt.Println("  --model         Model to use (e.g., openai/gpt-4)")

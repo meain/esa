@@ -74,6 +74,7 @@ The available flags are:
 - `--agent <path>`: Specifies the path to the agent configuration file. Defaults to `~/.config/esa/agents/default.toml`.
 - `--ask <level>`: Specifies the confirmation level for command execution. Options are `none`, `unsafe`, and `all`. Default is `none`.
 - `-c, --continue`: Continue the last conversation with the assistant.
+- `-r, --retry [<new text>]`: Retry the last user message optionally replacing the last user message.
 
 ## Configuration
 

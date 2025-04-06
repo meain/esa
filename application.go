@@ -122,24 +122,70 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 	}
 
 	var (
-		messages  []openai.ChatCompletionMessage
-		agentPath string
+		messages []openai.ChatCompletionMessage
 	)
 
 	historyFile, hasHistory := getHistoryFilePath(cacheDir, opts)
-	if hasHistory && opts.ContinueChat {
-		messages, agentPath, err = loadConversationHistory(historyFile)
+	if hasHistory && (opts.ContinueChat || opts.RetryChat) {
+		allMessages, agentPath, err := loadConversationHistory(historyFile)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load conversation history: %v", err)
 		}
 
 		app := &Application{debug: opts.DebugMode}
 		app.debugPrint = createDebugPrinter(app.debug)
-		app.debugPrint("History",
-			fmt.Sprintf("Loaded %d messages from history", len(messages)),
-			fmt.Sprintf("Agent: %s", agentPath),
-			fmt.Sprintf("History file: %q", historyFile),
-		)
+
+		if opts.RetryChat && len(allMessages) > 1 {
+			// In retry mode, keep all messages up until the last user message
+			var lastUserMessageIndex int = -1
+
+			// Find the last user message in the history
+			for i := len(allMessages) - 1; i >= 0; i-- {
+				if allMessages[i].Role == "user" {
+					lastUserMessageIndex = i
+					break
+				}
+			}
+
+			if lastUserMessageIndex >= 0 {
+				// Keep all messages up to and including the last user message
+				messages = allMessages[:lastUserMessageIndex+1]
+
+				// If a command string was provided with -r, replace the last user message content
+				if opts.CommandStr != "" {
+					messages[lastUserMessageIndex].Content = opts.CommandStr
+					app.debugPrint("Retry Mode",
+						fmt.Sprintf("Keeping %d messages", len(messages)),
+						fmt.Sprintf("Replacing last user message with: %q", opts.CommandStr),
+						fmt.Sprintf("Agent: %s", agentPath), // Note: Agent might be overridden later if specified in opts
+						fmt.Sprintf("History file: %q", historyFile),
+					)
+				} else {
+					app.debugPrint("Retry Mode",
+						fmt.Sprintf("Keeping %d messages", len(messages)),
+						fmt.Sprintf("Agent: %s", agentPath), // Note: Agent might be overridden later if specified in opts
+						fmt.Sprintf("History file: %q", historyFile),
+					)
+				}
+			} else {
+				// If we couldn't find a user message, just use the system message
+				messages = []openai.ChatCompletionMessage{allMessages[0]}
+
+				app.debugPrint("Retry Mode",
+					fmt.Sprintf("No user messages found"),
+					fmt.Sprintf("Agent: %s", agentPath),
+					fmt.Sprintf("History file: %q", historyFile),
+				)
+			}
+		} else {
+			// In continue mode, use all messages
+			messages = allMessages
+			app.debugPrint("History",
+				fmt.Sprintf("Loaded %d messages from history", len(messages)),
+				fmt.Sprintf("Agent: %s", agentPath),
+				fmt.Sprintf("History file: %q", historyFile),
+			)
+		}
 
 		if agentPath != "" && opts.AgentPath == "" {
 			opts.AgentPath = agentPath
@@ -206,7 +252,13 @@ func (app *Application) Run(opts CLIOptions) {
 		fmt.Sprintf("Stdin: %q", input),
 	)
 
-	app.processInput(opts.CommandStr, input)
+	// If in retry mode and a command string was provided,
+	// it means we replaced the last user message content during loading.
+	// Don't process input again.
+	if !(opts.RetryChat && opts.CommandStr != "") {
+		app.processInput(opts.CommandStr, input)
+	}
+
 	app.runConversationLoop(opts)
 }
 
@@ -594,7 +646,7 @@ func findLatestHistoryFile(cacheDir string) (string, error) {
 }
 
 func getHistoryFilePath(cacheDir string, opts *CLIOptions) (string, bool) {
-	if !opts.ContinueChat {
+	if !opts.ContinueChat && !opts.RetryChat {
 		return createNewHistoryFile(cacheDir, opts.AgentName), false
 	}
 
