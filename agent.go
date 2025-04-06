@@ -64,13 +64,6 @@ func expandHomePath(path string) string {
 	return path
 }
 
-func getEnvWithFallback(primary, fallback string) string {
-	if value, exists := os.LookupEnv(primary); exists {
-		return value
-	}
-	return os.Getenv(fallback)
-}
-
 const systemPrompt = `You are Esa, a professional assistant capable of performing various tasks. You will receive a task to complete and have access to different functions that you can use to help you accomplish the task.
 
 When responding to tasks:

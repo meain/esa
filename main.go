@@ -14,6 +14,10 @@ func main() {
 		handleShowAgent(opts.AgentPath)
 	case ListAgents:
 		listAgents()
+	case ListHistory:
+		listHistory()
+	case ShowHistory:
+		handleShowHistory(opts.HistoryIndex, opts.OutputFormat)
 	case NormalExecution:
 		app, err := NewApplication(&opts)
 		if err != nil {

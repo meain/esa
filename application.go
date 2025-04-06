@@ -647,6 +647,12 @@ func findLatestHistoryFile(cacheDir string) (string, error) {
 
 func getHistoryFilePath(cacheDir string, opts *CLIOptions) (string, bool) {
 	if !opts.ContinueChat && !opts.RetryChat {
+		cacheDir, err := setupCacheDir()
+		if err != nil {
+			// Handle error appropriately, maybe log or return an error
+			// For now, fallback or panic might occur depending on createNewHistoryFile
+			fmt.Fprintf(os.Stderr, "Warning: could not get cache dir: %v\n", err)
+		}
 		return createNewHistoryFile(cacheDir, opts.AgentName), false
 	}
 
@@ -654,16 +660,12 @@ func getHistoryFilePath(cacheDir string, opts *CLIOptions) (string, bool) {
 		return latestFile, true
 	}
 
-	return createNewHistoryFile(cacheDir, opts.AgentName), false
-}
-
-func setupCacheDir() (string, error) {
-	cacheDir, err := os.UserCacheDir()
+	cacheDir, err := setupCacheDir()
 	if err != nil {
-		return "", err
+		// Handle error appropriately
+		fmt.Fprintf(os.Stderr, "Warning: could not get cache dir: %v\n", err)
 	}
-	esaDir := filepath.Join(cacheDir, "esa")
-	return esaDir, os.MkdirAll(esaDir, 0755)
+	return createNewHistoryFile(cacheDir, opts.AgentName), false
 }
 
 func readStdin() string {

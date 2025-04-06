@@ -35,6 +35,20 @@ To see details about a specific agent:
 esa show-agent +<agent-name>
 ```
 
+To list saved conversation histories:
+
+```bash
+esa list-history
+```
+
+To view a specific conversation history (e.g., the 3rd most recent):
+
+```bash
+esa [--output <format>] show-history 3 # format can be text, markdown, or json
+```
+
+> NOTE: `--output` flag should come before show-history
+
 You can use different agents by using the `+` syntax followed by the agent name:
 
 ```bash
@@ -75,6 +89,7 @@ The available flags are:
 - `--ask <level>`: Specifies the confirmation level for command execution. Options are `none`, `unsafe`, and `all`. Default is `none`.
 - `-c, --continue`: Continue the last conversation with the assistant.
 - `-r, --retry [<new text>]`: Retry the last user message optionally replacing the last user message.
+- `--output <format>`: Specifies the output format for `show-history`. Options are `text`, `markdown`, `json`. Default is `text`.
 
 ## Configuration
 
