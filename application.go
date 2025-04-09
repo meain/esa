@@ -58,7 +58,10 @@ func (app *Application) parseModel() (provider string, model string, info provid
 
 	parts := strings.SplitN(modelStr, "/", 2)
 	if len(parts) != 2 {
-		return "openai", modelStr, providerInfo{} // Default to just using model name if no provider specified
+		return "openai", modelStr, providerInfo{
+			baseURL:     "https://api.openai.com/v1",
+			apiKeyEnvar: "OPENAI_API_KEY",
+		} // Default to just using model name if no provider specified
 	}
 
 	provider = parts[0]
@@ -91,6 +94,8 @@ func (app *Application) parseModel() (provider string, model string, info provid
 			baseURL:     "https://models.inference.ai.azure.com",
 			apiKeyEnvar: "GITHUB_MODELS_API_KEY",
 		}
+	default:
+		log.Fatalf("unknown provider %s", provider)
 	}
 
 	// Override with config if present
@@ -201,7 +206,7 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 		return nil, fmt.Errorf("failed to load agent configuration: %v", err)
 	}
 
-	client, err := setupOpenAIClient(opts)
+	client, err := setupOpenAIClient(opts, config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup OpenAI client: %v", err)
 	}
@@ -530,12 +535,12 @@ func (app *Application) handleToolCalls(toolCalls []openai.ToolCall, opts CLIOpt
 	}
 }
 
-func setupOpenAIClient(opts *CLIOptions) (*openai.Client, error) {
+func setupOpenAIClient(opts *CLIOptions, config *Config) (*openai.Client, error) {
 	configuredBaseURL := os.Getenv("ESA_BASE_URL")
 	configuredAPIKey := os.Getenv("ESA_API_KEY")
 
 	// Get provider info
-	app := &Application{config: &Config{}} // Temporary app instance just for parsing model
+	app := &Application{config: config, modelFlag: opts.Model} // Temporary app instance just for parsing model
 	_, _, info := app.parseModel()
 
 	// If ESA_API_KEY is not set, try to use provider-specific API key
@@ -544,7 +549,7 @@ func setupOpenAIClient(opts *CLIOptions) (*openai.Client, error) {
 	}
 
 	if configuredAPIKey == "" {
-		return nil, fmt.Errorf("API key not found in environment variables")
+		return nil, fmt.Errorf(info.apiKeyEnvar + " env not found")
 	}
 
 	llmConfig := openai.DefaultConfig(configuredAPIKey)
