@@ -423,43 +423,7 @@ func (app *Application) generateProgressSummary(funcName string, args string) st
 		return ""
 	}
 
-	prompt := fmt.Sprintf(`Summarize what this function is doing
-Function: %s
-Arguments: %s
-
-Examples:
-- Reading file main.go
-- Accessing webpage from blog.meain.io
-- Computing average of list of numbers
-- Opening page google.com in browser
-- Searching for 'improvements in AI'
-
-Notes:
-- Include names of files, URLs, or search queries
-- Use present continuous tense (e.g., 'Reading file')
-- Keep it concise (1 line, max 8 words)
-- Do not include function name or arguments`, funcName, args)
-
-	resp, err := app.client.CreateChatCompletion(
-		context.Background(),
-		openai.ChatCompletionRequest{
-			Model: app.getModel(),
-			Messages: []openai.ChatCompletionMessage{{
-				Role:    "user",
-				Content: prompt,
-			}},
-		},
-	)
-
-	if err != nil {
-		app.debugPrint("Progress", fmt.Sprintf("Failed to generate progress summary: %v", err))
-		return ""
-	}
-
-	if len(resp.Choices) > 0 {
-		return resp.Choices[0].Message.Content
-	}
-	return ""
+	return fmt.Sprintf("Calling %s...", funcName)
 }
 
 func (app *Application) handleToolCalls(toolCalls []openai.ToolCall, opts CLIOptions) {
