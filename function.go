@@ -203,8 +203,6 @@ func executeShellCommand(command string, fc FunctionConfig, args map[string]inte
 				formattedOutput = strings.ReplaceAll(formattedOutput, placeholder, replacement)
 			}
 		}
-
-		fmt.Print(formattedOutput)
 	}
 
 	cmd := exec.Command("sh", "-c", command)
