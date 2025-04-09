@@ -57,16 +57,7 @@ esa +k8s "show pod status"           # Uses ~/.config/esa/agents/k8s.toml
 esa +commit "summarize changes"      # Uses ~/.config/esa/agents/commit.toml
 ```
 
-Each agent is defined by its own TOML configuration file in `~/.config/esa/agents`. The agent name corresponds to the filename (without the .toml extension). You can create your own agents by defining custom TOML configuration files in this directory.
-
-Several example agent configurations are included in the repository under `examples/`:
-
-- `commit.toml` - A Git commit message assistant that analyzes diffs and generates structured commit messages
-- `k8s.toml` - A Kubernetes assistant for safe read-only cluster operations
-- `jira.toml` - A JIRA issue management assistant for tracking tasks and sprints
-- `help.toml` - A command documentation assistant that explains tool usage and options
-- `fixer.toml` - A code analysis assistant that helps fix linter issues
-- `summarizer.toml` - A web content summarization assistant
+Each agent is defined by its own TOML configuration file in `~/.config/esa/agents`. The agent name corresponds to the filename (without the .toml extension). You can create your own agents by defining custom TOML configuration files in this directory. Several example agent configurations are included in the repository under `examples/`.
 
 You can study these examples to learn how to structure your own agents, or copy and modify them for your needs. Each example demonstrates different patterns like:
 - Safe vs unsafe command handling
