@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/fatih/color"
 	"github.com/sashabaranov/go-openai"
 )
 
@@ -71,7 +72,7 @@ func executeFunction(askLevel string, fc FunctionConfig, args string, showComman
 	}
 
 	if showCommands {
-		fmt.Fprintf(os.Stderr, "Command: %s\n", command)
+		color.New(color.FgCyan).Fprintf(os.Stderr, "$ %s\n", command)
 	}
 
 	output, err := executeShellCommand(command, fc, parsedArgs)

@@ -212,15 +212,17 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 	}
 
 	app := &Application{
-		agent:        agent,
-		agentPath:    opts.AgentPath,
-		client:       client,
-		debug:        opts.DebugMode,
-		showProgress: !opts.HideProgress && !opts.DebugMode, // Hide progress if debug mode is enabled
-		historyFile:  historyFile,
-		messages:     messages,
-		modelFlag:    opts.Model,
-		config:       config,
+		agent:       agent,
+		agentPath:   opts.AgentPath,
+		client:      client,
+		debug:       opts.DebugMode,
+		historyFile: historyFile,
+		messages:    messages,
+		modelFlag:   opts.Model,
+		config:      config,
+
+		// Hide progress if debug mode or show commands is enabled
+		showProgress: !opts.HideProgress && !opts.DebugMode && !opts.ShowCommands,
 	}
 
 	app.debugPrint = createDebugPrinter(app.debug)
@@ -419,10 +421,6 @@ func (app *Application) saveConversationHistory() {
 }
 
 func (app *Application) generateProgressSummary(funcName string, args string) string {
-	if !app.showProgress {
-		return ""
-	}
-
 	return fmt.Sprintf("Calling %s...", funcName)
 }
 
