@@ -60,6 +60,7 @@ esa +commit "summarize changes"      # Uses ~/.config/esa/agents/commit.toml
 Each agent is defined by its own TOML configuration file in `~/.config/esa/agents`. The agent name corresponds to the filename (without the .toml extension). You can create your own agents by defining custom TOML configuration files in this directory. Several example agent configurations are included in the repository under `examples/`.
 
 You can study these examples to learn how to structure your own agents, or copy and modify them for your needs. Each example demonstrates different patterns like:
+
 - Safe vs unsafe command handling
 - Parameter validation
 - Input/output processing
@@ -75,6 +76,7 @@ esa +new "Create a coding assistant with read_file and list_files functions"
 It will output a agent config file which you can use for a coding assistant agent.
 
 The available flags are:
+
 - `--debug`: Enables debug mode, printing additional information about the assistant's response and function execution.
 - `--agent <path>`: Specifies the path to the agent configuration file. Defaults to `~/.config/esa/agents/default.toml`.
 - `--ask <level>`: Specifies the confirmation level for command execution. Options are `none`, `unsafe`, and `all`. Default is `none`.
@@ -92,8 +94,8 @@ The configuration file at `~/.config/esa/config.toml` allows you to define globa
 
 ```toml
 [settings]
-show_commands = false      # Always show executed commands (can be overridden by --show-commands)
-default_model = "4o-mini" # Default model to use (can be overridden by --model/-m)
+show_commands = true      # Always show executed commands
+default_model = "openai/gpt-4o-mini" # Default model to use (can be overridden by --model/-m)
 
 [model_aliases]
 # Define model aliases for easier reference
@@ -109,10 +111,12 @@ api_key_env = "CUSTOM_API_KEY"                # Environment variable for API key
 ```
 
 When specifying models, you can use either:
+
 - The provider/model format (e.g., "openai/gpt-4")
 - A defined alias (e.g., "4o" for "openai/gpt-4o")
 
 Built-in providers:
+
 - `openai`: OpenAI models (gpt-4, gpt-3.5-turbo, etc)
 - `openrouter`: Access to various models through OpenRouter
 - `groq`: Groq's hosted models
@@ -121,11 +125,13 @@ Built-in providers:
 - Custom providers can be added via config
 
 The model can be specified in three ways (in order of precedence):
+
 1. Command line flag: `--model/-m`
 2. Default model in config: `settings.default_model`
 3. Built-in default: "openai/gpt-4o-mini"
 
 For each provider, the system will automatically use the appropriate API key from the environment:
+
 - OpenAI: OPENAI_API_KEY
 - Azure: AZURE_OPENAI_API_KEY
 - OpenRouter: OPENROUTER_API_KEY
@@ -134,11 +140,13 @@ For each provider, the system will automatically use the appropriate API key fro
 - Custom providers: As specified in their config
 
 To use a custom provider:
+
 1. Add the provider configuration in config.toml
 2. Set the appropriate API key in your environment
 3. Use the provider with either the full name or an alias
 
 Example using a custom provider:
+
 ```bash
 # In ~/.config/esa/config.toml
 [providers.localai]
@@ -182,7 +190,7 @@ For more complex tasks, it is advisable to use larger models like
 note that function calling may not perform reliably with smaller local
 models, such as the 8b version of llama3.2.
 
-``` bash
+```bash
 cat main.go |
   esa 'Summarize the provided code and send an email to mail@meain.io. Send the email only if it will not rain tonight. Also send a notification after that.'
 ```
@@ -198,6 +206,7 @@ _You can find examples of the functions in the `functions` folder._
 The default agent configuration file is located at `~/.config/esa/agents/default.toml`. It is a TOML file that defines the functions available to the assistant and its behavior. Here's the detailed structure:
 
 #### System Prompt
+
 ```toml
 system_prompt = """
 You are a helpful assistant. Define your role, behavior, and any specific instructions here.
@@ -206,6 +215,7 @@ Keep your responses short and to the point.
 ```
 
 #### Function Definitions
+
 Functions are defined as an array of TOML tables. Each function includes:
 
 ```toml
@@ -223,6 +233,7 @@ required = true                    # Whether the parameter is required
 ```
 
 Key components:
+
 - `name`: The name of the function that the LLM will call
 - `description`: Detailed description helping the LLM understand when to use the function
 - `command`: The actual command to execute, using `{{param}}` syntax for parameter substitution
@@ -234,6 +245,7 @@ Key components:
   - `required`: Whether the parameter must be provided
 
 Example: A function to read a file's contents:
+
 ```toml
 [[functions]]
 name = "read_file"
@@ -249,6 +261,7 @@ required = true
 ```
 
 Other configuration options:
+
 - `ask`: The confirmation level for command execution (none/unsafe/all)
 - `system_prompt`: The main prompt that defines the assistant's behavior
 
