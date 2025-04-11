@@ -43,11 +43,14 @@ type providerInfo struct {
 
 // parseModel parses model string in format "provider/model" and returns provider, model name, base URL and API key environment variable
 func (app *Application) parseModel() (provider string, model string, info providerInfo) {
-	modelStr := ""
-	if app.modelFlag != "" {
-		modelStr = app.modelFlag
-	} else {
-		modelStr = os.Getenv("ESA_MODEL")
+	modelStr := app.modelFlag
+	if modelStr == "" && app.config != nil {
+		modelStr = app.config.Settings.DefaultModel
+	}
+
+	// Use a reasonable default model
+	if modelStr == "" {
+		modelStr = "openai/gpt-4o-mini"
 	}
 
 	// Check if the model string is an alias
@@ -222,8 +225,8 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 		modelFlag:   opts.Model,
 		config:      config,
 
-		debug:        opts.DebugMode && !showCommands,
-		showCommands: showCommands,
+		debug:        opts.DebugMode,
+		showCommands: showCommands && !opts.DebugMode,
 		showProgress: !opts.HideProgress && !opts.DebugMode && !showCommands,
 	}
 
@@ -502,31 +505,17 @@ func (app *Application) handleToolCalls(toolCalls []openai.ToolCall, opts CLIOpt
 }
 
 func setupOpenAIClient(opts *CLIOptions, config *Config) (*openai.Client, error) {
-	configuredBaseURL := os.Getenv("ESA_BASE_URL")
-	configuredAPIKey := os.Getenv("ESA_API_KEY")
-
 	// Get provider info
 	app := &Application{config: config, modelFlag: opts.Model} // Temporary app instance just for parsing model
 	_, _, info := app.parseModel()
 
-	// If ESA_API_KEY is not set, try to use provider-specific API key
-	if configuredAPIKey == "" && info.apiKeyEnvar != "" {
-		configuredAPIKey = os.Getenv(info.apiKeyEnvar)
-	}
-
+	configuredAPIKey := os.Getenv(info.apiKeyEnvar)
 	if configuredAPIKey == "" {
 		return nil, fmt.Errorf(info.apiKeyEnvar + " env not found")
 	}
 
 	llmConfig := openai.DefaultConfig(configuredAPIKey)
-
-	// If base URL is explicitly configured, use it
-	if configuredBaseURL != "" {
-		llmConfig.BaseURL = configuredBaseURL
-	} else if info.baseURL != "" {
-		// Otherwise try to use provider-specific base URL
-		llmConfig.BaseURL = info.baseURL
-	}
+	llmConfig.BaseURL = info.baseURL
 
 	return openai.NewClientWithConfig(llmConfig), nil
 }
