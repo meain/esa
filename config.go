@@ -10,10 +10,16 @@ import (
 // DefaultConfigPath is the default location for the global config file
 const DefaultConfigPath = "~/.config/esa/config.toml"
 
+// Settings represents global settings that can be overridden by CLI flags
+type Settings struct {
+	ShowCommands bool `toml:"show-commands"`
+}
+
 // Config represents the global configuration structure
 type Config struct {
 	ModelAliases map[string]string         `toml:"model_aliases"`
 	Providers    map[string]ProviderConfig `toml:"providers"`
+	Settings     Settings                  `toml:"settings"`
 }
 
 // ProviderConfig represents the configuration for a model provider
@@ -47,6 +53,7 @@ func LoadConfig(configPath string) (*Config, error) {
 		defaultConfig := Config{
 			ModelAliases: map[string]string{},
 			Providers:    map[string]ProviderConfig{},
+			Settings:     Settings{ShowCommands: false},
 		}
 		file, err := os.Create(configPath)
 		if err != nil {

@@ -28,6 +28,7 @@ type Application struct {
 	historyFile     string
 	messages        []openai.ChatCompletionMessage
 	debugPrint      func(section string, v ...interface{})
+	showCommands    bool
 	showProgress    bool
 	lastProgressLen int
 	modelFlag       string
@@ -211,6 +212,7 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 		return nil, fmt.Errorf("failed to setup OpenAI client: %v", err)
 	}
 
+	showCommands := opts.ShowCommands || config.Settings.ShowCommands
 	app := &Application{
 		agent:       agent,
 		agentPath:   opts.AgentPath,
@@ -220,8 +222,9 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 		modelFlag:   opts.Model,
 		config:      config,
 
-		debug:        opts.DebugMode && !opts.ShowCommands,
-		showProgress: !opts.HideProgress && !opts.DebugMode && !opts.ShowCommands,
+		debug:        opts.DebugMode && !showCommands,
+		showCommands: showCommands,
+		showProgress: !opts.HideProgress && !opts.DebugMode && !showCommands,
 	}
 
 	app.debugPrint = createDebugPrinter(app.debug)
@@ -459,7 +462,12 @@ func (app *Application) handleToolCalls(toolCalls []openai.ToolCall, opts CLIOpt
 		provider, model, _ := app.parseModel()
 		os.Setenv("ESA_MODEL", fmt.Sprintf("%s/%s", provider, model))
 
-		command, result, err := executeFunction(app.agent.Ask, matchedFunc, toolCall.Function.Arguments, opts.ShowCommands)
+		command, result, err := executeFunction(
+			app.agent.Ask,
+			matchedFunc,
+			toolCall.Function.Arguments,
+			app.showCommands,
+		)
 		app.debugPrint("Function Execution",
 			fmt.Sprintf("Function: %s", matchedFunc.Name),
 			fmt.Sprintf("Command: %s", command),
