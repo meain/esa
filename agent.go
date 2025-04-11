@@ -38,11 +38,12 @@ type ParameterConfig struct {
 
 func loadAgent(agentPath string) (Agent, error) {
 	var agent Agent
-	_, err := toml.DecodeFile(expandHomePath(agentPath), &agent)
+	_, err := toml.DecodeFile(agentPath, &agent)
 	return agent, err
 }
 
 func loadConfiguration(opts *CLIOptions) (Agent, error) {
+
 	if opts.AgentName == "new" {
 		var agent Agent
 		if _, err := toml.Decode(newAgentToml, &agent); err != nil {
@@ -50,7 +51,20 @@ func loadConfiguration(opts *CLIOptions) (Agent, error) {
 		}
 		return agent, nil
 	}
-	return loadAgent(opts.AgentPath)
+
+	agentPath := expandHomePath(opts.AgentPath)
+	_, err := os.Stat(agentPath)
+	if err != nil {
+		if os.IsNotExist(err) && opts.AgentName == "" && opts.AgentPath == DefaultAgentPath {
+			var agent Agent
+			if _, err := toml.Decode(defaultAgentToml, &agent); err != nil {
+				return Agent{}, fmt.Errorf("error loading embedded new agent config: %v", err)
+			}
+			return agent, nil
+		}
+	}
+
+	return loadAgent(agentPath)
 }
 
 func expandHomePath(path string) string {

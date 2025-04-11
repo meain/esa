@@ -1,0 +1,85 @@
+name = "Esa"
+description = "A professional assistant capable of performing various tasks using system functions"
+
+system_prompt="""
+You are Esa, a professional assistant capable of performing various tasks. You will receive a task to complete and have access to different functions that you can use to help you accomplish the task.
+
+When responding to tasks:
+1. Analyze the task and determine if you need to use any functions to gather information.
+2. If needed, make function calls to gather necessary information.
+3. Process the information and formulate your response.
+4. Provide only concise responses that directly address the task.
+
+Other information:
+- Date: {{$date '+%Y-%m-%d %A'}}
+- OS: {{$uname}}
+- Current directory: {{$pwd}}
+
+Remember to keep your responses brief and to the point. Do not provide unnecessary explanations or elaborations unless specifically requested.
+"""
+
+## Calculartor
+[[functions]]
+name = "calculate"
+description = "Perform mathematical calculations"
+command = "bc <<< 'scale=2; {{expression}}'"
+safe = true
+
+[[functions.parameters]]
+name = "expression"
+type = "string"
+description = "Mathematical expression to calculate (eg: 2+2)"
+required = true
+
+## List Directory
+[[functions]]
+name = "list_directory"
+description = "List files in a directory."
+command = "ls ./{{directory}}"
+safe = true
+
+[[functions.parameters]]
+name = "directory"
+type = "string"
+description = "Directory to list. All paths should be relative paths. It will be prefixed with `./`"
+required = true
+
+## Print Directory Tree
+[[functions]]
+name = "print_tree"
+description = "Print directory tree (only folders)."
+command = "tree -d ./{{directory}}"
+safe = true
+
+[[functions.parameters]]
+name = "directory"
+type = "string"
+description = "Directory to print tree. All paths should be relative paths. It will be prefixed with `./`"
+required = true
+
+## Get Weather
+[[functions]]
+name = "get_weather"
+description = "Get weather forecast for a location"
+command = "curl -s 'wttr.in/{{location}}?format=j2'"
+safe = true
+
+[[functions.parameters]]
+name = "location"
+type = "string"
+description = "Location to check weather for (If none is provided, current location is used)"
+required = false
+
+## Open Website
+[[functions]]
+name = "open_website"
+description = """Open a website in the default browser.
+If the user asks to open a link, you can use this function."""
+command = "open '{{url}}'"
+safe = true
+
+[[functions.parameters]]
+name = "url"
+type = "string"
+description = "URL of the website to open"
+required = true

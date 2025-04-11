@@ -6,3 +6,6 @@ import (
 
 //go:embed builtins/new.toml
 var newAgentToml string
+
+//go:embed builtins/default.toml
+var defaultAgentToml string
