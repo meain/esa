@@ -2,20 +2,37 @@
 
 <img src="https://github.com/user-attachments/assets/5c2915ab-4a8e-4b49-b3b6-394d5644dac2" alt="Mascot" width="300" align="right"/>
 
-The project lets you specify functions in a TOML file which is sent to
-LLM APIs as available functions. The response
-is then parsed and calls the associated command which could be a shell
-script or any executable.
+ESA is an AI-powered command-line tool that lets you control your system using natural language. It translates your plain English commands into system actions by connecting Large Language Models (LLMs) with your custom-defined functions.
 
 ## Features
 
-- Define custom functions with parameters in a TOML file.
-- Integrate with OpenAI's API to process commands.
-- Execute system commands based on the function definitions.
+- Natural language interface to system commands
+- Support for multiple LLM providers (OpenAI, Groq, local models, etc.)
+- Custom function definitions using TOML configuration
+- Conversation history and continuation
+- Built-in safety controls and command confirmation levels
+- Extensible agent system for specialized tasks
 
-## Usage
+## Quick Start
 
-By default, ESA uses a configuration file located at `~/.config/esa/agents/default.toml`. This default agent provides basic capabilities, but you can create and use different specialized agents for specific tasks.
+1. Install ESA (requires Go 1.21+):
+   ```bash
+   go install github.com/meain/esa@latest
+   ```
+
+2. Set up your OpenAI API key:
+   ```bash
+   export OPENAI_API_KEY="your-key-here"
+   ```
+
+3. Try your first command:
+   ```bash
+   esa "what time is it?"
+   ```
+
+## Basic Usage
+
+ESA uses configuration files in `~/.config/esa/agents/` to define what commands it can execute. The default agent (`default.toml`) provides basic capabilities, and you can create specialized agents for specific tasks.
 
 To use the application with the default agent, run:
 
@@ -166,41 +183,6 @@ The `--ask` flag allows you to specify the level of confirmation required before
 - `unsafe`: Confirmation is required for commands marked as non-safe.
 - `all`: Confirmation is required for all commands.
 
-### Safe Property
-
-The `safe` property in the function configuration determines whether a command is considered safe or potentially unsafe. If `safe` is set to `true`, the command will be executed without confirmation when the `--ask` level is set to `unsafe`. If `safe` is set to `false` or not specified, confirmation will be required.
-
-The capabilities of your assistant are easily extendable by adding more functions to the agent config file.
-
-With the provided example agent config you could execute things like:
-
-```bash
-esa "what is a harpoon" # answer basic questions
-esa "who is esa?" # as about itself
-esa "set an alarm for 10:30am"
-esa "sen alarm for 1 hour from now"
-esa "open golang playground" # works if the llm knows about it
-esa "reduce brightness"
-esa "increase brightness if it is after 2PM" # is it pointless, yes but it works
-esa "send an email to user@provider.com reminding to take an umbrella if it will rain tomorrow" # something complex
-```
-
-For more complex tasks, it is advisable to use larger models like
-`gpt-4o`, while `gpt-4o-mini` is sufficient for simpler tasks. Please
-note that function calling may not perform reliably with smaller local
-models, such as the 8b version of llama3.2.
-
-```bash
-cat main.go |
-  esa 'Summarize the provided code and send an email to mail@meain.io. Send the email only if it will not rain tonight. Also send a notification after that.'
-```
-
-_You can find examples of the functions in the `functions` folder._
-
-> CAUTION: Be careful with the functions you add. If you let it
-> overwrite files or run commands with, it could be dangerous. Just
-> because you can do something doesn't mean you should.
-
 ### Agent Configuration File Structure
 
 The default agent configuration file is located at `~/.config/esa/agents/default.toml`. It is a TOML file that defines the functions available to the assistant and its behavior. Here's the detailed structure:
@@ -264,6 +246,41 @@ Other configuration options:
 
 - `ask`: The confirmation level for command execution (none/unsafe/all)
 - `system_prompt`: The main prompt that defines the assistant's behavior
+
+#### Safe Property
+
+The `safe` property in the function configuration determines whether a command is considered safe or potentially unsafe. If `safe` is set to `true`, the command will be executed without confirmation when the `--ask` level is set to `unsafe`. If `safe` is set to `false` or not specified, confirmation will be required.
+
+The capabilities of your assistant are easily extendable by adding more functions to the agent config file.
+
+With the provided example agent config you could execute things like:
+
+```bash
+esa "what is a harpoon" # answer basic questions
+esa "who is esa?" # as about itself
+esa "set an alarm for 10:30am"
+esa "sen alarm for 1 hour from now"
+esa "open golang playground" # works if the llm knows about it
+esa "reduce brightness"
+esa "increase brightness if it is after 2PM" # is it pointless, yes but it works
+esa "send an email to user@provider.com reminding to take an umbrella if it will rain tomorrow" # something complex
+```
+
+For more complex tasks, it is advisable to use larger models like
+`gpt-4o`, while `gpt-4o-mini` is sufficient for simpler tasks. Please
+note that function calling may not perform reliably with smaller local
+models, such as the 8b version of llama3.2.
+
+```bash
+cat main.go |
+  esa 'Summarize the provided code and send an email to mail@meain.io. Send the email only if it will not rain tonight. Also send a notification after that.'
+```
+
+_You can find examples of the functions in the `functions` folder._
+
+> CAUTION: Be careful with the functions you add. If you let it
+> overwrite files or run commands with, it could be dangerous. Just
+> because you can do something doesn't mean you should.
 
 #### Example: Coding Assistant
 
