@@ -8,9 +8,7 @@ import (
 	"io"
 	"log"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
@@ -245,10 +243,15 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 }
 
 func (app *Application) Run(opts CLIOptions) {
+	prompt, err := app.getSystemPrompt()
+	if err != nil {
+		log.Fatalf("Error processing system prompt: %v", err)
+	}
+
 	if app.messages == nil {
 		app.messages = []openai.ChatCompletionMessage{{
 			Role:    "system",
-			Content: app.getSystemPrompt(),
+			Content: prompt,
 		}}
 	}
 
@@ -303,15 +306,20 @@ func (app *Application) processInput(commandStr, input string) {
 	}
 
 	// If no input from stdin or command line, use initial message from agent config
+	prompt, err := app.processInitialMessage(app.agent.InitialMessage)
+	if err != nil {
+		log.Fatalf("Error processing initial message: %v", err)
+	}
+
 	if len(input) == 0 && len(commandStr) == 0 && app.agent.InitialMessage != "" {
 		app.messages = append(app.messages, openai.ChatCompletionMessage{
 			Role:    "user",
-			Content: app.processInitialMessage(app.agent.InitialMessage),
+			Content: prompt,
 		})
 	}
 }
 
-func (app *Application) processInitialMessage(message string) string {
+func (app *Application) processInitialMessage(message string) (string, error) {
 	// Use the same processing logic as system prompt
 	return app.processSystemPrompt(message)
 }
@@ -546,24 +554,15 @@ func createDebugPrinter(debugMode bool) func(string, ...interface{}) {
 	}
 }
 
-func (app *Application) getSystemPrompt() string {
+func (app *Application) getSystemPrompt() (string, error) {
 	if app.agent.SystemPrompt != "" {
 		return app.processSystemPrompt(app.agent.SystemPrompt)
 	}
 	return app.processSystemPrompt(systemPrompt)
 }
 
-func (app *Application) processSystemPrompt(prompt string) string {
-	blocksRegex := regexp.MustCompile(`{{\$(.*?)}}`)
-	return blocksRegex.ReplaceAllStringFunc(prompt, func(match string) string {
-		command := match[2 : len(match)-2]
-		cmd := exec.Command("sh", "-c", command[1:])
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			return fmt.Sprintf("Error: %v", err)
-		}
-		return strings.TrimSpace(string(output))
-	})
+func (app *Application) processSystemPrompt(prompt string) (string, error) {
+	return processShellBlocks(prompt)
 }
 
 func createNewHistoryFile(cacheDir string, agentName string) string {

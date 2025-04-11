@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -139,11 +140,34 @@ func prepareCommand(fc FunctionConfig, parsedArgs map[string]interface{}) (strin
 	return strings.Join(strings.Fields(command), " "), nil
 }
 
-// processShellBlocks processes {{$...}} blocks in a string by executing them as shell commands
-// and replacing them with the command output
+func readUserInput(prompt string) (string, error) {
+	reader := bufio.NewReader(os.Stdin)
+	var lines []string
+
+	color.New(color.FgBlue).Fprint(os.Stderr, prompt)
+	color.New(color.FgHiWhite, color.Italic).Fprint(os.Stderr, " (end with empty line)\n")
+
+	// TODO(meain): allow for newline using shift+enter
+	for {
+		line, _ := reader.ReadString('\n')
+		line = strings.TrimRight(line, "\r\n")
+		if line == "" {
+			break
+		}
+		lines = append(lines, line)
+	}
+
+	result := strings.Join(lines, "\n")
+	return result, nil
+}
+
+// processShellBlocks processes special blocks in a string:
+// {{$...}} blocks are executed as shell commands and replaced with output
+// {{#...}} blocks prompt for user input with the text as prompt
 func processShellBlocks(input string) (string, error) {
-	blocksRegex := regexp.MustCompile(`{{\$(.*?)}}`)
-	result := blocksRegex.ReplaceAllStringFunc(input, func(match string) string {
+	// Process shell command blocks {{$...}}
+	shellRegex := regexp.MustCompile(`{{\$(.*?)}}`)
+	result := shellRegex.ReplaceAllStringFunc(input, func(match string) string {
 		command := match[3 : len(match)-2] // Extract command without {{$ and }}
 		cmd := exec.Command("sh", "-c", command)
 		output, err := cmd.CombinedOutput()
@@ -152,6 +176,19 @@ func processShellBlocks(input string) (string, error) {
 		}
 		return strings.TrimSpace(string(output))
 	})
+
+	// Process user input blocks {{#...}}
+	inputRegex := regexp.MustCompile(`{{#(.*?)}}`)
+	result = inputRegex.ReplaceAllStringFunc(result, func(match string) string {
+		prompt := match[3 : len(match)-2] // Extract prompt without {{# and }}
+		input, err := readUserInput(prompt)
+		if err != nil {
+			return fmt.Sprintf("Error: %v", err) // TODO(meain): not ideal
+		}
+
+		return input
+	})
+
 	return result, nil
 }
 
@@ -194,6 +231,10 @@ func executeShellCommand(command string, fc FunctionConfig, args map[string]inte
 		}
 
 		// Replace parameters in output template
+		// TODO(meain): we should do the replacement first then
+		// process shell blocks so that I can template. More
+		// importantly I can do `{{#{{question}}}}` and get the
+		// answer
 		for _, param := range fc.Parameters {
 			placeholder := fmt.Sprintf("{{%s}}", param.Name)
 			if value, exists := args[param.Name]; exists {
@@ -204,6 +245,8 @@ func executeShellCommand(command string, fc FunctionConfig, args map[string]inte
 				formattedOutput = strings.ReplaceAll(formattedOutput, placeholder, replacement)
 			}
 		}
+
+		fmt.Print(formattedOutput)
 	}
 
 	cmd := exec.Command("sh", "-c", command)
