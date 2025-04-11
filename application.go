@@ -62,10 +62,7 @@ func (app *Application) parseModel() (provider string, model string, info provid
 
 	parts := strings.SplitN(modelStr, "/", 2)
 	if len(parts) != 2 {
-		return "openai", modelStr, providerInfo{
-			baseURL:     "https://api.openai.com/v1",
-			apiKeyEnvar: "OPENAI_API_KEY",
-		} // Default to just using model name if no provider specified
+		log.Fatalf("invalid model format %q - must be provider/model", modelStr)
 	}
 
 	provider = parts[0]

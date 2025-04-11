@@ -86,11 +86,15 @@ The available flags are:
 
 ### Configuration
 
-The configuration file at `~/.config/esa/config.toml` allows you to define model aliases and additional providers.
+The configuration file at `~/.config/esa/config.toml` allows you to define global settings, model aliases, and additional providers.
 
 ### Global Config Structure
 
 ```toml
+[settings]
+show_commands = false      # Always show executed commands (can be overridden by --show-commands)
+default_model = "4o-mini" # Default model to use (can be overridden by --model/-m)
+
 [model_aliases]
 # Define model aliases for easier reference
 gemini = "openrouter/google/gemini-2.5-pro-exp-03-25:free"
@@ -104,26 +108,35 @@ base_url = "https://api.custom-llm.com/v1"    # API endpoint that follows OpenAI
 api_key_env = "CUSTOM_API_KEY"                # Environment variable for API key
 ```
 
-When specifying models, you can use either the provider/model format or defined aliases:
+When specifying models, you can use either:
+- The provider/model format (e.g., "openai/gpt-4")
+- A defined alias (e.g., "4o" for "openai/gpt-4o")
 
-```bash
-# Using OpenAI models
-ESA_MODEL="openai/gpt-4" # Uses OPENAI_API_KEY
-ESA_MODEL="openai/gpt-4-turbo" # Uses OPENAI_API_KEY
+Built-in providers:
+- `openai`: OpenAI models (gpt-4, gpt-3.5-turbo, etc)
+- `openrouter`: Access to various models through OpenRouter
+- `groq`: Groq's hosted models
+- `github`: GitHub's models through Azure inference
+- `ollama`: Local models through Ollama (http://localhost:11434)
+- Custom providers can be added via config
 
-# Using Azure OpenAI models
-ESA_MODEL="azure/gpt-4" # Uses AZURE_OPENAI_API_KEY
-```
+The model can be specified in three ways (in order of precedence):
+1. Command line flag: `--model/-m`
+2. Default model in config: `settings.default_model`
+3. Built-in default: "openai/gpt-4o-mini"
 
-The system will:
-1. Automatically use the appropriate API key environment variable for the provider
-2. Configure the correct base URL for the API
-3. Use ESA_API_KEY and ESA_BASE_URL if provided
+For each provider, the system will automatically use the appropriate API key from the environment:
+- OpenAI: OPENAI_API_KEY
+- Azure: AZURE_OPENAI_API_KEY
+- OpenRouter: OPENROUTER_API_KEY
+- Groq: GROQ_API_KEY
+- GitHub: GITHUB_MODELS_API_KEY
+- Custom providers: As specified in their config
 
 To use a custom provider:
 1. Add the provider configuration in config.toml
 2. Set the appropriate API key in your environment
-3. Use the provider with `ESA_MODEL="custom-provider/model-name"`
+3. Use the provider with either the full name or an alias
 
 Example using a custom provider:
 ```bash
@@ -134,13 +147,8 @@ api_key_env = "LOCALAI_API_KEY"
 
 # In shell
 export LOCALAI_API_KEY="your-key"
-ESA_MODEL="localai/llama2" esa "your command"
+esa --model "localai/llama2" "your command"
 ```
-
-Environment variables:
-- ESA_API_KEY: Override the provider-specific API key
-- ESA_BASE_URL: Override the provider-specific base URL
-- ESA_MODEL: Specify the model (with or without provider prefix)
 
 ### Confirmation Levels
 
