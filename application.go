@@ -215,13 +215,12 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 		agent:       agent,
 		agentPath:   opts.AgentPath,
 		client:      client,
-		debug:       opts.DebugMode,
 		historyFile: historyFile,
 		messages:    messages,
 		modelFlag:   opts.Model,
 		config:      config,
 
-		// Hide progress if debug mode or show commands is enabled
+		debug:        opts.DebugMode && !opts.ShowCommands,
 		showProgress: !opts.HideProgress && !opts.DebugMode && !opts.ShowCommands,
 	}
 
