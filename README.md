@@ -16,19 +16,24 @@ ESA is an AI-powered command-line tool that lets you control your system using n
 ## Quick Start
 
 1. Install ESA (requires Go 1.21+):
+
    ```bash
    go install github.com/meain/esa@latest
    ```
 
 2. Set up your OpenAI API key:
+
    ```bash
    export OPENAI_API_KEY="your-key-here"
    ```
 
 3. Try your first command:
    ```bash
-   esa "what time is it?"
+   esa what time is it
+   esa will it rain today
    ```
+
+> The source for the default agent can be found [here](https://github.com/meain/esa/blob/master/builtins/default.toml)
 
 ## Basic Usage
 
