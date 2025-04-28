@@ -93,8 +93,6 @@ func (app *Application) parseModel() (provider string, model string, info provid
 			baseURL:     "https://models.inference.ai.azure.com",
 			apiKeyEnvar: "GITHUB_MODELS_API_KEY",
 		}
-	default:
-		log.Fatalf("unknown provider %s", provider)
 	}
 
 	// Override with config if present
@@ -515,7 +513,8 @@ func setupOpenAIClient(opts *CLIOptions, config *Config) (*openai.Client, error)
 	_, _, info := app.parseModel()
 
 	configuredAPIKey := os.Getenv(info.apiKeyEnvar)
-	if configuredAPIKey == "" {
+	// Key name can be empty if we don't need any keys
+	if info.apiKeyEnvar != "" && configuredAPIKey == "" {
 		return nil, fmt.Errorf(info.apiKeyEnvar + " env not found")
 	}
 
