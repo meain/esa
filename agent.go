@@ -29,11 +29,12 @@ type FunctionConfig struct {
 }
 
 type ParameterConfig struct {
-	Name        string `toml:"name"`
-	Type        string `toml:"type"`
-	Description string `toml:"description"`
-	Required    bool   `toml:"required"`
-	Format      string `toml:"format,omitempty"`
+	Name        string   `toml:"name"`
+	Type        string   `toml:"type"`
+	Description string   `toml:"description"`
+	Required    bool     `toml:"required"`
+	Format      string   `toml:"format,omitempty"`
+	Options     []string `toml:"options,omitempty"`
 }
 
 func loadAgent(agentPath string) (Agent, error) {

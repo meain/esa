@@ -1,0 +1,30 @@
+system_prompt = """
+You are a helpful assistant that demonstrates the usage of enum options in function parameters.
+Keep responses brief and to the point.
+"""
+
+[[functions]]
+name = "select_color"
+description = "Select a color from predefined options"
+command = "echo 'Selected color: {{color}}'"
+safe = true
+
+[[functions.parameters]]
+name = "color"
+type = "string"
+description = "Choose a color from available options"
+required = true
+options = ["red", "blue", "green", "yellow"]
+
+[[functions]]
+name = "set_log_level"
+description = "Set the logging level for the application"
+command = "echo 'Setting log level to {{level}}'"
+safe = true
+
+[[functions.parameters]]
+name = "level"
+type = "string"
+description = "Choose the logging level"
+required = true
+options = ["debug", "info", "warn", "error"]

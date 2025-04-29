@@ -31,10 +31,14 @@ func convertToOpenAIFunction(fc FunctionConfig) openai.FunctionDefinition {
 	required := []string{}
 
 	for _, param := range fc.Parameters {
-		properties[param.Name] = map[string]string{
+		paramProps := map[string]interface{}{
 			"type":        param.Type,
 			"description": param.Description,
 		}
+		if len(param.Options) > 0 {
+			paramProps["enum"] = param.Options
+		}
+		properties[param.Name] = paramProps
 		if param.Required {
 			required = append(required, param.Name)
 		}
