@@ -40,9 +40,15 @@ func convertToOpenAIFunction(fc FunctionConfig) openai.FunctionDefinition {
 		}
 	}
 
+	desc := fmt.Sprintf(
+		"%s\n\nThe templated cli command that will be ran is: `%s`",
+		fc.Description,
+		fc.Command,
+	)
+
 	return openai.FunctionDefinition{
 		Name:        fc.Name,
-		Description: fc.Description,
+		Description: desc,
 		Parameters: map[string]interface{}{
 			"type":       "object",
 			"properties": properties,
