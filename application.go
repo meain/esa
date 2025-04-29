@@ -76,7 +76,7 @@ func (app *Application) parseModel() (provider string, model string, info provid
 	case "ollama":
 		info = providerInfo{
 			baseURL:     "http://localhost:11434/v1",
-			apiKeyEnvar: "ESA_API_KEY",
+			apiKeyEnvar: "OLLAMA_API_KEY",
 		}
 	case "openrouter":
 		info = providerInfo{
