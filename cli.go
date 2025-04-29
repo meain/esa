@@ -354,34 +354,54 @@ func listHistory() {
 		return
 	}
 
-	agentNameStyle := color.New(color.FgHiCyan, color.Bold).SprintFunc()
-	timeStyle := color.New(color.FgYellow).SprintFunc()
-	fileStyle := color.New(color.FgHiBlack).SprintFunc()
+	highPriStyle := color.New(color.FgHiCyan, color.Bold).SprintFunc()
+	// medPriStyle := color.New(color.FgHiBlack).SprintFunc()
+	lowPriStyle := color.New(color.FgHiWhite, color.Italic).SprintFunc()
 
-	fmt.Println("Available conversation histories (most recent first):")
-	for i, fileName := range sortedFiles { // Add index 'i'
-		// Attempt to parse agent name and timestamp from filename
-		// Format: agentName-YYYYMMDD-HHMMSS.json
+	fmt.Printf("Available conversation histories (total: %d):\n", len(sortedFiles))
+
+	// TODO(meain): Add additional flag to list all items
+	for i, fileName := range sortedFiles[:15] {
 		parts := strings.SplitN(strings.TrimSuffix(fileName, ".json"), "-", 2)
 		agentName := "unknown"
 		timestampStr := "unknown"
 		if len(parts) == 2 {
 			agentName = parts[0]
 			timestampStr = parts[1]
-			// Attempt to parse the timestamp for better formatting
-			parsedTime, err := time.Parse("20060102-150405", timestampStr)
-			if err == nil {
-				timestampStr = parsedTime.Format("2006-01-02 15:04:05") // More readable format
+			if parsedTime, err := time.Parse("20060102-150405", timestampStr); err == nil {
+				timestampStr = parsedTime.Format("2006-01-02 15:04:05")
 			}
 		}
 
-		// Add index (i+1) to the output format
+		// Get first user query
+		cacheDir, _ := setupCacheDir()
+		historyFilePath := filepath.Join(cacheDir, fileName)
+		var query string
+		if historyData, err := os.ReadFile(historyFilePath); err == nil {
+			var history ConversationHistory
+			if err := json.Unmarshal(historyData, &history); err == nil {
+				prevMessage := ""
+				for _, msg := range history.Messages {
+					if msg.Role == openai.ChatMessageRoleAssistant {
+						query = strings.ReplaceAll(prevMessage, "\n", " ")
+						if len(query) > 60 {
+							query = query[:57] + "..."
+						}
+						break
+					}
+
+					prevMessage = msg.Content
+				}
+			}
+		}
+
 		fmt.Printf(" %2d: %s %s %s\n",
 			i+1,
-			agentNameStyle(agentName),
-			timeStyle(timestampStr),
-			fileStyle("("+fileName+")"),
+			highPriStyle("+"+agentName),
+			query,
+			lowPriStyle(timestampStr),
 		)
+
 	}
 }
 
@@ -497,7 +517,7 @@ func printHistoryMarkdown(fileName string, history ConversationHistory) {
 			for _, tc := range msg.ToolCalls {
 				fmt.Printf("- **%s** (`%s`):\n", tc.Function.Name, tc.ID)
 				// Attempt to format arguments as JSON code block
-				var argsMap map[string]interface{}
+				var argsMap map[string]any
 				argsStr := tc.Function.Arguments
 				if err := json.Unmarshal([]byte(argsStr), &argsMap); err == nil {
 					prettyJSON, _ := json.MarshalIndent(argsMap, "", "  ")
@@ -517,8 +537,8 @@ func printHistoryMarkdown(fileName string, history ConversationHistory) {
 				prefix = "**ERROR:** "
 			}
 
-			var contentMap map[string]interface{}
-			var contentSlice []interface{}
+			var contentMap map[string]any
+			var contentSlice []any
 			contentStr := msg.Content
 			if err := json.Unmarshal([]byte(contentStr), &contentMap); err == nil {
 				prettyJSON, _ := json.MarshalIndent(contentMap, "", "  ")
@@ -580,7 +600,7 @@ func printHistoryText(fileName string, history ConversationHistory) {
 				fmt.Printf("%s\n", toolStyle("Tool Calls:"))
 				for _, tc := range msg.ToolCalls {
 					// Pretty print arguments JSON
-					var argsMap map[string]interface{}
+					var argsMap map[string]any
 					argsStr := tc.Function.Arguments
 					if err := json.Unmarshal([]byte(argsStr), &argsMap); err == nil {
 						prettyJSON, _ := json.MarshalIndent(argsMap, "  ", "  ")
@@ -603,8 +623,8 @@ func printHistoryText(fileName string, history ConversationHistory) {
 			}
 
 			// Try to pretty print JSON content if possible
-			var contentMap map[string]interface{}
-			var contentSlice []interface{}
+			var contentMap map[string]any
+			var contentSlice []any
 			contentStr := msg.Content
 			if err := json.Unmarshal([]byte(contentStr), &contentMap); err == nil {
 				prettyJSON, _ := json.MarshalIndent(contentMap, "  ", "  ")
