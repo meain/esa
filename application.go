@@ -129,7 +129,18 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 
 	historyFile, hasHistory := getHistoryFilePath(cacheDir, opts)
 	if hasHistory && (opts.ContinueChat || opts.RetryChat) {
-		allMessages, agentPath, err := loadConversationHistory(historyFile)
+		var history ConversationHistory
+		data, err := os.ReadFile(historyFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load conversation history: %v", err)
+		}
+		err = json.Unmarshal(data, &history)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal conversation history: %v", err)
+		}
+
+		allMessages := history.Messages
+		agentPath := history.AgentPath
 		if err != nil {
 			return nil, fmt.Errorf("failed to load conversation history: %v", err)
 		}
@@ -191,6 +202,11 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 
 		if agentPath != "" && opts.AgentPath == "" {
 			opts.AgentPath = agentPath
+		}
+
+		// Use model from history if none specified in opts
+		if history.Model != "" && opts.Model == "" {
+			opts.Model = history.Model
 		}
 	}
 
@@ -270,22 +286,6 @@ func (app *Application) Run(opts CLIOptions) {
 	}
 
 	app.runConversationLoop(opts)
-}
-
-func loadConversationHistory(historyFile string) ([]openai.ChatCompletionMessage, string, error) {
-	data, err := os.ReadFile(historyFile)
-	if err != nil {
-		return nil, "", err
-	}
-
-	var history ConversationHistory
-
-	err = json.Unmarshal(data, &history)
-	if err != nil {
-		return nil, "", err
-	}
-
-	return history.Messages, history.AgentPath, nil
 }
 
 func (app *Application) processInput(commandStr, input string) {
@@ -412,12 +412,16 @@ func (app *Application) handleStreamResponse(stream *openai.ChatCompletionStream
 
 type ConversationHistory struct {
 	AgentPath string                         `json:"agent_path"`
+	Model     string                         `json:"model"`
 	Messages  []openai.ChatCompletionMessage `json:"messages"`
 }
 
 func (app *Application) saveConversationHistory() {
+	provider, model, _ := app.parseModel()
+	modelString := fmt.Sprintf("%s/%s", provider, model)
 	history := ConversationHistory{
 		AgentPath: app.agentPath,
+		Model:     modelString,
 		Messages:  app.messages,
 	}
 
