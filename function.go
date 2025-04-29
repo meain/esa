@@ -261,6 +261,24 @@ func executeShellCommand(command string, fc FunctionConfig, args map[string]inte
 
 	cmd := exec.Command("sh", "-c", command)
 
+	// Set working directory if specified
+	if fc.Pwd != "" {
+		// Process templates in pwd similar to command
+		pwd := fc.Pwd
+		for _, param := range fc.Parameters {
+			placeholder := fmt.Sprintf("{{%s}}", param.Name)
+			if value, exists := args[param.Name]; exists {
+				replacement, err := getParameterReplacement(param, value)
+				if err != nil {
+					return nil, err
+				}
+				pwd = strings.ReplaceAll(pwd, placeholder, replacement)
+			}
+		}
+		pwd = expandHomePath(pwd)
+		cmd.Dir = os.ExpandEnv(pwd) // Support environment variables in pwd
+	}
+
 	if fc.Stdin != "" {
 		stdinContent := prepareStdinContent(fc.Stdin, args)
 		cmd.Stdin = strings.NewReader(stdinContent)
