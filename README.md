@@ -210,13 +210,18 @@ Functions are defined as an array of TOML tables. Each function includes:
 name = "function_name"              # Name of the function
 description = "function details"    # Description for the LLM
 command = "command {{param}}"       # Command template with parameter placeholders
-safe = true                        # Whether the function is considered safe (optional)
+safe = true                         # Whether the function is considered safe (optional)
+stdin = ""                          # Optional stdin template with parameter substitution
+output = ""                         # Optional output template for command results
+pwd = ""                            # Optional working directory for command execution
 
 [[functions.parameters]]
-name = "param"                     # Parameter name
-type = "string"                    # Parameter type (string, number, boolean)
-description = "param details"      # Parameter description
-required = true                    # Whether the parameter is required
+name = "param"                      # Parameter name
+type = "string"                     # Parameter type (string, number, boolean)
+description = "param details"       # Parameter description
+required = true                     # Whether the parameter is required
+format = ""                         # Optional format specification for the parameter
+options = []                        # Optional array of allowed values for the parameter
 ```
 
 Key components:
@@ -246,6 +251,8 @@ type = "string"
 description = "Path to the file"
 required = true
 ```
+
+_You can see more exmaples in the [examples](https://github.com/meain/esa/tree/master/examples) directory._
 
 Other configuration options:
 
