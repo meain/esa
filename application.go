@@ -25,7 +25,7 @@ type Application struct {
 	debug           bool
 	historyFile     string
 	messages        []openai.ChatCompletionMessage
-	debugPrint      func(section string, v ...interface{})
+	debugPrint      func(section string, v ...any)
 	showCommands    bool
 	showProgress    bool
 	lastProgressLen int
@@ -528,8 +528,8 @@ func setupOpenAIClient(opts *CLIOptions, config *Config) (*openai.Client, error)
 	return openai.NewClientWithConfig(llmConfig), nil
 }
 
-func createDebugPrinter(debugMode bool) func(string, ...interface{}) {
-	return func(section string, v ...interface{}) {
+func createDebugPrinter(debugMode bool) func(string, ...any) {
+	return func(section string, v ...any) {
 		if !debugMode {
 			return
 		}

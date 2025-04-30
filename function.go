@@ -27,11 +27,11 @@ func convertFunctionsToTools(functions []FunctionConfig) []openai.Tool {
 }
 
 func convertToOpenAIFunction(fc FunctionConfig) openai.FunctionDefinition {
-	properties := make(map[string]interface{})
+	properties := make(map[string]any)
 	required := []string{}
 
 	for _, param := range fc.Parameters {
-		paramProps := map[string]interface{}{
+		paramProps := map[string]any{
 			"type":        param.Type,
 			"description": param.Description,
 		}
@@ -53,7 +53,7 @@ func convertToOpenAIFunction(fc FunctionConfig) openai.FunctionDefinition {
 	return openai.FunctionDefinition{
 		Name:        fc.Name,
 		Description: desc,
-		Parameters: map[string]interface{}{
+		Parameters: map[string]any{
 			"type":       "object",
 			"properties": properties,
 			"required":   required,
@@ -94,12 +94,12 @@ func executeFunction(askLevel string, fc FunctionConfig, args string, showComman
 	return origCommand, strings.TrimSpace(string(output)), nil
 }
 
-func parseAndValidateArgs(fc FunctionConfig, args string) (map[string]interface{}, error) {
+func parseAndValidateArgs(fc FunctionConfig, args string) (map[string]any, error) {
 	if args == "" {
-		return make(map[string]interface{}), nil
+		return make(map[string]any), nil
 	}
 
-	var parsedArgs map[string]interface{}
+	var parsedArgs map[string]any
 	if err := json.Unmarshal([]byte(args), &parsedArgs); err != nil {
 		return nil, fmt.Errorf("error parsing arguments: %v", err)
 	}
@@ -121,7 +121,7 @@ func parseAndValidateArgs(fc FunctionConfig, args string) (map[string]interface{
 	return parsedArgs, nil
 }
 
-func prepareCommand(fc FunctionConfig, parsedArgs map[string]interface{}) (string, error) {
+func prepareCommand(fc FunctionConfig, parsedArgs map[string]any) (string, error) {
 	command := fc.Command
 
 	// First, process any shell command blocks in the command
@@ -202,7 +202,7 @@ func processShellBlocks(input string) (string, error) {
 	return result, nil
 }
 
-func getParameterReplacement(param ParameterConfig, value interface{}) (string, error) {
+func getParameterReplacement(param ParameterConfig, value any) (string, error) {
 	switch {
 	case param.Format == "boolean":
 		boolValue, err := strconv.ParseBool(fmt.Sprintf("%v", value))
@@ -232,7 +232,7 @@ func needsConfirmation(askLevel string, isSafe bool) bool {
 	return askLevel == "all" || (askLevel == "unsafe" && !isSafe)
 }
 
-func executeShellCommand(command string, fc FunctionConfig, args map[string]interface{}) ([]byte, error) {
+func executeShellCommand(command string, fc FunctionConfig, args map[string]any) ([]byte, error) {
 	if fc.Output != "" {
 		// Process output template similar to command
 		formattedOutput, err := processShellBlocks(fc.Output)
@@ -294,7 +294,7 @@ func executeShellCommand(command string, fc FunctionConfig, args map[string]inte
 	return output, nil
 }
 
-func prepareStdinContent(stdinTemplate string, args map[string]interface{}) string {
+func prepareStdinContent(stdinTemplate string, args map[string]any) string {
 	// First, process any shell command blocks
 	processed, err := processShellBlocks(stdinTemplate)
 	if err != nil {
