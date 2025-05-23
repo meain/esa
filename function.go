@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/sashabaranov/go-openai"
@@ -259,7 +261,21 @@ func executeShellCommand(command string, fc FunctionConfig, args map[string]any)
 		fmt.Print(formattedOutput)
 	}
 
+	// Use fc.Timeout instead of fc.TimeoutSec
 	cmd := exec.Command("sh", "-c", command)
+
+	// Set up context with timeout if specified
+	ctx := context.Background()
+	timeout := fc.Timeout
+	if timeout <= 0 {
+		timeout = 60 // default to 60 seconds if not set
+	}
+	if timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
+		defer cancel()
+		cmd = exec.CommandContext(ctx, "sh", "-c", command)
+	}
 
 	// Set working directory if specified
 	if fc.Pwd != "" {

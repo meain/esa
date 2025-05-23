@@ -214,6 +214,7 @@ safe = true                         # Whether the function is considered safe (o
 stdin = ""                          # Optional stdin template with parameter substitution
 output = ""                         # Optional output template for command results
 pwd = ""                            # Optional working directory for command execution
+timeout_sec = 60                   # Optional timeout for the function in seconds
 
 [[functions.parameters]]
 name = "param"                      # Parameter name
@@ -230,6 +231,7 @@ Key components:
 - `description`: Detailed description helping the LLM understand when to use the function
 - `command`: The actual command to execute, using `{{param}}` syntax for parameter substitution
 - `safe`: Boolean flag indicating if the function is safe to execute without confirmation
+- `timeout_sec`: Optional timeout for the function in seconds. Overrides the global timeout.
 - `parameters`: Array of parameter definitions that the function accepts
   - `name`: Parameter name used in command templating
   - `type`: Parameter data type
@@ -341,6 +343,22 @@ With this configuration, you can ask questions like:
 esa "list files in the current directory"
 esa "show me the content of main.go"
 esa "show me the tree structure of the functions directory"
+```
+
+## Timeout
+
+- By default, each function (command) has a 60 second timeout.
+- You can override this for a specific function by setting `timeout` in the agent config for that function.
+- There is no global CLI override for timeout.
+
+Example agent function config:
+
+```toml
+[[functions]]
+name = "long_task"
+description = "Run a long task"
+command = "sleep 120"
+timeout = 10 # This function will timeout after 10 seconds
 ```
 
 ## Notes

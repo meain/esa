@@ -27,6 +27,7 @@ type FunctionConfig struct {
 	Stdin       string            `toml:"stdin,omitempty"`
 	Output      string            `toml:"output"`
 	Pwd         string            `toml:"pwd,omitempty"`
+	Timeout     int               `toml:"timeout"`
 }
 
 type ParameterConfig struct {
