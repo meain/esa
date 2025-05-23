@@ -270,6 +270,7 @@ func executeShellCommand(command string, fc FunctionConfig, args map[string]any)
 	if timeout <= 0 {
 		timeout = 60 // default to 60 seconds if not set
 	}
+
 	if timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
@@ -302,12 +303,31 @@ func executeShellCommand(command string, fc FunctionConfig, args map[string]any)
 		cmd.Stdin = os.Stdin
 	}
 
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return nil, fmt.Errorf("%v\nCommand: %s\nOutput: %s", err, command, output)
+	// Start the command
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("failed to start command: %v", err)
 	}
 
-	return output, nil
+	// Create a channel to wait for command completion
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+
+	select {
+	case <-ctx.Done():
+		// Force kill the process if timeout is reached
+		if err := cmd.Process.Kill(); err != nil {
+			return nil, fmt.Errorf("failed to kill process: %v", err)
+		}
+		return nil, fmt.Errorf("command timed out and was killed: %s", command)
+	case err := <-done:
+		if err != nil {
+			output, _ := cmd.CombinedOutput()
+			return nil, fmt.Errorf("%v\nCommand: %s\nOutput: %s", err, command, output)
+		}
+		return cmd.CombinedOutput()
+	}
 }
 
 func prepareStdinContent(stdinTemplate string, args map[string]any) string {
