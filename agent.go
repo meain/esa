@@ -47,28 +47,30 @@ func loadAgent(agentPath string) (Agent, error) {
 }
 
 func loadConfiguration(opts *CLIOptions) (Agent, error) {
-
-	if opts.AgentName == "new" {
-		var agent Agent
+	var agent Agent
+	switch {
+	case opts.AgentName == "new":
 		if _, err := toml.Decode(newAgentToml, &agent); err != nil {
 			return Agent{}, fmt.Errorf("error loading embedded new agent config: %v", err)
 		}
-		return agent, nil
-	}
-
-	agentPath := expandHomePath(opts.AgentPath)
-	_, err := os.Stat(agentPath)
-	if err != nil {
-		if os.IsNotExist(err) && opts.AgentName == "" && opts.AgentPath == DefaultAgentPath {
-			var agent Agent
-			if _, err := toml.Decode(defaultAgentToml, &agent); err != nil {
-				return Agent{}, fmt.Errorf("error loading embedded new agent config: %v", err)
-			}
-			return agent, nil
+	case opts.AgentName == "auto":
+		if _, err := toml.Decode(autoAgentToml, &agent); err != nil {
+			return Agent{}, fmt.Errorf("error loading embedded auto agent config: %v", err)
 		}
+	default:
+		agentPath := expandHomePath(opts.AgentPath)
+		_, err := os.Stat(agentPath)
+		if err != nil {
+			if os.IsNotExist(err) && opts.AgentName == "" && opts.AgentPath == DefaultAgentPath {
+				if _, err := toml.Decode(defaultAgentToml, &agent); err != nil {
+					return Agent{}, fmt.Errorf("error loading embedded new agent config: %v", err)
+				}
+				return agent, nil
+			}
+		}
+		return loadAgent(agentPath)
 	}
-
-	return loadAgent(agentPath)
+	return agent, nil
 }
 
 func expandHomePath(path string) string {

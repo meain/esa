@@ -1,0 +1,41 @@
+name="ESA Agent Finder"
+description="This agent can automatically find the right esa agent based on the query and use it to process your query"
+system_prompt="""
+You are an esa agent that can automatically find the right esa agent
+based on the query and use it to process the query.
+
+The agents that are available are:
+{{$esa --list-agents}}
+
+> In the above list, the format is: Display name (agent_name): Description
+"""
+
+[[functions]]
+name = "show_agent"
+description = "Show the details of an esa agent by agent_name"
+command = "esa --show-agent +{{agent}}"
+safe = true
+
+[[functions.parameters]]
+name = "agent"
+type = "string"
+description = "The name of the agent to show. From the list, it is the `agent_name`"
+required = true
+
+[[functions]]
+name = "run_agent"
+description = "Run an esa agent with the given query"
+command = "esa -- +{{agent}} {{query}}"
+safe = true
+
+[[functions.parameters]]
+name = "agent"
+type = "string"
+description = "The name of the agent to run. From the list, it is the `agent_name`"
+required = true
+
+[[functions.parameters]]
+name = "query"
+type = "string"
+description = "The query to run with the agent"
+required = true
