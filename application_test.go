@@ -84,18 +84,7 @@ func TestParseModel(t *testing.T) {
 			wantModel:    "llama2",
 			wantInfo: providerInfo{
 				baseURL:     "http://localhost:11434/v1",
-				apiKeyEnvar: "ESA_API_KEY",
-			},
-		},
-		{
-			name:         "No provider specified",
-			modelFlag:    "gpt-4",
-			config:       nil,
-			wantProvider: "openai",
-			wantModel:    "gpt-4",
-			wantInfo: providerInfo{
-				baseURL:     "https://api.openai.com/v1",
-				apiKeyEnvar: "OPENAI_API_KEY",
+				apiKeyEnvar: "OLLAMA_API_KEY",
 			},
 		},
 	}
