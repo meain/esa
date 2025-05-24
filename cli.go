@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,7 +12,8 @@ import (
 	"time"
 
 	"github.com/fatih/color"
-	"github.com/sashabaranov/go-openai" // Added for message types
+	"github.com/sashabaranov/go-openai"
+	"github.com/spf13/cobra"
 )
 
 // DefaultAgentsDir is the default directory for agent configuration files
@@ -34,145 +34,122 @@ type CLIOptions struct {
 	AgentName    string
 	Model        string
 	ConfigPath   string
-	HistoryIndex int    // Index for show-history command
 	OutputFormat string // Output format for show-history (text, markdown, json)
+	ShowAgent    bool   // Flag for showing agent details
+	ListAgents   bool   // Flag for listing agents
+	ListHistory  bool   // Flag for listing history
+	ShowHistory  bool   // Flag for showing specific history
 }
 
-func handleShowAgent(agentPath string) {
-	agent, err := loadAgent(agentPath)
-	if err != nil {
-		color.Red("Error loading agent: %v\n", err)
-		return
-	}
+func createRootCommand() *cobra.Command {
+	opts := &CLIOptions{}
 
-	labelStyle := color.New(color.FgHiCyan, color.Bold).SprintFunc()
-
-	// Print agent name and description if available
-	if agent.Name != "" {
-		fmt.Printf("%s %s (%s)\n", labelStyle("Agent:"), agent.Name, filepath.Base(agentPath))
-	} else {
-		fmt.Printf("%s %s\n", labelStyle("Agent:"), filepath.Base(agentPath))
-	}
-
-	if agent.Description != "" {
-		fmt.Printf("%s %s\n", labelStyle("Description:"), agent.Description)
-	}
-	fmt.Println()
-
-	// Print available functions
-	if len(agent.Functions) > 0 {
-		for _, fn := range agent.Functions {
-			printFunctionInfo(fn)
-		}
-	} else {
-		noFuncStyle := color.New(color.FgYellow, color.Italic).SprintFunc()
-		fmt.Printf("%s\n", noFuncStyle("No functions available."))
-	}
-}
-
-// CommandType represents the type of command to execute
-type CommandType int
-
-const (
-	NormalExecution CommandType = iota
-	ShowAgent
-	ListAgents
-	ListHistory
-	ShowHistory
-)
-
-func parseFlags() (CLIOptions, CommandType) {
-	opts := CLIOptions{}
-
-	// Define command-line flags
-	flag.BoolVar(&opts.DebugMode, "debug", false, "Enable debug mode")
-	flag.BoolVar(&opts.ContinueChat, "c", false, "Continue last conversation")
-	flag.BoolVar(&opts.ContinueChat, "continue", false, "Continue last conversation")
-	flag.BoolVar(&opts.RetryChat, "r", false, "Retry last command")
-	flag.BoolVar(&opts.RetryChat, "retry", false, "Retry last command")
-	agentPath := flag.String("agent", "", "Path to the agent config file")
-	configPath := flag.String("config", "", "Path to the global config file (default: ~/.config/esa/config.toml)")
-	flag.StringVar(&opts.Model, "m", "", "Model to use (e.g., openai/gpt-4)")
-	flag.StringVar(&opts.Model, "model", "", "Model to use (e.g., openai/gpt-4)")
-	flag.StringVar(&opts.AskLevel, "ask", "none", "Ask level (none, unsafe, all)")
-	flag.BoolVar(&opts.ShowCommands, "show-commands", false, "Show executed commands")
-	flag.BoolVar(&opts.HideProgress, "hide-progress", false, "Disable LLM-generated progress summary for each function")
-	flag.StringVar(&opts.OutputFormat, "output", "text", "Output format for show-history (text, markdown, json)")
-	help := flag.Bool("help", false, "Show help message")
-	flag.Parse()
-
-	// Validate output format
-	validFormats := map[string]bool{"text": true, "markdown": true, "json": true}
-	if !validFormats[opts.OutputFormat] {
-		printHelp()
-		color.Red("\nError: Invalid output format %q. Must be one of: text, markdown, json.", opts.OutputFormat)
-		os.Exit(1)
-	}
-
-	// Handle help flag
-	if *help {
-		printHelp()
-		os.Exit(0)
-	}
-
-	// Process command arguments
-	args := flag.Args()
-	opts.CommandStr = strings.Join(args, " ")
-	opts.AgentPath = *agentPath
-	opts.ConfigPath = *configPath
-	// Determine command type and parse agent information
-	commandType := parseCommandType(&opts)
-
-	return opts, commandType
-}
-
-// parseCommandType determines what type of command is being executed and
-// updates the options accordingly
-func parseCommandType(opts *CLIOptions) CommandType {
-	// Check for show-agent command
-	if strings.HasPrefix(opts.CommandStr, "show-agent") {
-		parts := strings.SplitN(opts.CommandStr, " ", 2)
-		if len(parts) > 1 && strings.HasPrefix(parts[1], "+") {
-			// Extract agent name (remove + prefix)
-			agentName := parts[1][1:]
-			opts.AgentName = agentName
-			opts.AgentPath = fmt.Sprintf("%s/%s.toml", DefaultAgentsDir, agentName)
-		}
-		return ShowAgent
-	}
-
-	// Check for list-agents command
-	if strings.HasPrefix(opts.CommandStr, "list-agents") {
-		return ListAgents
-	}
-
-	// Check for list-history command
-	if strings.HasPrefix(opts.CommandStr, "list-history") {
-		return ListHistory
-	}
-
-	// Check for show-history command
-	if strings.HasPrefix(opts.CommandStr, "show-history") {
-		parts := strings.SplitN(opts.CommandStr, " ", 2)
-		if len(parts) == 2 {
-			index, err := strconv.Atoi(parts[1])
-			if err == nil && index > 0 {
-				opts.HistoryIndex = index
-				return ShowHistory
+	rootCmd := &cobra.Command{
+		Use:   "esa [text]",
+		Short: "AI assistant with tool calling capabilities",
+		Long:  `An AI assistant that can execute functions and tools to help with various tasks.`,
+		Example: `  esa Will it rain tomorrow
+  esa +coder How do I write a function in Go
+  esa --list-agents
+  esa --show-agent +coder
+  esa --show-agent ~/.config/esa/agents/custom.toml
+  esa --list-history
+  esa --show-history 1
+  esa --show-history 1 --output json`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Handle list/show flags first
+			if opts.ListAgents {
+				listAgents()
+				return nil
 			}
+
+			if opts.ListHistory {
+				listHistory()
+				return nil
+			}
+
+			if opts.ShowHistory {
+				// Require positional argument for history index
+				if len(args) == 0 {
+					return fmt.Errorf("history index must be provided as argument: esa --show-history <index>")
+				}
+
+				idx, err := strconv.Atoi(args[0])
+				if err != nil || idx <= 0 {
+					return fmt.Errorf("invalid history index: %s (must be a positive number)", args[0])
+				}
+
+				handleShowHistory(idx, opts.OutputFormat)
+				return nil
+			}
+
+			if opts.ShowAgent {
+				// Require positional argument for agent
+				if len(args) == 0 {
+					return fmt.Errorf("agent must be provided as argument: esa --show-agent <agent> or esa --show-agent +<agent>")
+				}
+
+				var agentPath string
+				if strings.HasPrefix(args[0], "+") {
+					// Handle +agent syntax
+					agentName := args[0][1:] // Remove + prefix
+					agentPath = expandHomePath(fmt.Sprintf("%s/%s.toml", DefaultAgentsDir, agentName))
+				} else {
+					// Treat as direct path
+					agentPath = args[0]
+				}
+
+				handleShowAgent(agentPath)
+				return nil
+			}
+
+			// Normal execution - join args as command string
+			opts.CommandStr = strings.Join(args, " ")
+
+			// Handle agent selection with + prefix
+			if strings.HasPrefix(opts.CommandStr, "+") {
+				parseAgentCommand(opts)
+			}
+
+			app, err := NewApplication(opts)
+			if err != nil {
+				return fmt.Errorf("failed to initialize application: %v", err)
+			}
+
+			app.Run(*opts)
+			return nil
+		},
+	}
+
+	// Add flags
+	rootCmd.Flags().BoolVar(&opts.DebugMode, "debug", false, "Enable debug mode")
+	rootCmd.Flags().BoolVarP(&opts.ContinueChat, "continue", "c", false, "Continue last conversation")
+	rootCmd.Flags().BoolVarP(&opts.RetryChat, "retry", "r", false, "Retry last command")
+	rootCmd.Flags().StringVar(&opts.ConfigPath, "config", "", "Path to the global config file (default: ~/.config/esa/config.toml)")
+	rootCmd.Flags().StringVarP(&opts.Model, "model", "m", "", "Model to use (e.g., openai/gpt-4)")
+	rootCmd.Flags().StringVar(&opts.AskLevel, "ask", "none", "Ask level (none, unsafe, all)")
+	rootCmd.Flags().BoolVar(&opts.ShowCommands, "show-commands", false, "Show executed commands during run")
+	rootCmd.Flags().BoolVar(&opts.HideProgress, "hide-progress", false, "Disable progress info for each function")
+	rootCmd.Flags().StringVar(&opts.OutputFormat, "output", "text", "Output format for --show-history (text, markdown, json)")
+
+	// List/show flags
+	rootCmd.Flags().BoolVar(&opts.ListAgents, "list-agents", false, "List all available agents")
+	rootCmd.Flags().BoolVar(&opts.ListHistory, "list-history", false, "List all saved conversation histories")
+	rootCmd.Flags().BoolVar(&opts.ShowAgent, "show-agent", false, "Show agent details (requires agent name/path as argument)")
+	rootCmd.Flags().BoolVar(&opts.ShowHistory, "show-history", false, "Show conversation history (requires history index as argument)")
+
+	// Make history-index required when show-history is used
+	rootCmd.PreRunE = func(cmd *cobra.Command, args []string) error {
+		// Validate output format
+		validFormats := map[string]bool{"text": true, "markdown": true, "json": true}
+		if !validFormats[opts.OutputFormat] {
+			return fmt.Errorf("invalid output format %q. Must be one of: text, markdown, json", opts.OutputFormat)
 		}
-		// If format is wrong or index is invalid, print help and exit
-		printHelp()
-		color.Red("\nError: Invalid format for show-history. Use 'show-history <number>'.")
-		os.Exit(1)
+
+		return nil
 	}
 
-	// Check for agent selection with + prefix
-	if strings.HasPrefix(opts.CommandStr, "+") {
-		parseAgentCommand(opts)
-	}
-
-	return NormalExecution
+	return rootCmd
 }
 
 // parseAgentCommand handles the +agent syntax, extracting agent name and remaining command
@@ -191,29 +168,7 @@ func parseAgentCommand(opts *CLIOptions) {
 	}
 
 	// Set agent path based on agent name
-	opts.AgentPath = fmt.Sprintf("%s/%s.toml", DefaultAgentsDir, opts.AgentName)
-}
-
-func printHelp() {
-	fmt.Println("Usage: esa <command> [--debug] [--agent <path>] [--config <path>] [--ask <level>] [--show-progress]")
-	fmt.Println("\nOptions:")
-	fmt.Println("  --debug         Enable debug mode")
-	fmt.Println("  -c, --continue  Continue last conversation")
-	fmt.Println("  -r, --retry     Retry the last command")
-	fmt.Println("  --agent         Path to the agent config file")
-	fmt.Println("  --config        Path to the global config file (default: ~/.config/esa/config.toml)")
-	fmt.Println("  -m, --model     Model to use (e.g., openai/gpt-4)")
-	fmt.Println("  --ask           Ask level (none, unsafe, all)")
-	fmt.Println("  --show-commands Show executed commands")
-	fmt.Println("  --hide-progress Disable progress summary for each function (enabled by default)")
-	fmt.Println("  --output        Output format for show-history (text, markdown, json)")
-	fmt.Println("\nCommands:")
-	fmt.Println("  list-agents          List all available agents")
-	fmt.Println("  list-history         List all saved conversation histories")
-	fmt.Println("  show-history <num>   Show details of a specific conversation history")
-	fmt.Println("  show-agent +<agent>  Show agent details and available functions")
-	fmt.Println("  +<agent> <text>      Use specific agent with the given command")
-	fmt.Println("  <text>               Send text command to the assistant")
+	opts.AgentPath = expandHomePath(fmt.Sprintf("%s/%s.toml", DefaultAgentsDir, opts.AgentName))
 }
 
 func printFunctionInfo(fn FunctionConfig) {
@@ -639,5 +594,38 @@ func printHistoryText(fileName string, history ConversationHistory) {
 		default:
 			fmt.Printf("[%s]\n%s\n\n", strings.ToUpper(msg.Role), msg.Content)
 		}
+	}
+}
+
+// handleShowAgent displays the details of the agent specified by the agentPath.
+func handleShowAgent(agentPath string) {
+	agent, err := loadAgent(agentPath)
+	if err != nil {
+		color.Red("Error loading agent: %v\n", err)
+		return
+	}
+
+	labelStyle := color.New(color.FgHiCyan, color.Bold).SprintFunc()
+
+	// Print agent name and description if available
+	if agent.Name != "" {
+		fmt.Printf("%s %s (%s)\n", labelStyle("Agent:"), agent.Name, filepath.Base(agentPath))
+	} else {
+		fmt.Printf("%s %s\n", labelStyle("Agent:"), filepath.Base(agentPath))
+	}
+
+	if agent.Description != "" {
+		fmt.Printf("%s %s\n", labelStyle("Description:"), agent.Description)
+	}
+	fmt.Println()
+
+	// Print available functions
+	if len(agent.Functions) > 0 {
+		for _, fn := range agent.Functions {
+			printFunctionInfo(fn)
+		}
+	} else {
+		noFuncStyle := color.New(color.FgYellow, color.Italic).SprintFunc()
+		fmt.Printf("%s\n", noFuncStyle("No functions available."))
 	}
 }

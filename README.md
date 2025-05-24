@@ -45,9 +45,10 @@ export OLLAMA_API_KEY=""  # Leave empty for local Ollama
 
 ### 3. Try Your First Commands
 
-The operations you can do and questions you can ask depends on the agnent config. While the real power of esa comes form the fact that you can create custom agents, the default builtin agent can do some basic stuff.
-
 ```bash
+# Get help and see all available options
+esa --help
+
 # Basic queries
 esa "what time is it"
 esa "what files are in the current directory"
@@ -58,8 +59,10 @@ esa "will it rain today"
 esa "set an alarm for 2 hours from now"
 
 # Use esa's investigations to learn
-esa show-history 7 | esa "convert this interaction into a doc"
+esa --show-history 7 | esa "convert this interaction into a doc"
 ```
+
+The operations you can do and questions you can ask depends on the agent config. While the real power of ESA comes from the fact that you can create custom agents, the default builtin agent can do some basic stuff.
 
 > 💡 **Tip**: The default agent provides basic system functions. See the [Agent Creation Guide](./docs/agents.md) to create specialized agents.
 
@@ -90,8 +93,9 @@ esa -c "and what about yesterday's weather"
 esa -r "make it more detailed"
 
 # View conversation history
-esa list-history
-esa show-history 3
+esa --list-history
+esa --show-history 3
+esa --show-history 1 --output json
 ```
 
 ### Working with Different Models
@@ -133,11 +137,12 @@ api_key_env = "LOCALAI_API_KEY"
 
 ```bash
 # List available agents
-esa list-agents
+esa --list-agents
 
 # View agent details and available functions
-esa show-agent +k8s
-esa show-agent +commit
+esa --show-agent +k8s
+esa --show-agent +commit
+esa --show-agent ~/.config/esa/agents/custom.toml
 
 # Agents are stored in ~/.config/esa/agents/
 # Each agent is a .toml file defining its capabilities
@@ -162,24 +167,44 @@ See the [`examples/`](examples/) directory for more agent configurations.
 ```bash
 # Core options
 --model, -m <model>      # Specify model (e.g., "openai/gpt-4")
---agent <path>           # Use specific agent file
+--config <path>          # Path to config file
 --debug                  # Enable debug output
---ask <level>           # Confirmation level: none/unsafe/all
+--ask <level>            # Confirmation level: none/unsafe/all
 
 # Conversation management
--c, --continue          # Continue last conversation
--r, --retry             # Retry last command (optionally with new text)
+-c, --continue           # Continue last conversation
+-r, --retry              # Retry last command (optionally with new text)
 
 # Output and display
---show-commands         # Show executed commands
---hide-progress         # Disable progress indicators
---output <format>       # Output format: text/markdown/json
+--show-commands          # Show executed commands
+--hide-progress          # Disable progress indicators
+--output <format>        # Output format for --show-history: text/markdown/json
 
-# Information commands
-list-agents             # Show all available agents
-list-history           # Show conversation history
-show-history <num>     # Display specific conversation
-show-agent +<name>     # Show agent details
+# Information commands (require arguments)
+--list-agents            # Show all available agents
+--list-history           # Show conversation history
+--show-history <index>   # Display specific conversation (e.g., --show-history 1)
+--show-agent <agent>     # Show agent details (e.g., --show-agent +coder)
+```
+
+### Examples
+
+```bash
+# Basic usage
+esa "What is the weather like?"
+esa +coder "How do I write a function in Go?"
+
+# Agent and history management
+esa --list-agents
+esa --show-agent +coder
+esa --show-agent ~/.config/esa/agents/custom.toml
+esa --list-history
+esa --show-history 1
+esa --show-history 1 --output json
+
+# Conversation flow
+esa --continue "tell me more about that"
+esa --retry "make it shorter"
 ```
 
 ## 📋 Safety and Security
