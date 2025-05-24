@@ -261,22 +261,21 @@ func executeShellCommand(command string, fc FunctionConfig, args map[string]any)
 		fmt.Print(formattedOutput)
 	}
 
-	// Use fc.Timeout instead of fc.TimeoutSec
-	cmd := exec.Command("sh", "-c", command)
-
-	// Set up context with timeout if specified
+	// Set up context with timeout
 	ctx := context.Background()
 	timeout := fc.Timeout
 	if timeout <= 0 {
 		timeout = 60 // default to 60 seconds if not set
 	}
 
+	var cancel context.CancelFunc
 	if timeout > 0 {
-		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
 		defer cancel()
-		cmd = exec.CommandContext(ctx, "sh", "-c", command)
 	}
+
+	// Create command with context
+	cmd := exec.CommandContext(ctx, "sh", "-c", command)
 
 	// Set working directory if specified
 	if fc.Pwd != "" {
@@ -302,31 +301,45 @@ func executeShellCommand(command string, fc FunctionConfig, args map[string]any)
 	} else {
 		cmd.Stdin = os.Stdin
 	}
+	// Start the command and capture output
+	var output []byte
+	var cmdErr error
 
-	// Start the command
-	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("failed to start command: %v", err)
-	}
-
-	// Create a channel to wait for command completion
-	done := make(chan error, 1)
+	// Use a channel to handle the command execution
+	done := make(chan struct{})
 	go func() {
-		done <- cmd.Wait()
+		defer close(done)
+		output, cmdErr = cmd.CombinedOutput()
 	}()
 
+	// Wait for either completion or timeout
 	select {
+	case <-done:
+		// Command completed normally
+		if cmdErr != nil {
+			return nil, fmt.Errorf("%v\nCommand: %s\nOutput: %s", cmdErr, command, string(output))
+		}
+		return output, nil
+
 	case <-ctx.Done():
-		// Force kill the process if timeout is reached
-		if err := cmd.Process.Kill(); err != nil {
-			return nil, fmt.Errorf("failed to kill process: %v", err)
+		// Context was cancelled (timeout or other cancellation)
+		// Try to kill the process
+		if cmd.Process != nil {
+			cmd.Process.Kill()
 		}
-		return nil, fmt.Errorf("command timed out and was killed: %s", command)
-	case err := <-done:
-		if err != nil {
-			output, _ := cmd.CombinedOutput()
-			return nil, fmt.Errorf("%v\nCommand: %s\nOutput: %s", err, command, output)
+
+		// Wait a bit for the goroutine to finish
+		select {
+		case <-done:
+			// Goroutine finished
+		case <-time.After(3 * time.Second):
+			// Give it some time to gracefully exit
 		}
-		return cmd.CombinedOutput()
+
+		if ctx.Err() == context.DeadlineExceeded {
+			return nil, fmt.Errorf("command timed out after %d seconds: %s", timeout, command)
+		}
+		return nil, fmt.Errorf("command was cancelled: %s", command)
 	}
 }
 
