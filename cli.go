@@ -125,6 +125,7 @@ func createRootCommand() *cobra.Command {
 	rootCmd.Flags().BoolVar(&opts.DebugMode, "debug", false, "Enable debug mode")
 	rootCmd.Flags().BoolVarP(&opts.ContinueChat, "continue", "c", false, "Continue last conversation")
 	rootCmd.Flags().BoolVarP(&opts.RetryChat, "retry", "r", false, "Retry last command")
+	rootCmd.Flags().StringVar(&opts.AgentPath, "agent", "", "Path to agent config file")
 	rootCmd.Flags().StringVar(&opts.ConfigPath, "config", "", "Path to the global config file (default: ~/.config/esa/config.toml)")
 	rootCmd.Flags().StringVarP(&opts.Model, "model", "m", "", "Model to use (e.g., openai/gpt-4)")
 	rootCmd.Flags().StringVar(&opts.AskLevel, "ask", "none", "Ask level (none, unsafe, all)")

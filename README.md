@@ -50,16 +50,16 @@ export OLLAMA_API_KEY=""  # Leave empty for local Ollama
 esa --help
 
 # Basic queries
-esa "what time is it"
-esa "what files are in the current directory"
+esa what time is it
+esa what files are in the current directory
 esa "calculate 15% tip on $47.50"
 
 # More complex tasks
-esa "will it rain today"
-esa "set an alarm for 2 hours from now"
+esa will it rain today
+esa set an alarm for 2 hours from now
 
 # Use esa's investigations to learn
-esa --show-history 7 | esa "convert this interaction into a doc"
+esa --show-history 7 | esa convert this interaction into a doc
 ```
 
 The operations you can do and questions you can ask depends on the agent config. While the real power of ESA comes from the fact that you can create custom agents, the default builtin agent can do some basic stuff.
@@ -72,12 +72,12 @@ ESA becomes powerful when you use specialized agents. The following are things y
 
 ```bash
 # Kubernetes operations
-esa +k8s "what is the secret value that starts with AUD_"
-esa +k8s "how to get latest cronjob pod logs"
+esa +k8s what is the secret value that starts with AUD_
+esa +k8s how to get latest cronjob pod logs
 
 # JIRA integration
-esa +jira "list all open issues assigned to me"
-esa +jira "pending issues related to authentication"
+esa +jira list all open issues assigned to me
+esa +jira pending issues related to authentication
 
 # Git operations with the commit agent
 git diff --staged | esa +commit
@@ -90,7 +90,7 @@ git diff --staged | esa +commit
 esa -c "and what about yesterday's weather"
 
 # Retry the last command with modifications
-esa -r "make it more detailed"
+esa -r make it more detailed
 
 # View conversation history
 esa --list-history
@@ -167,6 +167,7 @@ See the [`examples/`](examples/) directory for more agent configurations.
 ```bash
 # Core options
 --model, -m <model>      # Specify model (e.g., "openai/gpt-4")
+--agent <path>           # Path to agent config file
 --config <path>          # Path to config file
 --debug                  # Enable debug output
 --ask <level>            # Confirmation level: none/unsafe/all
@@ -193,6 +194,7 @@ See the [`examples/`](examples/) directory for more agent configurations.
 # Basic usage
 esa "What is the weather like?"
 esa +coder "How do I write a function in Go?"
+esa --agent ~/.config/esa/agents/custom.toml "analyze this code"
 
 # Agent and history management
 esa --list-agents
