@@ -16,6 +16,7 @@ type Agent struct {
 	Ask            string           `toml:"ask"`
 	SystemPrompt   string           `toml:"system_prompt"`
 	InitialMessage string           `toml:"initial_message"`
+	DefaultModel   string           `toml:"default_model"`
 }
 
 type FunctionConfig struct {

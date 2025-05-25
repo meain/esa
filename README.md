@@ -19,11 +19,13 @@
 ### 1. Installation
 
 **Option A: Using Go**
+
 ```bash
 go install github.com/meain/esa@latest
 ```
 
 **Option B: Clone and Build**
+
 ```bash
 git clone https://github.com/meain/esa.git
 cd esa
@@ -123,7 +125,7 @@ default_model = "openai/gpt-4o-mini"    # Default model
 [model_aliases]
 # Create shortcuts for frequently used models
 4o = "openai/gpt-4o"
-mini = "openai/gpt-4o-mini"  
+mini = "openai/gpt-4o-mini"
 groq = "groq/llama3-70b-8192"
 local = "ollama/llama3.2"
 
@@ -152,13 +154,18 @@ esa --show-agent ~/.config/esa/agents/custom.toml
 
 ESA includes several example agents you can use or customize:
 
-| Agent | Purpose | Example Usage |
-|-------|---------|---------------|
-| **default** | Basic system operations | `esa "what time is it"` |
-| **commit** | Git commit message generation | `esa +commit "create commit message"` |
-| **k8s** | Kubernetes cluster operations | `esa +k8s "show pod status"` |
-| **jira** | JIRA issue management | `esa +jira "list open issues"` |
-| **web** | Web development tasks | `esa +web "what is an agent?"` |
+| Agent       | Purpose                       | Example Usage                         |
+| ----------- | ----------------------------- | ------------------------------------- |
+| **default** | Basic system operations       | `esa "what time is it"`               |
+| **commit**  | Git commit message generation | `esa +commit "create commit message"` |
+| **k8s**     | Kubernetes cluster operations | `esa +k8s "show pod status"`          |
+| **jira**    | JIRA issue management         | `esa +jira "list open issues"`        |
+| **web**     | Web development tasks         | `esa +web "what is an agent?"`        |
+
+Each agent can specify a preferred model optimized for its tasks. For
+example, lightweight agents might use `gpt-4.1-nano` for quick
+responses, while complex analysis agents might use `o3` for better
+reasoning.
 
 See the [`examples/`](examples/) directory for more agent configurations.
 
@@ -222,6 +229,7 @@ ESA includes several safety mechanisms:
 ### Function Safety Classification
 
 Functions in agent configurations can be marked as:
+
 - **`safe = true`**: Commands that only read data or perform safe operations
 - **`safe = false`**: Commands that modify system state or could be dangerous
 
@@ -233,7 +241,7 @@ name = "list_files"
 command = "ls {{path}}"
 safe = true              # Reading directory contents is safe
 
-[[functions]]  
+[[functions]]
 name = "delete_file"
 command = "rm {{file}}"
 safe = false             # File deletion requires confirmation
@@ -241,14 +249,14 @@ safe = false             # File deletion requires confirmation
 
 ## 🌐 Supported LLM Providers
 
-| Provider | Models | API Key Environment |
-|----------|--------|-------------------|
-| **OpenAI** | GPT-4, GPT-3.5, etc. | `OPENAI_API_KEY` |
-| **Groq** | Llama, Mixtral models | `GROQ_API_KEY` |
-| **OpenRouter** | Various models | `OPENROUTER_API_KEY` |
-| **GitHub** | Azure-hosted models | `GITHUB_MODELS_API_KEY` |
-| **Ollama** | Local models | `OLLAMA_API_KEY` (optional) |
-| **Custom** | OpenAI-compatible APIs | Configurable |
+| Provider       | Models                 | API Key Environment         |
+| -------------- | ---------------------- | --------------------------- |
+| **OpenAI**     | GPT-4, GPT-3.5, etc.   | `OPENAI_API_KEY`            |
+| **Groq**       | Llama, Mixtral models  | `GROQ_API_KEY`              |
+| **OpenRouter** | Various models         | `OPENROUTER_API_KEY`        |
+| **GitHub**     | Azure-hosted models    | `GITHUB_MODELS_API_KEY`     |
+| **Ollama**     | Local models           | `OLLAMA_API_KEY` (optional) |
+| **Custom**     | OpenAI-compatible APIs | Configurable                |
 
 ## 📚 Custom Agents
 

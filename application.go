@@ -42,6 +42,9 @@ type providerInfo struct {
 // parseModel parses model string in format "provider/model" and returns provider, model name, base URL and API key environment variable
 func (app *Application) parseModel() (provider string, model string, info providerInfo) {
 	modelStr := app.modelFlag
+	if modelStr == "" && app.agent.DefaultModel != "" {
+		modelStr = app.agent.DefaultModel
+	}
 	if modelStr == "" && app.config != nil {
 		modelStr = app.config.Settings.DefaultModel
 	}

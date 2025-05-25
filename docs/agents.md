@@ -33,6 +33,7 @@ Every agent configuration follows this basic structure:
 # Optional: Agent metadata
 name = "Agent Name"
 description = "Brief description of what this agent does"
+default_model = "provider/model-name"
 
 # Core configuration
 system_prompt = """Instructions for the AI assistant"""
@@ -61,6 +62,7 @@ Here's a simple file management agent:
 ```toml
 name = "File Manager"
 description = "Basic file operations assistant"
+default_model = "openai/gpt-4o-mini"
 
 system_prompt = """
 You are a file management assistant. Help users with basic file operations
@@ -126,6 +128,30 @@ esa +files "based on README.md how can I use this project"
 | `system_prompt` | string | Yes | Core instructions for the AI |
 | `initial_message` | string | No | Default message when no input provided |
 | `ask` | string | No | Confirmation level: `none`, `unsafe`, `all` |
+| `default_model` | string | No | Preferred model for this agent (e.g., `openai/gpt-4o-mini`) |
+
+### Model Selection Hierarchy
+
+ESA uses the following priority order to determine which model to use:
+
+1. **CLI Model Flag** (`--model` or `-m`) - Highest priority
+2. **Agent Default Model** (`agent.toml` → `default_model`)
+3. **Global Config Default** (`config.toml` → `settings.default_model`)
+4. **Built-in Fallback** (`openai/gpt-4o-mini`) - Lowest priority
+
+This hierarchy allows you to:
+- Set reasonable defaults for specific agents
+- Override globally via configuration
+- Override per-command via CLI flags
+
+**Example Usage:**
+```bash
+# Uses agent's default model
+esa +code-analysis "review this function"
+
+# Overrides with specific model
+esa --model "openai/gpt-4" +code-analysis "review this function"
+```
 
 ### System Prompt Guidelines
 
