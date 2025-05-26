@@ -422,9 +422,9 @@ func handleShowHistory(index int, outputFormat string) {
 	case "json":
 		printHistoryJSON(historyData)
 	case "markdown":
-		printHistoryMarkdown(fileName, history)
+		printHistoryMarkdown(historyFilePath, history)
 	default: // "text"
-		printHistoryText(fileName, history)
+		printHistoryText(historyFilePath, history)
 	}
 }
 
@@ -521,6 +521,7 @@ func printHistoryMarkdown(fileName string, history ConversationHistory) {
 func printHistoryText(fileName string, history ConversationHistory) {
 	messages := history.Messages
 	agentPath := history.AgentPath
+	model := history.Model
 
 	// --- Define Styles (copied from original implementation) ---
 	systemStyle := color.New(color.FgMagenta, color.Italic).SprintFunc()
@@ -531,13 +532,17 @@ func printHistoryText(fileName string, history ConversationHistory) {
 	errorStyle := color.New(color.FgRed).SprintFunc()
 	labelStyle := color.New(color.Bold).SprintFunc()
 
-	// --- Print Header (copied from original implementation) ---
+	// --- Print Header ---
 	fmt.Printf("%s %s\n", labelStyle("History File:"), fileName)
 	if agentPath != "" {
 		// Try to extract agent name from path for display
 		agentName := strings.TrimSuffix(filepath.Base(agentPath), ".toml")
 		fmt.Printf("%s +%s (%s)\n", labelStyle("Agent:"), agentName, agentPath)
 	}
+	if model != "" {
+		fmt.Printf("%s %s\n", labelStyle("Model:"), model)
+	}
+
 	fmt.Println(strings.Repeat("-", 40)) // Separator
 
 	// --- Print Messages (copied from original implementation) ---
