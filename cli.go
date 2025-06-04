@@ -39,6 +39,7 @@ type CLIOptions struct {
 	ListAgents   bool   // Flag for listing agents
 	ListHistory  bool   // Flag for listing history
 	ShowHistory  bool   // Flag for showing specific history
+	ShowOutput   bool   // Flag for showing just output from history
 }
 
 func createRootCommand() *cobra.Command {
@@ -55,7 +56,8 @@ func createRootCommand() *cobra.Command {
   esa --show-agent ~/.config/esa/agents/custom.toml
   esa --list-history
   esa --show-history 1
-  esa --show-history 1 --output json`,
+  esa --show-history 1 --output json
+  esa --show-output 1`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Handle list/show flags first
 			if opts.ListAgents {
@@ -80,6 +82,21 @@ func createRootCommand() *cobra.Command {
 				}
 
 				handleShowHistory(idx, opts.OutputFormat)
+				return nil
+			}
+
+			if opts.ShowOutput {
+				// Require positional argument for history index
+				if len(args) == 0 {
+					return fmt.Errorf("history index must be provided as argument: esa --show-output <index>")
+				}
+
+				idx, err := strconv.Atoi(args[0])
+				if err != nil || idx <= 0 {
+					return fmt.Errorf("invalid history index: %s (must be a positive number)", args[0])
+				}
+
+				handleShowOutput(idx)
 				return nil
 			}
 
@@ -138,6 +155,7 @@ func createRootCommand() *cobra.Command {
 	rootCmd.Flags().BoolVar(&opts.ListHistory, "list-history", false, "List all saved conversation histories")
 	rootCmd.Flags().BoolVar(&opts.ShowAgent, "show-agent", false, "Show agent details (requires agent name/path as argument)")
 	rootCmd.Flags().BoolVar(&opts.ShowHistory, "show-history", false, "Show conversation history (requires history index as argument)")
+	rootCmd.Flags().BoolVar(&opts.ShowOutput, "show-output", false, "Show just the output from a history entry (requires history index as argument)")
 
 	// Make history-index required when show-history is used
 	rootCmd.PreRunE = func(cmd *cobra.Command, args []string) error {
@@ -434,6 +452,45 @@ func handleShowHistory(index int, outputFormat string) {
 	}
 }
 
+// handleShowOutput displays output from a specific history file.
+func handleShowOutput(index int) {
+	sortedFiles, _, err := getSortedHistoryFiles()
+	if err != nil {
+		if strings.Contains(err.Error(), "no history files found") || strings.Contains(err.Error(), "cache directory does not exist") {
+			color.Yellow(err.Error())
+		} else {
+			color.Red(err.Error())
+		}
+		return
+	}
+
+	if index <= 0 || index > len(sortedFiles) {
+		color.Red("Error: Invalid history number %d. Please choose a number between 1 and %d.", index, len(sortedFiles))
+		return
+	}
+
+	fileName := sortedFiles[index-1] // Adjust index to be 0-based
+
+	cacheDir, _ := setupCacheDir() // Error already checked in getSortedHistoryFiles
+	historyFilePath := filepath.Join(cacheDir, fileName)
+
+	// Load the conversation history data
+	historyData, err := os.ReadFile(historyFilePath)
+	if err != nil {
+		color.Red("Error reading history file %s: %v", fileName, err)
+		return
+	}
+
+	var history ConversationHistory
+	err = json.Unmarshal(historyData, &history)
+	if err != nil {
+		color.Red("Error unmarshalling conversation history from %s: %v", fileName, err)
+		return
+	}
+
+	printOutput(history)
+}
+
 // printJSONError prints an error message in JSON format.
 func printJSONError(message string) {
 	errJSON, _ := json.Marshal(map[string]string{"error": message})
@@ -642,4 +699,15 @@ func handleShowAgent(agentPath string) {
 		noFuncStyle := color.New(color.FgYellow, color.Italic).SprintFunc()
 		fmt.Printf("%s\n", noFuncStyle("No functions available."))
 	}
+}
+
+// printOutput prints last output of a history file
+func printOutput(history ConversationHistory) {
+	if len(history.Messages) < 1 {
+		fmt.Println("No messages found in this history.")
+		return
+	}
+
+	lastMessage := history.Messages[len(history.Messages)-1]
+	fmt.Println(lastMessage.Content)
 }

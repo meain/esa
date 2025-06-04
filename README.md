@@ -98,6 +98,9 @@ esa -r make it more detailed
 esa --list-history
 esa --show-history 3
 esa --show-history 1 --output json
+
+# Show last output of a previous interaction
+esa --show-output 1
 ```
 
 ### Working with Different Models
@@ -192,6 +195,7 @@ See the [`examples/`](examples/) directory for more agent configurations.
 --list-agents            # Show all available agents
 --list-history           # Show conversation history
 --show-history <index>   # Display specific conversation (e.g., --show-history 1)
+--show-output <index>    # Display only last output from conversation (e.g., --show-output 1)
 --show-agent <agent>     # Show agent details (e.g., --show-agent +coder)
 ```
 
@@ -210,6 +214,7 @@ esa --show-agent ~/.config/esa/agents/custom.toml
 esa --list-history
 esa --show-history 1
 esa --show-history 1 --output json
+esa --show-output 1
 
 # Conversation flow
 esa --continue "tell me more about that"
