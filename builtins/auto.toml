@@ -7,7 +7,7 @@ based on the query and use it to process the query.
 The agents that are available are:
 {{$esa --list-agents}}
 
-> In the above list, the format is: Display name (agent_name): Description
+> In the above list is in the format: `Display name (agent_name): Description of the agent`
 """
 
 [[functions]]
@@ -19,7 +19,11 @@ safe = true
 [[functions.parameters]]
 name = "agent"
 type = "string"
-description = "The name of the agent to show. From the list, it is the `agent_name`"
+description = """The name of the agent to show.
+It is the `agent_name` in the provided list of agents, the one in brackets.
+
+For example, if the agent is listed as `Coding Agent (coder): A coding assistant`,
+you would use `coder` as the agent name."""
 required = true
 
 [[functions]]
@@ -31,11 +35,15 @@ safe = true
 [[functions.parameters]]
 name = "agent"
 type = "string"
-description = "The name of the agent to run. From the list, it is the `agent_name`"
+description = """The name of the agent to show.
+It is the `agent_name` in the provided list of agents, the one in brackets.
+
+For example, if the agent is listed as `Coding Agent (coder): A coding assistant`,
+you would use `coder` as the agent name."""
 required = true
 
 [[functions.parameters]]
 name = "query"
 type = "string"
-description = "The query to run with the agent"
+description = "The query to be sent to the agent for processing"
 required = true
