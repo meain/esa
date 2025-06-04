@@ -144,9 +144,6 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 
 		allMessages := history.Messages
 		agentPath := history.AgentPath
-		if err != nil {
-			return nil, fmt.Errorf("failed to load conversation history: %v", err)
-		}
 
 		app := &Application{debug: opts.DebugMode}
 		app.debugPrint = createDebugPrinter(app.debug)
@@ -215,6 +212,10 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 
 	if opts.AgentPath == "" {
 		opts.AgentPath = DefaultAgentPath
+	}
+
+	if strings.HasPrefix(opts.AgentPath, "builtin:") {
+		opts.AgentName = strings.TrimPrefix(opts.AgentPath, "builtin:")
 	}
 
 	agent, err := loadConfiguration(opts)

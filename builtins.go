@@ -12,3 +12,9 @@ var autoAgentToml string
 
 //go:embed builtins/default.toml
 var defaultAgentToml string
+
+var builtinAgents = map[string]string{
+	"new":     newAgentToml,
+	"auto":    autoAgentToml,
+	"default": defaultAgentToml,
+}

@@ -168,6 +168,12 @@ func parseAgentCommand(opts *CLIOptions) {
 		opts.CommandStr = parts[1]
 	}
 
+	// Separately handle builtin agents
+	if _, exists := builtinAgents[opts.AgentName]; exists {
+		opts.AgentPath = "builtin:" + opts.AgentName
+		return
+	}
+
 	// Set agent path based on agent name
 	opts.AgentPath = expandHomePath(fmt.Sprintf("%s/%s.toml", DefaultAgentsDir, opts.AgentName))
 }
@@ -451,6 +457,7 @@ func printHistoryMarkdown(fileName string, history ConversationHistory) {
 	fmt.Printf("# History: %s\n\n", fileName)
 	if history.AgentPath != "" {
 		agentName := strings.TrimSuffix(filepath.Base(history.AgentPath), ".toml")
+		agentName = strings.TrimPrefix(agentName, "builtin:")
 		fmt.Printf("**Agent:** +%s (`%s`)\n\n", agentName, history.AgentPath)
 	}
 	fmt.Println("---")
@@ -537,6 +544,7 @@ func printHistoryText(fileName string, history ConversationHistory) {
 	if agentPath != "" {
 		// Try to extract agent name from path for display
 		agentName := strings.TrimSuffix(filepath.Base(agentPath), ".toml")
+		agentName = strings.TrimPrefix(agentName, "builtin:")
 		fmt.Printf("%s +%s (%s)\n", labelStyle("Agent:"), agentName, agentPath)
 	}
 	if model != "" {
