@@ -31,6 +31,7 @@ type Application struct {
 	lastProgressLen int
 	modelFlag       string
 	config          *Config
+	mcpManager      *MCPManager
 }
 
 // providerInfo contains provider-specific configuration
@@ -229,6 +230,10 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 	}
 
 	showCommands := opts.ShowCommands || config.Settings.ShowCommands
+
+	// Initialize MCP manager
+	mcpManager := NewMCPManager()
+
 	app := &Application{
 		agent:       agent,
 		agentPath:   opts.AgentPath,
@@ -237,6 +242,7 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 		messages:    messages,
 		modelFlag:   opts.Model,
 		config:      config,
+		mcpManager:  mcpManager,
 
 		debug:        opts.DebugMode,
 		showCommands: showCommands && !opts.DebugMode,
@@ -261,6 +267,18 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 }
 
 func (app *Application) Run(opts CLIOptions) {
+	// Start MCP servers if configured
+	if len(app.agent.MCPServers) > 0 {
+		ctx := context.Background()
+		if err := app.mcpManager.StartServers(ctx, app.agent.MCPServers); err != nil {
+			log.Fatalf("Failed to start MCP servers: %v", err)
+		}
+		// Ensure MCP servers are stopped when the application exits
+		defer app.mcpManager.StopAllServers()
+
+		app.debugPrint("MCP Servers", fmt.Sprintf("Started %d MCP servers", len(app.agent.MCPServers)))
+	}
+
 	prompt, err := app.getSystemPrompt()
 	if err != nil {
 		log.Fatalf("Error processing system prompt: %v", err)
@@ -328,6 +346,10 @@ func (app *Application) processInitialMessage(message string) (string, error) {
 
 func (app *Application) runConversationLoop(opts CLIOptions) {
 	openAITools := convertFunctionsToTools(app.agent.Functions)
+
+	// Add MCP tools
+	mcpTools := app.mcpManager.GetAllTools()
+	openAITools = append(openAITools, mcpTools...)
 
 	for {
 		stream, err := app.client.CreateChatCompletionStream(
@@ -446,6 +468,13 @@ func (app *Application) handleToolCalls(toolCalls []openai.ToolCall, opts CLIOpt
 			continue
 		}
 
+		// Check if it's an MCP tool (starts with "mcp_")
+		if strings.HasPrefix(toolCall.Function.Name, "mcp_") {
+			app.handleMCPToolCall(toolCall)
+			continue
+		}
+
+		// Handle regular function
 		var matchedFunc FunctionConfig
 		for _, fc := range app.agent.Functions {
 			if fc.Name == toolCall.Function.Name {
@@ -513,6 +542,74 @@ func (app *Application) handleToolCalls(toolCalls []openai.ToolCall, opts CLIOpt
 			ToolCallID: toolCall.ID,
 		})
 	}
+}
+
+// handleMCPToolCall handles tool calls for MCP servers
+func (app *Application) handleMCPToolCall(toolCall openai.ToolCall) {
+	if app.showProgress {
+		if summary := app.generateProgressSummary(toolCall.Function.Name, toolCall.Function.Arguments); summary != "" {
+			// Clear previous line if exists
+			if app.lastProgressLen > 0 {
+				fmt.Fprintf(os.Stderr, "\r%s\r", strings.Repeat(" ", app.lastProgressLen))
+			}
+			msg := fmt.Sprintf("⋮ %s", summary)
+			color.New(color.FgBlue).Fprint(os.Stderr, msg)
+			app.lastProgressLen = len(msg)
+		}
+	}
+
+	// Parse the arguments
+	var arguments interface{}
+	if toolCall.Function.Arguments != "" {
+		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &arguments); err != nil {
+			app.debugPrint("MCP Tool Error", fmt.Sprintf("Failed to parse arguments: %v", err))
+			// Clear progress line before showing error
+			if app.showProgress && app.lastProgressLen > 0 {
+				fmt.Fprintf(os.Stderr, "\r%s\r", strings.Repeat(" ", app.lastProgressLen))
+				app.lastProgressLen = 0
+			}
+
+			app.messages = append(app.messages, openai.ChatCompletionMessage{
+				Role:       "tool",
+				Name:       toolCall.Function.Name,
+				Content:    fmt.Sprintf("Error: Failed to parse arguments: %v", err),
+				ToolCallID: toolCall.ID,
+			})
+			return
+		}
+	}
+
+	// Call the MCP tool
+	result, err := app.mcpManager.CallTool(toolCall.Function.Name, arguments)
+
+	app.debugPrint("MCP Tool Execution",
+		fmt.Sprintf("Tool: %s", toolCall.Function.Name),
+		fmt.Sprintf("Arguments: %s", toolCall.Function.Arguments),
+		fmt.Sprintf("Output: %s", result))
+
+	if err != nil {
+		app.debugPrint("MCP Tool Error", err)
+		// Clear progress line before showing error
+		if app.showProgress && app.lastProgressLen > 0 {
+			fmt.Fprintf(os.Stderr, "\r%s\r", strings.Repeat(" ", app.lastProgressLen))
+			app.lastProgressLen = 0
+		}
+
+		app.messages = append(app.messages, openai.ChatCompletionMessage{
+			Role:       "tool",
+			Name:       toolCall.Function.Name,
+			Content:    fmt.Sprintf("Error: %v", err),
+			ToolCallID: toolCall.ID,
+		})
+		return
+	}
+
+	app.messages = append(app.messages, openai.ChatCompletionMessage{
+		Role:       "tool",
+		Name:       toolCall.Function.Name,
+		Content:    result,
+		ToolCallID: toolCall.ID,
+	})
 }
 
 func setupOpenAIClient(opts *CLIOptions, config *Config) (*openai.Client, error) {

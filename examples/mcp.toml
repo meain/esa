@@ -1,0 +1,12 @@
+name = "MCP agent"
+description = "MCP example agent"
+system_prompt = "You are a helper agent that has access to various tools."
+
+# MCP Servers configuration
+[mcp_servers.filesystem]
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-filesystem", "./"]
+
+[mcp_servers.fetch]
+command = "uvx"
+args = ["mcp-server-fetch"]

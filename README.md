@@ -10,6 +10,7 @@
 - **Multi-Provider LLM Support**: Works with OpenAI, Groq, Ollama, OpenRouter, GitHub Models, and custom providers
 - **Extensible Agent System**: Create specialized agents for different domains (DevOps, Git, coding, etc.)
 - **Function-Based Architecture**: Define custom commands via TOML configuration files
+- **MCP Server Integration**: Connect with Model Context Protocol servers for enhanced capabilities
 - **Conversation History**: Continue and retry conversations with full context preservation
 - **Safety Controls**: Built-in confirmation levels and safe/unsafe command classification
 - **Flexible Output**: Support for text, markdown, and JSON output formats
@@ -262,6 +263,69 @@ safe = false             # File deletion requires confirmation
 | **GitHub**     | Azure-hosted models    | `GITHUB_MODELS_API_KEY`     |
 | **Ollama**     | Local models           | `OLLAMA_API_KEY` (optional) |
 | **Custom**     | OpenAI-compatible APIs | Configurable                |
+
+## 🔌 MCP Server Support
+
+ESA supports [Model Context Protocol (MCP)](https://github.com/modelcontextprotocol/spec) servers, allowing you to integrate with external tools and services that implement the MCP specification.
+
+### What is MCP?
+
+MCP is a protocol that allows AI assistants to securely connect with external data sources and tools. MCP servers can provide:
+
+- **File system access** (read/write files, directory operations)
+- **Database connectivity** (query databases, execute operations)  
+- **Web services** (fetch URLs, API integrations)
+- **Custom tools** (domain-specific functionality)
+
+### Configuration
+
+Add MCP servers to your agent configuration alongside regular functions:
+
+```toml
+name = "Filesystem Agent"
+description = "Agent with file system access via MCP"
+
+# MCP Servers
+[mcp_servers.filesystem]
+command = "npx"
+args = [
+    "-y", "@modelcontextprotocol/server-filesystem",
+    "/Users/username/Documents"
+]
+
+[mcp_servers.database]
+command = "uvx"
+args = ["mcp-server-postgres", "postgresql://localhost/mydb"]
+
+# Regular functions work alongside MCP servers
+[[functions]]
+name = "list_files"
+description = "List files using shell command"
+command = "ls -la {path}"
+safe = true
+```
+
+### Usage
+
+MCP tools are automatically discovered and integrated with your agent:
+
+```bash
+# MCP tools are prefixed with 'mcp_{server_name}_{tool_name}'
+esa +filesystem "read the contents of config.json"
+esa +database "show me all users in the database"
+
+# View available MCP tools
+esa --show-agent examples/mcp.toml
+```
+
+### Benefits
+
+- **Security**: MCP servers run in isolation with defined permissions
+- **Extensibility**: Easy integration with existing MCP-compatible tools
+- **Flexibility**: Combine MCP tools with regular shell functions
+- **Standardization**: Use any MCP server implementation
+
+See [`examples/mcp.toml`](examples/mcp.toml) for a complete example.
 
 ## 📚 Custom Agents
 

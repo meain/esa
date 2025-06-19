@@ -10,13 +10,20 @@ import (
 )
 
 type Agent struct {
-	Name           string           `toml:"name"`
-	Description    string           `toml:"description"`
-	Functions      []FunctionConfig `toml:"functions"`
-	Ask            string           `toml:"ask"`
-	SystemPrompt   string           `toml:"system_prompt"`
-	InitialMessage string           `toml:"initial_message"`
-	DefaultModel   string           `toml:"default_model"`
+	Name           string                     `toml:"name"`
+	Description    string                     `toml:"description"`
+	Functions      []FunctionConfig           `toml:"functions"`
+	MCPServers     map[string]MCPServerConfig `toml:"mcp_servers"`
+	Ask            string                     `toml:"ask"`
+	SystemPrompt   string                     `toml:"system_prompt"`
+	InitialMessage string                     `toml:"initial_message"`
+	DefaultModel   string                     `toml:"default_model"`
+}
+
+// MCPServerConfig represents the configuration for an MCP server
+type MCPServerConfig struct {
+	Command string   `toml:"command"`
+	Args    []string `toml:"args"`
 }
 
 type FunctionConfig struct {
@@ -43,6 +50,10 @@ type ParameterConfig struct {
 func loadAgent(agentPath string) (Agent, error) {
 	var agent Agent
 	_, err := toml.DecodeFile(agentPath, &agent)
+	if err != nil {
+		return agent, err
+	}
+
 	return agent, err
 }
 

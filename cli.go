@@ -692,12 +692,23 @@ func handleShowAgent(agentPath string) {
 
 	// Print available functions
 	if len(agent.Functions) > 0 {
+		fmt.Printf("%s\n", labelStyle("Functions:"))
 		for _, fn := range agent.Functions {
 			printFunctionInfo(fn)
 		}
-	} else {
+	}
+
+	// Print MCP servers
+	if len(agent.MCPServers) > 0 {
+		fmt.Printf("%s\n", labelStyle("MCP Servers:"))
+		for name, server := range agent.MCPServers {
+			printMCPServerInfo(name, server)
+		}
+	}
+
+	if len(agent.Functions) == 0 && len(agent.MCPServers) == 0 {
 		noFuncStyle := color.New(color.FgYellow, color.Italic).SprintFunc()
-		fmt.Printf("%s\n", noFuncStyle("No functions available."))
+		fmt.Printf("%s\n", noFuncStyle("No functions or MCP servers available."))
 	}
 }
 
@@ -710,4 +721,14 @@ func printOutput(history ConversationHistory) {
 
 	lastMessage := history.Messages[len(history.Messages)-1]
 	fmt.Println(lastMessage.Content)
+}
+
+func printMCPServerInfo(name string, server MCPServerConfig) {
+	nameStyle := color.New(color.FgHiGreen, color.Bold).SprintFunc()
+	descStyle := color.New(color.FgHiBlack).SprintFunc()
+	commandStyle := color.New(color.FgYellow).SprintFunc()
+
+	fmt.Printf("  %s: %s\n", nameStyle(name), descStyle("MCP Server"))
+	fmt.Printf("    %s %s %s\n", commandStyle("Command:"), server.Command, strings.Join(server.Args, " "))
+	fmt.Println()
 }
