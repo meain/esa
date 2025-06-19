@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -702,7 +703,7 @@ func handleShowAgent(agentPath string) {
 	if len(agent.MCPServers) > 0 {
 		fmt.Printf("%s\n", labelStyle("MCP Servers:"))
 		for name, server := range agent.MCPServers {
-			printMCPServerInfo(name, server)
+			printMCPServerInfo(name, server, agent.MCPServers)
 		}
 	}
 
@@ -723,12 +724,42 @@ func printOutput(history ConversationHistory) {
 	fmt.Println(lastMessage.Content)
 }
 
-func printMCPServerInfo(name string, server MCPServerConfig) {
+func printMCPServerInfo(name string, server MCPServerConfig, allServers map[string]MCPServerConfig) {
 	nameStyle := color.New(color.FgHiGreen, color.Bold).SprintFunc()
 	descStyle := color.New(color.FgHiBlack).SprintFunc()
 	commandStyle := color.New(color.FgYellow).SprintFunc()
+	errorStyle := color.New(color.FgRed).SprintFunc()
+	toolStyle := color.New(color.FgCyan).SprintFunc()
 
 	fmt.Printf("  %s: %s\n", nameStyle(name), descStyle("MCP Server"))
 	fmt.Printf("    %s %s %s\n", commandStyle("Command:"), server.Command, strings.Join(server.Args, " "))
+
+	// Try to discover MCP tools by temporarily starting the server
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	client := NewMCPClient(name, server)
+	if err := client.Start(ctx); err != nil {
+		fmt.Printf("    %s %s\n", errorStyle("Error:"), fmt.Sprintf("Failed to start MCP server: %v", err))
+	} else {
+		defer client.Stop()
+		tools := client.GetTools()
+		if len(tools) > 0 {
+			fmt.Printf("    %s\n", commandStyle("Available Tools:"))
+			for _, tool := range tools {
+				if tool.Function != nil {
+					// Remove the mcp_{server_name}_ prefix for display
+					displayName := tool.Function.Name
+					prefix := fmt.Sprintf("mcp_%s_", name)
+					if strings.HasPrefix(displayName, prefix) {
+						displayName = strings.TrimPrefix(displayName, prefix)
+					}
+					fmt.Printf("      %s: %s\n", toolStyle(displayName), tool.Function.Description)
+				}
+			}
+		} else {
+			fmt.Printf("    %s %s\n", descStyle("Tools:"), "No tools discovered")
+		}
+	}
 	fmt.Println()
 }
