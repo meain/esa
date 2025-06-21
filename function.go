@@ -79,7 +79,7 @@ func executeFunction(askLevel string, fc FunctionConfig, args string, showComman
 
 	// Check if confirmation is needed
 	if needsConfirmation(askLevel, fc.Safe) {
-		if !confirm(fmt.Sprintf("Execute '%s'?", command)) {
+		if !confirm(fmt.Sprintf("Execute `%s`?", command)) {
 			return command, "Command execution cancelled by user.", nil
 		}
 	}

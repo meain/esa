@@ -324,7 +324,7 @@ func (c *MCPClient) CallTool(toolName string, arguments interface{}, askLevel st
 		// Format arguments for display
 		var argsDisplay string
 		if arguments != nil {
-			if argsJSON, err := json.MarshalIndent(arguments, "", "  "); err == nil {
+			if argsJSON, err := json.Marshal(arguments); err == nil {
 				argsDisplay = string(argsJSON)
 			} else {
 				argsDisplay = fmt.Sprintf("%v", arguments)
@@ -333,7 +333,7 @@ func (c *MCPClient) CallTool(toolName string, arguments interface{}, askLevel st
 			argsDisplay = "{}"
 		}
 
-		if !confirm(fmt.Sprintf("Execute MCP tool '%s' with arguments:\n%s", actualToolName, argsDisplay)) {
+		if !confirm(fmt.Sprintf("Call %s:%s(%s)?", c.name, actualToolName, argsDisplay)) {
 			return "MCP tool execution cancelled by user.", nil
 		}
 	}

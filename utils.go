@@ -5,12 +5,15 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/fatih/color"
 )
 
 // confirm prompts the user for confirmation with a yes/no question
 func confirm(prompt string) bool {
 	var response string
-	fmt.Printf("%s (y/n): ", prompt)
+	cyan := color.New(color.FgCyan).SprintFunc()
+	fmt.Fprintf(os.Stderr, "%s %s (y/N): ", cyan("[?]"), prompt)
 	fmt.Scanln(&response)
 	return strings.ToLower(response) == "y"
 }
