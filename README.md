@@ -273,7 +273,7 @@ ESA supports [Model Context Protocol (MCP)](https://github.com/modelcontextproto
 MCP is a protocol that allows AI assistants to securely connect with external data sources and tools. MCP servers can provide:
 
 - **File system access** (read/write files, directory operations)
-- **Database connectivity** (query databases, execute operations)  
+- **Database connectivity** (query databases, execute operations)
 - **Web services** (fetch URLs, API integrations)
 - **Custom tools** (domain-specific functionality)
 
@@ -285,21 +285,22 @@ Add MCP servers to your agent configuration alongside regular functions:
 name = "Filesystem Agent"
 description = "Agent with file system access via MCP"
 
-# MCP Servers
+# MCP Servers with security and function filtering
 [mcp_servers.filesystem]
 command = "npx"
 args = [
     "-y", "@modelcontextprotocol/server-filesystem",
     "/Users/username/Documents"
 ]
-ask = "unsafe"  # Ask for confirmation on potentially unsafe operations
-safe = true     # Mark as generally safe
+safe = false  # File operations are potentially unsafe
+safe_functions = ["read_file", "list_directory"]  # These specific functions are considered safe
+allowed_functions = ["read_file", "write_file", "list_directory"]  # Only expose these functions to the LLM
 
 [mcp_servers.database]
 command = "uvx"
 args = ["mcp-server-postgres", "postgresql://localhost/mydb"]
-ask = "all"     # Always ask for confirmation
-safe = false    # Mark as potentially unsafe
+safe = false  # Database operations are unsafe by default
+safe_functions = ["select", "show"]  # Only SELECT and SHOW queries are safe
 
 # Regular functions work alongside MCP servers
 [[functions]]
@@ -307,6 +308,23 @@ name = "list_files"
 description = "List files using shell command"
 command = "ls -la {path}"
 safe = true
+```
+
+### Security and Function Control
+
+MCP servers support the same security model as regular functions:
+
+- **Server-level Safety**: Set `safe = true/false` to mark all functions from a server as safe by default
+- **Function-level Safety**: Use `safe_functions = ["func1", "func2"]` to override safety for specific functions
+- **Function Filtering**: Use `allowed_functions = ["func1", "func2"]` to limit which functions are exposed to the LLM
+
+### Command Display
+
+Use `--show-commands` to see MCP tool executions:
+
+```bash
+esa --show-commands +filesystem "list files in current directory"
+# Shows: # filesystem:list_directory({"path": "."})
 ```
 
 ### Usage
@@ -318,16 +336,21 @@ MCP tools are automatically discovered and integrated with your agent:
 esa +filesystem "read the contents of config.json"
 esa +database "show me all users in the database"
 
-# View available MCP tools
+# View available MCP tools and their security settings
 esa --show-agent examples/mcp.toml
+
+# Use with confirmation and command display
+esa --ask unsafe --show-commands +filesystem "write a file"
 ```
 
 ### Benefits
 
-- **Security**: MCP servers run in isolation with defined permissions
+- **Security**: MCP servers run in isolation with defined permissions and granular safety controls
 - **Extensibility**: Easy integration with existing MCP-compatible tools
 - **Flexibility**: Combine MCP tools with regular shell functions
 - **Standardization**: Use any MCP server implementation
+- **Function Control**: Filter and control which MCP functions are available to the LLM
+- **Command Visibility**: Full transparency with `--show-commands` flag support
 
 See [`examples/mcp.toml`](examples/mcp.toml) for a complete example.
 

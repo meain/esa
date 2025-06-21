@@ -17,16 +17,16 @@ import (
 
 // MCPClient represents a client connection to an MCP server
 type MCPClient struct {
-	name          string
-	config        MCPServerConfig
-	cmd           *exec.Cmd
-	stdin         io.WriteCloser
-	stdout        io.ReadCloser
-	stderr        io.ReadCloser
-	tools         []openai.Tool
+	name           string
+	config         MCPServerConfig
+	cmd            *exec.Cmd
+	stdin          io.WriteCloser
+	stdout         io.ReadCloser
+	stderr         io.ReadCloser
+	tools          []openai.Tool
 	functionSafety map[string]bool // Maps function name to safety status
-	mu            sync.Mutex
-	running       bool
+	mu             sync.Mutex
+	running        bool
 }
 
 // MCPRequest represents a JSON-RPC 2.0 request
@@ -245,14 +245,14 @@ func (c *MCPClient) loadTools() error {
 	// Create sets for quick lookup
 	allowedFunctions := make(map[string]bool)
 	safeFunctions := make(map[string]bool)
-	
+
 	// If allowed_functions is specified, only allow those functions
 	if len(c.config.AllowedFunctions) > 0 {
 		for _, funcName := range c.config.AllowedFunctions {
 			allowedFunctions[funcName] = true
 		}
 	}
-	
+
 	// Build safe functions set
 	for _, funcName := range c.config.SafeFunctions {
 		safeFunctions[funcName] = true
@@ -265,16 +265,16 @@ func (c *MCPClient) loadTools() error {
 		if len(c.config.AllowedFunctions) > 0 && !allowedFunctions[mcpTool.Name] {
 			continue
 		}
-		
+
 		// Determine safety: check safe_functions first, then fall back to server-level safe setting
 		isSafe := c.config.Safe // Default to server-level setting
 		if _, exists := safeFunctions[mcpTool.Name]; exists {
 			isSafe = true // Function is explicitly marked as safe
 		}
-		
+
 		// Store function safety information
 		c.functionSafety[mcpTool.Name] = isSafe
-		
+
 		openaiTool := openai.Tool{
 			Type: openai.ToolTypeFunction,
 			Function: &openai.FunctionDefinition{
@@ -318,7 +318,7 @@ func (c *MCPClient) CallTool(toolName string, arguments interface{}, askLevel st
 		// If we don't have safety info, fall back to server-level setting
 		isSafe = c.config.Safe
 	}
-	
+
 	// Check if confirmation is needed
 	if needsConfirmation(askLevel, isSafe) {
 		// Format arguments for display
@@ -332,7 +332,7 @@ func (c *MCPClient) CallTool(toolName string, arguments interface{}, askLevel st
 		} else {
 			argsDisplay = "{}"
 		}
-		
+
 		if !confirm(fmt.Sprintf("Execute MCP tool '%s' with arguments:\n%s", actualToolName, argsDisplay)) {
 			return "MCP tool execution cancelled by user.", nil
 		}
@@ -342,7 +342,7 @@ func (c *MCPClient) CallTool(toolName string, arguments interface{}, askLevel st
 	if showCommands {
 		var argsDisplay string
 		if arguments != nil {
-			if argsJSON, err := json.MarshalIndent(arguments, "", "  "); err == nil {
+			if argsJSON, err := json.Marshal(arguments); err == nil {
 				argsDisplay = string(argsJSON)
 			} else {
 				argsDisplay = fmt.Sprintf("%v", arguments)
@@ -350,7 +350,7 @@ func (c *MCPClient) CallTool(toolName string, arguments interface{}, askLevel st
 		} else {
 			argsDisplay = "{}"
 		}
-		color.New(color.FgCyan).Fprintf(os.Stderr, "MCP %s: %s(%s)\n", c.name, actualToolName, argsDisplay)
+		color.New(color.FgCyan).Fprintf(os.Stderr, "# %s:%s(%s)\n", c.name, actualToolName, argsDisplay)
 	}
 
 	request := MCPRequest{

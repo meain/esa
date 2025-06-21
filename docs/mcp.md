@@ -67,10 +67,11 @@ Each MCP server requires:
 ESA provides granular control over MCP server security and function exposure:
 
 - **Server-level Safety**: Set `safe = true` to mark all functions from a server as safe by default
-- **Function-level Safety**: Use `safe_functions = ["func1", "func2"]` to override safety for specific functions  
+- **Function-level Safety**: Use `safe_functions = ["func1", "func2"]` to override safety for specific functions
 - **Function Filtering**: Use `allowed_functions = ["func1", "func2"]` to limit which functions are exposed to the LLM
 
 Safety affects confirmation behavior based on the global `--ask` level:
+
 - `--ask none`: No confirmation required
 - `--ask unsafe`: Confirm functions marked as `safe = false`
 - `--ask all`: Confirm every function execution
@@ -78,6 +79,7 @@ Safety affects confirmation behavior based on the global `--ask` level:
 ### Example Configurations
 
 #### Filesystem Server (Docker)
+
 ```toml
 [mcp_servers.filesystem]
 command = "docker"
@@ -95,6 +97,7 @@ allowed_functions = ["read_file", "write_file", "list_directory"]  # Limit avail
 ```
 
 #### Database Server
+
 ```toml
 [mcp_servers.database]
 command = "mcp-database-server"
@@ -109,6 +112,7 @@ allowed_functions = ["select", "insert", "update", "show"]  # Limit available op
 ```
 
 #### Web Fetch Server (All Functions Safe)
+
 ```toml
 [mcp_servers.fetch]
 command = "uvx"
@@ -118,6 +122,7 @@ safe = true  # All web fetch operations are considered safe
 ```
 
 #### Custom Python MCP Server
+
 ```toml
 [mcp_servers.custom]
 command = "python"
@@ -154,6 +159,7 @@ go run ./... --agent examples/filesystem.toml --debug "list files in current dir
 ```
 
 This shows:
+
 - MCP server startup
 - Tool discovery
 - Tool execution details
@@ -196,6 +202,7 @@ esa --show-commands +mcp-agent "list files in current directory"
 ```
 
 This will display:
+
 ```
 MCP filesystem: list_directory({"path": "."})
 ```
@@ -220,6 +227,7 @@ You can create custom MCP servers using available libraries:
 - **Other languages**: Implement JSON-RPC over stdio
 
 Example minimal Python MCP server:
+
 ```python
 from mcp import Server, Tool
 import sys
