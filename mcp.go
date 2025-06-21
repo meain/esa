@@ -396,7 +396,13 @@ func (c *MCPClient) CallTool(toolName string, arguments interface{}, askLevel st
 		return "", fmt.Errorf("Tool execution error\n" + result.String())
 	}
 
-	return result.String(), nil
+	resultStr := result.String()
+	// Ensure we don't return empty results which could cause API issues
+	if resultStr == "" {
+		resultStr = "(No output)"
+	}
+
+	return resultStr, nil
 }
 
 // sendRequest sends a JSON-RPC request and waits for response

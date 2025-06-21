@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -27,6 +29,7 @@ type CLIOptions struct {
 	DebugMode    bool
 	ContinueChat bool
 	RetryChat    bool
+	ReplMode     bool // Flag for REPL mode
 	AgentPath    string
 	AskLevel     string
 	ShowCommands bool
@@ -52,6 +55,8 @@ func createRootCommand() *cobra.Command {
 		Long:  `An AI assistant that can execute functions and tools to help with various tasks.`,
 		Example: `  esa Will it rain tomorrow
   esa +coder How do I write a function in Go
+  esa --repl
+  esa --repl "initial query"
   esa --list-agents
   esa --show-agent +coder
   esa --show-agent ~/.config/esa/agents/custom.toml
@@ -60,6 +65,11 @@ func createRootCommand() *cobra.Command {
   esa --show-history 1 --output json
   esa --show-output 1`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Handle REPL mode first
+			if opts.ReplMode {
+				return runReplMode(opts, args)
+			}
+
 			// Handle list/show flags first
 			if opts.ListAgents {
 				listAgents()
@@ -143,6 +153,7 @@ func createRootCommand() *cobra.Command {
 	rootCmd.Flags().BoolVar(&opts.DebugMode, "debug", false, "Enable debug mode")
 	rootCmd.Flags().BoolVarP(&opts.ContinueChat, "continue", "c", false, "Continue last conversation")
 	rootCmd.Flags().BoolVarP(&opts.RetryChat, "retry", "r", false, "Retry last command")
+	rootCmd.Flags().BoolVar(&opts.ReplMode, "repl", false, "Start in REPL mode for interactive conversation")
 	rootCmd.Flags().StringVar(&opts.AgentPath, "agent", "", "Path to agent config file")
 	rootCmd.Flags().StringVar(&opts.ConfigPath, "config", "", "Path to the global config file (default: ~/.config/esa/config.toml)")
 	rootCmd.Flags().StringVarP(&opts.Model, "model", "m", "", "Model to use (e.g., openai/gpt-4)")
@@ -762,4 +773,96 @@ func printMCPServerInfo(name string, server MCPServerConfig, allServers map[stri
 		}
 	}
 	fmt.Println()
+}
+
+// runReplMode starts the REPL (Read-Eval-Print Loop) mode
+func runReplMode(opts *CLIOptions, args []string) error {
+	// Handle agent selection with + prefix in the initial query
+	initialQuery := strings.Join(args, " ")
+	if strings.HasPrefix(initialQuery, "+") {
+		opts.CommandStr = initialQuery
+		parseAgentCommand(opts)
+		initialQuery = opts.CommandStr
+	}
+
+	// Initialize application
+	app, err := NewApplication(opts)
+	if err != nil {
+		return fmt.Errorf("failed to initialize application: %v", err)
+	}
+
+	// Start MCP servers if configured
+	if len(app.agent.MCPServers) > 0 {
+		ctx := context.Background()
+		if err := app.mcpManager.StartServers(ctx, app.agent.MCPServers); err != nil {
+			return fmt.Errorf("failed to start MCP servers: %v", err)
+		}
+		// Ensure MCP servers are stopped when the application exits
+		defer app.mcpManager.StopAllServers()
+
+		app.debugPrint("MCP Servers", fmt.Sprintf("Started %d MCP servers", len(app.agent.MCPServers)))
+	}
+
+	// Initialize system prompt
+	prompt, err := app.getSystemPrompt()
+	if err != nil {
+		return fmt.Errorf("error processing system prompt: %v", err)
+	}
+
+	if app.messages == nil {
+		app.messages = []openai.ChatCompletionMessage{{
+			Role:    "system",
+			Content: prompt,
+		}}
+	}
+
+	// Debug prints before starting communication
+	app.debugPrint("System Message", app.messages[0].Content)
+
+	cyan := color.New(color.FgCyan).SprintFunc()
+	green := color.New(color.FgGreen).SprintFunc()
+	yellow := color.New(color.FgYellow).SprintFunc()
+
+	fmt.Fprintf(os.Stderr, "%s %s\n", cyan("[REPL]"), "Starting interactive mode. Type '/exit' or '/quit' to end the session.")
+	// Handle initial query if provided
+	if initialQuery != "" {
+		fmt.Fprintf(os.Stderr, "%s %s\n", green("→"), initialQuery)
+		app.messages = append(app.messages, openai.ChatCompletionMessage{
+			Role:    "user",
+			Content: initialQuery,
+		})
+
+		app.runConversationLoop(*opts)
+	}
+
+	// Main REPL loop
+	reader := bufio.NewReader(os.Stdin)
+	for {
+		fmt.Fprintf(os.Stderr, "\n%s ", yellow("esa>"))
+
+		// TODO: Allow for multi line input
+		input, err := reader.ReadString('\n')
+		if err != nil {
+			if err == io.EOF {
+				fmt.Fprintf(os.Stderr, "\n%s %s\n", cyan("[REPL]"), "Goodbye!")
+				break
+			}
+			return fmt.Errorf("error reading input: %v", err)
+		}
+
+		input = strings.TrimSpace(input)
+		if input == "/exit" || input == "/quit" || input == "" {
+			fmt.Fprintf(os.Stderr, "%s %s\n", cyan("[REPL]"), "Goodbye!")
+			break
+		}
+
+		app.messages = append(app.messages, openai.ChatCompletionMessage{
+			Role:    "user",
+			Content: input,
+		})
+
+		app.runConversationLoop(*opts)
+	}
+
+	return nil
 }
