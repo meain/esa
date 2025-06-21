@@ -32,6 +32,7 @@ type Application struct {
 	modelFlag       string
 	config          *Config
 	mcpManager      *MCPManager
+	cliAskLevel     string
 }
 
 // providerInfo contains provider-specific configuration
@@ -243,6 +244,7 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 		modelFlag:   opts.Model,
 		config:      config,
 		mcpManager:  mcpManager,
+		cliAskLevel: opts.AskLevel,
 
 		debug:        opts.DebugMode,
 		showCommands: showCommands && !opts.DebugMode,
@@ -381,6 +383,22 @@ func (app *Application) getModel() string {
 	return model
 }
 
+// getEffectiveAskLevel returns the ask level to use, with CLI flag taking priority over agent config
+func (app *Application) getEffectiveAskLevel() string {
+	effectiveLevel := ""
+	if app.cliAskLevel != "" {
+		effectiveLevel = app.cliAskLevel
+		app.debugPrint("Ask Level", fmt.Sprintf("Using CLI ask level: %s", effectiveLevel))
+	} else if app.agent.Ask != "" {
+		effectiveLevel = app.agent.Ask
+		app.debugPrint("Ask Level", fmt.Sprintf("Using agent ask level: %s", effectiveLevel))
+	} else {
+		effectiveLevel = "none"
+		app.debugPrint("Ask Level", fmt.Sprintf("Using default ask level: %s", effectiveLevel))
+	}
+	return effectiveLevel
+}
+
 func (app *Application) handleStreamResponse(stream *openai.ChatCompletionStream) openai.ChatCompletionMessage {
 	defer stream.Close()
 
@@ -506,7 +524,7 @@ func (app *Application) handleToolCalls(toolCalls []openai.ToolCall, opts CLIOpt
 		os.Setenv("ESA_MODEL", fmt.Sprintf("%s/%s", provider, model))
 
 		command, result, err := executeFunction(
-			app.agent.Ask,
+			app.getEffectiveAskLevel(),
 			matchedFunc,
 			toolCall.Function.Arguments,
 			app.showCommands,
@@ -580,7 +598,7 @@ func (app *Application) handleMCPToolCall(toolCall openai.ToolCall, opts CLIOpti
 	}
 
 	// Call the MCP tool with ask level and show commands options
-	result, err := app.mcpManager.CallTool(toolCall.Function.Name, arguments, app.agent.Ask, app.showCommands)
+	result, err := app.mcpManager.CallTool(toolCall.Function.Name, arguments, app.getEffectiveAskLevel(), app.showCommands)
 
 	app.debugPrint("MCP Tool Execution",
 		fmt.Sprintf("Tool: %s", toolCall.Function.Name),
