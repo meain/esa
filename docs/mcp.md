@@ -23,7 +23,6 @@ description = "Agent with MCP server support"
 system_prompt = "..."
 
 # MCP Servers configuration
-[mcp_servers]
 [mcp_servers.filesystem]
 command = "docker"
 args = [
@@ -59,6 +58,22 @@ Each MCP server requires:
 - **Name**: A unique identifier for the server
 - **Command**: The executable or docker command to start the server
 - **Args**: Arguments passed to the command
+- **Safe** (optional): Whether tools from this server are considered safe by default (defaults to `false`)
+- **Safe Functions** (optional): List of specific functions that are safe, overriding the server-level safe setting
+- **Allowed Functions** (optional): List of functions to expose to the LLM (if empty, all functions are allowed)
+
+### Security and Function Control
+
+ESA provides granular control over MCP server security and function exposure:
+
+- **Server-level Safety**: Set `safe = true` to mark all functions from a server as safe by default
+- **Function-level Safety**: Use `safe_functions = ["func1", "func2"]` to override safety for specific functions  
+- **Function Filtering**: Use `allowed_functions = ["func1", "func2"]` to limit which functions are exposed to the LLM
+
+Safety affects confirmation behavior based on the global `--ask` level:
+- `--ask none`: No confirmation required
+- `--ask unsafe`: Confirm functions marked as `safe = false`
+- `--ask all`: Confirm every function execution
 
 ### Example Configurations
 
@@ -74,6 +89,9 @@ args = [
     "mcp/filesystem",
     "/projects"
 ]
+safe = false  # File operations are potentially unsafe
+safe_functions = ["read_file", "list_directory"]  # Read operations are safe
+allowed_functions = ["read_file", "write_file", "list_directory"]  # Limit available functions
 ```
 
 #### Database Server
@@ -85,6 +103,18 @@ args = [
     "--port", "5432",
     "--database", "myapp"
 ]
+safe = false  # Database operations are unsafe by default
+safe_functions = ["select", "show"]  # Only SELECT and SHOW queries are safe
+allowed_functions = ["select", "insert", "update", "show"]  # Limit available operations
+```
+
+#### Web Fetch Server (All Functions Safe)
+```toml
+[mcp_servers.fetch]
+command = "uvx"
+args = ["mcp-server-fetch"]
+safe = true  # All web fetch operations are considered safe
+# No allowed_functions specified, so all functions are available
 ```
 
 #### Custom Python MCP Server
@@ -95,6 +125,9 @@ args = [
     "/path/to/my-mcp-server.py",
     "--config", "/path/to/config.json"
 ]
+safe = false
+safe_functions = ["get_info", "list_items"]  # Only these functions are safe
+allowed_functions = ["get_info", "list_items", "create_item"]  # Only expose these functions
 ```
 
 ## How It Works
@@ -139,6 +172,33 @@ This shows:
 - Only mount necessary directories in filesystem servers
 - Validate server binaries and configurations
 - Consider network access restrictions for servers that make external connections
+
+### Safety Classification and Confirmation
+
+MCP servers and their individual functions can be classified for safety to help with confirmation decisions:
+
+- **Server-level Safety**: `safe = true/false` sets the default safety for all functions from the server
+- **Function-level Safety**: `safe_functions = ["func1", "func2"]` overrides server-level setting for specific functions
+- **Function Filtering**: `allowed_functions = ["func1", "func2"]` limits which functions are exposed to the LLM
+
+Confirmation behavior is controlled by the global `--ask` flag combined with function safety:
+
+- **`--ask none`**: No confirmation required (default)
+- **`--ask unsafe`**: Confirm functions marked as `safe = false`
+- **`--ask all`**: Confirm every function execution
+
+### Command Display
+
+Use the `--show-commands` flag to see MCP tool executions:
+
+```bash
+esa --show-commands +mcp-agent "list files in current directory"
+```
+
+This will display:
+```
+MCP filesystem: list_directory({"path": "."})
+```
 
 ## Available MCP Servers
 

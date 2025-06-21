@@ -22,8 +22,11 @@ type Agent struct {
 
 // MCPServerConfig represents the configuration for an MCP server
 type MCPServerConfig struct {
-	Command string   `toml:"command"`
-	Args    []string `toml:"args"`
+	Command          string   `toml:"command"`
+	Args             []string `toml:"args"`
+	Safe             bool     `toml:"safe"`              // Whether tools from this server are considered safe by default
+	SafeFunctions    []string `toml:"safe_functions"`    // List of specific functions that are safe (overrides server-level safe setting)
+	AllowedFunctions []string `toml:"allowed_functions"` // List of functions to expose to the LLM (if empty, all functions are allowed)
 }
 
 type FunctionConfig struct {

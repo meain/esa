@@ -292,10 +292,14 @@ args = [
     "-y", "@modelcontextprotocol/server-filesystem",
     "/Users/username/Documents"
 ]
+ask = "unsafe"  # Ask for confirmation on potentially unsafe operations
+safe = true     # Mark as generally safe
 
 [mcp_servers.database]
 command = "uvx"
 args = ["mcp-server-postgres", "postgresql://localhost/mydb"]
+ask = "all"     # Always ask for confirmation
+safe = false    # Mark as potentially unsafe
 
 # Regular functions work alongside MCP servers
 [[functions]]

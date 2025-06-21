@@ -1,12 +1,17 @@
 name = "MCP agent"
-description = "MCP example agent"
+description = "MCP example agent with security and function filtering"
 system_prompt = "You are a helper agent that has access to various tools."
 
-# MCP Servers configuration
+# MCP Servers configuration with security and filtering features
 [mcp_servers.filesystem]
 command = "npx"
 args = ["-y", "@modelcontextprotocol/server-filesystem", "./"]
+safe = false  # Server tools are unsafe by default (require confirmation for --ask unsafe)
+safe_functions = ["read_file", "list_directory"]  # These specific functions are considered safe
+allowed_functions = ["read_file", "write_file", "list_directory"]  # Only expose these functions to the LLM
 
 [mcp_servers.fetch]
 command = "uvx"
 args = ["mcp-server-fetch"]
+safe = true  # All tools from this server are safe by default
+# allowed_functions not specified, so all functions from this server are exposed

@@ -470,7 +470,7 @@ func (app *Application) handleToolCalls(toolCalls []openai.ToolCall, opts CLIOpt
 
 		// Check if it's an MCP tool (starts with "mcp_")
 		if strings.HasPrefix(toolCall.Function.Name, "mcp_") {
-			app.handleMCPToolCall(toolCall)
+			app.handleMCPToolCall(toolCall, opts)
 			continue
 		}
 
@@ -545,7 +545,7 @@ func (app *Application) handleToolCalls(toolCalls []openai.ToolCall, opts CLIOpt
 }
 
 // handleMCPToolCall handles tool calls for MCP servers
-func (app *Application) handleMCPToolCall(toolCall openai.ToolCall) {
+func (app *Application) handleMCPToolCall(toolCall openai.ToolCall, opts CLIOptions) {
 	if app.showProgress {
 		if summary := app.generateProgressSummary(toolCall.Function.Name, toolCall.Function.Arguments); summary != "" {
 			// Clear previous line if exists
@@ -579,8 +579,8 @@ func (app *Application) handleMCPToolCall(toolCall openai.ToolCall) {
 		}
 	}
 
-	// Call the MCP tool
-	result, err := app.mcpManager.CallTool(toolCall.Function.Name, arguments)
+	// Call the MCP tool with ask level and show commands options
+	result, err := app.mcpManager.CallTool(toolCall.Function.Name, arguments, app.agent.Ask, app.showCommands)
 
 	app.debugPrint("MCP Tool Execution",
 		fmt.Sprintf("Tool: %s", toolCall.Function.Name),

@@ -11,20 +11,22 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/fatih/color"
 	"github.com/sashabaranov/go-openai"
 )
 
 // MCPClient represents a client connection to an MCP server
 type MCPClient struct {
-	name    string
-	config  MCPServerConfig
-	cmd     *exec.Cmd
-	stdin   io.WriteCloser
-	stdout  io.ReadCloser
-	stderr  io.ReadCloser
-	tools   []openai.Tool
-	mu      sync.Mutex
-	running bool
+	name          string
+	config        MCPServerConfig
+	cmd           *exec.Cmd
+	stdin         io.WriteCloser
+	stdout        io.ReadCloser
+	stderr        io.ReadCloser
+	tools         []openai.Tool
+	functionSafety map[string]bool // Maps function name to safety status
+	mu            sync.Mutex
+	running       bool
 }
 
 // MCPRequest represents a JSON-RPC 2.0 request
@@ -83,8 +85,9 @@ type MCPContent struct {
 // NewMCPClient creates a new MCP client
 func NewMCPClient(name string, config MCPServerConfig) *MCPClient {
 	return &MCPClient{
-		name:   name,
-		config: config,
+		name:           name,
+		config:         config,
+		functionSafety: make(map[string]bool),
 	}
 }
 
@@ -239,9 +242,39 @@ func (c *MCPClient) loadTools() error {
 		return fmt.Errorf("failed to unmarshal tools result: %w", err)
 	}
 
+	// Create sets for quick lookup
+	allowedFunctions := make(map[string]bool)
+	safeFunctions := make(map[string]bool)
+	
+	// If allowed_functions is specified, only allow those functions
+	if len(c.config.AllowedFunctions) > 0 {
+		for _, funcName := range c.config.AllowedFunctions {
+			allowedFunctions[funcName] = true
+		}
+	}
+	
+	// Build safe functions set
+	for _, funcName := range c.config.SafeFunctions {
+		safeFunctions[funcName] = true
+	}
+
 	// Convert MCP tools to OpenAI tools
 	c.tools = make([]openai.Tool, 0, len(toolsResult.Tools))
 	for _, mcpTool := range toolsResult.Tools {
+		// Skip if not in allowed functions list (when list is specified)
+		if len(c.config.AllowedFunctions) > 0 && !allowedFunctions[mcpTool.Name] {
+			continue
+		}
+		
+		// Determine safety: check safe_functions first, then fall back to server-level safe setting
+		isSafe := c.config.Safe // Default to server-level setting
+		if _, exists := safeFunctions[mcpTool.Name]; exists {
+			isSafe = true // Function is explicitly marked as safe
+		}
+		
+		// Store function safety information
+		c.functionSafety[mcpTool.Name] = isSafe
+		
 		openaiTool := openai.Tool{
 			Type: openai.ToolTypeFunction,
 			Function: &openai.FunctionDefinition{
@@ -264,7 +297,7 @@ func (c *MCPClient) GetTools() []openai.Tool {
 }
 
 // CallTool calls a tool on the MCP server
-func (c *MCPClient) CallTool(toolName string, arguments interface{}) (string, error) {
+func (c *MCPClient) CallTool(toolName string, arguments interface{}, askLevel string, showCommands bool) (string, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -278,6 +311,47 @@ func (c *MCPClient) CallTool(toolName string, arguments interface{}) (string, er
 		return "", fmt.Errorf("invalid tool name format: %s", toolName)
 	}
 	actualToolName := strings.TrimPrefix(toolName, prefix)
+
+	// Get the safety status for this specific function
+	isSafe, exists := c.functionSafety[actualToolName]
+	if !exists {
+		// If we don't have safety info, fall back to server-level setting
+		isSafe = c.config.Safe
+	}
+	
+	// Check if confirmation is needed
+	if needsConfirmation(askLevel, isSafe) {
+		// Format arguments for display
+		var argsDisplay string
+		if arguments != nil {
+			if argsJSON, err := json.MarshalIndent(arguments, "", "  "); err == nil {
+				argsDisplay = string(argsJSON)
+			} else {
+				argsDisplay = fmt.Sprintf("%v", arguments)
+			}
+		} else {
+			argsDisplay = "{}"
+		}
+		
+		if !confirm(fmt.Sprintf("Execute MCP tool '%s' with arguments:\n%s", actualToolName, argsDisplay)) {
+			return "MCP tool execution cancelled by user.", nil
+		}
+	}
+
+	// Show command if requested
+	if showCommands {
+		var argsDisplay string
+		if arguments != nil {
+			if argsJSON, err := json.MarshalIndent(arguments, "", "  "); err == nil {
+				argsDisplay = string(argsJSON)
+			} else {
+				argsDisplay = fmt.Sprintf("%v", arguments)
+			}
+		} else {
+			argsDisplay = "{}"
+		}
+		color.New(color.FgCyan).Fprintf(os.Stderr, "MCP %s: %s(%s)\n", c.name, actualToolName, argsDisplay)
+	}
 
 	request := MCPRequest{
 		JSONRPC: "2.0",
@@ -447,7 +521,7 @@ func (m *MCPManager) GetAllTools() []openai.Tool {
 }
 
 // CallTool calls a tool on the appropriate MCP server
-func (m *MCPManager) CallTool(toolName string, arguments interface{}) (string, error) {
+func (m *MCPManager) CallTool(toolName string, arguments interface{}, askLevel string, showCommands bool) (string, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -455,7 +529,7 @@ func (m *MCPManager) CallTool(toolName string, arguments interface{}) (string, e
 	for serverName, client := range m.clients {
 		prefix := fmt.Sprintf("mcp_%s_", serverName)
 		if strings.HasPrefix(toolName, prefix) {
-			return client.CallTool(toolName, arguments)
+			return client.CallTool(toolName, arguments, askLevel, showCommands)
 		}
 	}
 
