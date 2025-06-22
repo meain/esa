@@ -14,6 +14,9 @@ import (
 
 // runReplMode starts the REPL (Read-Eval-Print Loop) mode
 func runReplMode(opts *CLIOptions, args []string) error {
+	// TODO: Make progress work in REPL (will have to newline)
+	opts.HideProgress = true // Hide progress in REPL mode
+
 	// Handle agent selection with + prefix in the initial query
 	initialQuery := strings.Join(args, " ")
 	if strings.HasPrefix(initialQuery, "+") {

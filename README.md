@@ -1,5 +1,7 @@
 # ESA
 
+![Screencast GIF](https://github.com/user-attachments/assets/99abe3a1-c620-4909-a503-22b4d70a5cac)
+
 <img src="https://github.com/user-attachments/assets/5c2915ab-4a8e-4b49-b3b6-394d5644dac2" alt="Mascot" width="300" align="right"/>
 
 **ESA** is an AI-powered command-line tool that lets you create powerful personalized small agents. By connecting Large Language Models (LLMs) with shell scripts as functions, ESA lets you control your system, automate tasks, and query information using plain English commands.
