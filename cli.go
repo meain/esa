@@ -155,7 +155,7 @@ func createRootCommand() *cobra.Command {
 	rootCmd.Flags().StringVar(&opts.AgentPath, "agent", "", "Path to agent config file")
 	rootCmd.Flags().StringVar(&opts.ConfigPath, "config", "", "Path to the global config file (default: ~/.config/esa/config.toml)")
 	rootCmd.Flags().StringVarP(&opts.Model, "model", "m", "", "Model to use (e.g., openai/gpt-4)")
-	rootCmd.Flags().StringVar(&opts.AskLevel, "ask", "none", "Ask level (none, unsafe, all)")
+	rootCmd.Flags().StringVar(&opts.AskLevel, "ask", "", "Ask level (none, unsafe, all)")
 	rootCmd.Flags().BoolVar(&opts.ShowCommands, "show-commands", false, "Show executed commands during run")
 	rootCmd.Flags().BoolVar(&opts.HideProgress, "hide-progress", false, "Disable progress info for each function")
 	rootCmd.Flags().StringVar(&opts.OutputFormat, "output", "text", "Output format for --show-history (text, markdown, json)")
