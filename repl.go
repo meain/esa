@@ -60,18 +60,18 @@ func runReplMode(opts *CLIOptions, args []string) error {
 
 	fmt.Fprintf(
 		os.Stderr,
-		"%s %s\n",
+		"%s %s\n\n",
 		cyan("[REPL]"),
 		strings.Join([]string{
 			"Starting interactive mode",
 			"- '/exit' or '/quit' to end the session",
 			"- '/help' for available commands",
-			"- Press enter twice to send your message.",
+			"- Use /editor command for multi line input",
 		}, "\n"),
 	)
 	// Handle initial query if provided
 	if initialQuery != "" {
-		fmt.Fprintf(os.Stderr, "\n%s %s\n", green("you>"), initialQuery)
+		fmt.Fprintf(os.Stderr, "%s %s\n", green("you>"), initialQuery)
 		app.messages = append(app.messages, openai.ChatCompletionMessage{
 			Role:    "user",
 			Content: initialQuery,
@@ -83,9 +83,11 @@ func runReplMode(opts *CLIOptions, args []string) error {
 
 	// Main REPL loop
 	for {
-		fmt.Fprintf(os.Stderr, "\n%s ", green("you>"))
+		fmt.Fprintf(os.Stderr, "%s ", green("you>"))
 
-		input, err := readUserInput("")
+		// NOTE: Will enable multi when we can do that without double
+		// enter. For now one can use /editor command
+		input, err := readUserInput("", false)
 		if err != nil {
 			if err == io.EOF {
 				fmt.Fprintf(os.Stderr, "\n%s %s\n", cyan("[REPL]"), "Goodbye!")
@@ -308,6 +310,7 @@ func handleEditorCommand(app *Application, opts *CLIOptions) bool {
 		Content: finalContent,
 	})
 
+	fmt.Fprintf(os.Stderr, "%s %s\n", color.New(color.FgGreen).SprintFunc()("you>"), finalContent)
 	fmt.Fprintf(os.Stderr, "%s ", color.New(color.FgRed).SprintFunc()("esa>"))
 	app.runConversationLoop(*opts)
 

@@ -171,7 +171,7 @@ func processShellBlocks(input string) (string, error) {
 	inputRegex := regexp.MustCompile(`{{#(.*?)}}`)
 	result = inputRegex.ReplaceAllStringFunc(result, func(match string) string {
 		prompt := match[3 : len(match)-2] // Extract prompt without {{# and }}
-		input, err := readUserInput(prompt)
+		input, err := readUserInput(prompt, true)
 		if err != nil {
 			return fmt.Sprintf("Error: %v", err)
 		}

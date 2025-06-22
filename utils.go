@@ -103,7 +103,7 @@ func readStdin() string {
 	return input.String()
 }
 
-func readUserInput(prompt string) (string, error) {
+func readUserInput(prompt string, multiline bool) (string, error) {
 	reader := bufio.NewReader(os.Stdin)
 	var lines []string
 
@@ -123,6 +123,10 @@ func readUserInput(prompt string) (string, error) {
 		}
 
 		line = strings.TrimRight(line, "\r\n")
+		if !multiline {
+			return line, nil
+		}
+
 		if line == "" {
 			break
 		}
