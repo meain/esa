@@ -829,12 +829,13 @@ func runReplMode(opts *CLIOptions, args []string) error {
 	)
 	// Handle initial query if provided
 	if initialQuery != "" {
-		fmt.Fprintf(os.Stderr, "%s %s\n", green("→"), initialQuery)
+		fmt.Fprintf(os.Stderr, "\n%s %s\n", green("you>"), initialQuery)
 		app.messages = append(app.messages, openai.ChatCompletionMessage{
 			Role:    "user",
 			Content: initialQuery,
 		})
 
+		fmt.Fprintf(os.Stderr, "\n%s ", red("esa>"))
 		app.runConversationLoop(*opts)
 	}
 
