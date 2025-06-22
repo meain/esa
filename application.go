@@ -393,7 +393,7 @@ func (app *Application) getEffectiveAskLevel() string {
 		effectiveLevel = app.agent.Ask
 		app.debugPrint("Ask Level", fmt.Sprintf("Using agent ask level: %s", effectiveLevel))
 	} else {
-		effectiveLevel = "none"
+		effectiveLevel = "unsafe"
 		app.debugPrint("Ask Level", fmt.Sprintf("Using default ask level: %s", effectiveLevel))
 	}
 	return effectiveLevel
