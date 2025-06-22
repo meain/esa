@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -752,25 +751,21 @@ func printMCPServerInfo(name string, server MCPServerConfig, allServers map[stri
 	client := NewMCPClient(name, server)
 	if err := client.Start(ctx); err != nil {
 		fmt.Printf("    %s %s\n", errorStyle("Error:"), fmt.Sprintf("Failed to start MCP server: %v", err))
-	} else {
-		defer client.Stop()
-		tools := client.GetTools()
-		if len(tools) > 0 {
-			fmt.Printf("    %s\n", commandStyle("Available Tools:"))
-			for _, tool := range tools {
-				if tool.Function != nil {
-					// Remove the mcp_{server_name}_ prefix for display
-					displayName := tool.Function.Name
-					prefix := fmt.Sprintf("mcp_%s_", name)
-					if strings.HasPrefix(displayName, prefix) {
-						displayName = strings.TrimPrefix(displayName, prefix)
-					}
-					fmt.Printf("      %s: %s\n", toolStyle(displayName), tool.Function.Description)
-				}
+		return
+	}
+	defer client.Stop()
+
+	tools := client.GetTools()
+	if len(tools) > 0 {
+		fmt.Printf("    %s\n", commandStyle("Available Tools:"))
+		for _, tool := range tools {
+			if tool.Function != nil {
+				displayName := strings.TrimPrefix(tool.Function.Name, "mcp_"+name+"_")
+				fmt.Printf("      %s: %s\n", toolStyle(displayName), tool.Function.Description)
 			}
-		} else {
-			fmt.Printf("    %s %s\n", descStyle("Tools:"), "No tools discovered")
 		}
+	} else {
+		fmt.Printf("    %s %s\n", descStyle("Tools:"), "No tools discovered")
 	}
 	fmt.Println()
 }
@@ -797,13 +792,11 @@ func runReplMode(opts *CLIOptions, args []string) error {
 		if err := app.mcpManager.StartServers(ctx, app.agent.MCPServers); err != nil {
 			return fmt.Errorf("failed to start MCP servers: %v", err)
 		}
-		// Ensure MCP servers are stopped when the application exits
-		defer app.mcpManager.StopAllServers()
 
+		defer app.mcpManager.StopAllServers()
 		app.debugPrint("MCP Servers", fmt.Sprintf("Started %d MCP servers", len(app.agent.MCPServers)))
 	}
 
-	// Initialize system prompt
 	prompt, err := app.getSystemPrompt()
 	if err != nil {
 		return fmt.Errorf("error processing system prompt: %v", err)
@@ -821,9 +814,19 @@ func runReplMode(opts *CLIOptions, args []string) error {
 
 	cyan := color.New(color.FgCyan).SprintFunc()
 	green := color.New(color.FgGreen).SprintFunc()
-	yellow := color.New(color.FgYellow).SprintFunc()
+	red := color.New(color.FgRed).SprintFunc()
 
-	fmt.Fprintf(os.Stderr, "%s %s\n", cyan("[REPL]"), "Starting interactive mode. Type '/exit' or '/quit' to end the session.")
+	fmt.Fprintf(
+		os.Stderr,
+		"%s %s\n",
+		cyan("[REPL]"),
+		strings.Join([]string{
+			"Starting interactive mode",
+			"- '/exit' or '/quit' to end the session",
+			// "- '/help' for available commands",
+			"- Press enter twice to send your message.",
+		}, "\n"),
+	)
 	// Handle initial query if provided
 	if initialQuery != "" {
 		fmt.Fprintf(os.Stderr, "%s %s\n", green("→"), initialQuery)
@@ -836,12 +839,10 @@ func runReplMode(opts *CLIOptions, args []string) error {
 	}
 
 	// Main REPL loop
-	reader := bufio.NewReader(os.Stdin)
 	for {
-		fmt.Fprintf(os.Stderr, "\n%s ", yellow("esa>"))
+		fmt.Fprintf(os.Stderr, "\n%s ", green("you>"))
 
-		// TODO: Allow for multi line input
-		input, err := reader.ReadString('\n')
+		input, err := readUserInput("")
 		if err != nil {
 			if err == io.EOF {
 				fmt.Fprintf(os.Stderr, "\n%s %s\n", cyan("[REPL]"), "Goodbye!")
@@ -856,6 +857,7 @@ func runReplMode(opts *CLIOptions, args []string) error {
 			break
 		}
 
+		fmt.Fprintf(os.Stderr, "%s ", red("esa>"))
 		app.messages = append(app.messages, openai.ChatCompletionMessage{
 			Role:    "user",
 			Content: input,

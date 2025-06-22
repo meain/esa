@@ -487,6 +487,8 @@ func (app *Application) handleToolCalls(toolCalls []openai.ToolCall, opts CLIOpt
 		}
 
 		// Check if it's an MCP tool (starts with "mcp_")
+		// FIXME: This might not be reliable, the user might define a
+		// function that starts with mcp_
 		if strings.HasPrefix(toolCall.Function.Name, "mcp_") {
 			app.handleMCPToolCall(toolCall, opts)
 			continue

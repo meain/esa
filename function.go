@@ -156,12 +156,18 @@ func readUserInput(prompt string) (string, error) {
 	reader := bufio.NewReader(os.Stdin)
 	var lines []string
 
-	color.New(color.FgBlue).Fprint(os.Stderr, prompt)
-	color.New(color.FgHiWhite, color.Italic).Fprint(os.Stderr, " (end with empty line)\n")
+	if prompt != "" {
+		color.New(color.FgBlue).Fprint(os.Stderr, prompt)
+		color.New(color.FgHiWhite, color.Italic).Fprint(os.Stderr, " (end with empty line)\n")
+	}
 
 	// TODO(meain): allow for newline using shift+enter
 	for {
-		line, _ := reader.ReadString('\n')
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			return "", err
+		}
+
 		line = strings.TrimRight(line, "\r\n")
 		if line == "" {
 			break
@@ -195,7 +201,7 @@ func processShellBlocks(input string) (string, error) {
 		prompt := match[3 : len(match)-2] // Extract prompt without {{# and }}
 		input, err := readUserInput(prompt)
 		if err != nil {
-			return fmt.Sprintf("Error: %v", err) // TODO(meain): not ideal
+			return fmt.Sprintf("Error: %v", err)
 		}
 
 		return input
