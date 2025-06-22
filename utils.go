@@ -113,6 +113,9 @@ func readUserInput(prompt string) (string, error) {
 	}
 
 	// TODO(meain): allow for newline using shift+enter
+	// Not sure if that will be something that terminal supports, but
+	// we might be able to do that with some closing char and possibly
+	// with ability to jump into a text editor.
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil {

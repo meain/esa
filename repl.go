@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"strings"
 
 	"github.com/fatih/color"
@@ -136,6 +137,8 @@ func handleReplCommand(input string, app *Application, opts *CLIOptions) bool {
 		return handleConfigCommand(app)
 	case "/model":
 		return handleModelCommand(args, app, opts)
+	case "/editor":
+		return handleEditorCommand(app, opts)
 	default:
 		return handleUnknownCommand(command)
 	}
@@ -150,6 +153,7 @@ func handleHelpCommand() bool {
 	fmt.Fprintf(os.Stderr, "  %s - Show this help message\n", green("/help"))
 	fmt.Fprintf(os.Stderr, "  %s - Show current configuration\n", green("/config"))
 	fmt.Fprintf(os.Stderr, "  %s - Show or set model (e.g., /model openai/gpt-4)\n", green("/model <provider/model>"))
+	fmt.Fprintf(os.Stderr, "  %s - Open the default editor\n", green("/editor"))
 	fmt.Fprintf(os.Stderr, "\n")
 	return true
 }
@@ -199,6 +203,68 @@ func handleModelCommand(args []string, app *Application, opts *CLIOptions) bool 
 
 	provider, model, _ := app.parseModel()
 	fmt.Fprintf(os.Stderr, "%s %s: %s/%s\n", cyan("[REPL]"), "Model updated to", provider, model)
+	return true
+}
+
+func handleEditorCommand(app *Application, opts *CLIOptions) bool {
+	cyan := color.New(color.FgCyan).SprintFunc()
+	red := color.New(color.FgRed).SprintFunc()
+
+	// Get editor from environment variable or default to nano
+	editor := os.Getenv("EDITOR")
+	if editor == "" {
+		editor = "nano"
+	}
+
+	// Create a temporary file
+	tmpFile, err := os.CreateTemp("", "esa_prompt_*.txt")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s Failed to create temporary file: %v\n", red("[ERROR]"), err)
+		return true
+	}
+	defer os.Remove(tmpFile.Name()) // Clean up
+
+	// Close the file so the editor can open it
+	tmpFile.Close()
+
+	fmt.Fprintf(os.Stderr, "%s Opening editor: %s\n", cyan("[REPL]"), editor)
+
+	// Open the editor
+	cmd := exec.Command(editor, tmpFile.Name())
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+
+	if err := cmd.Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "%s Failed to run editor: %v\n", red("[ERROR]"), err)
+		return true
+	}
+
+	// Read the content back
+	content, err := os.ReadFile(tmpFile.Name())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s Failed to read temporary file: %v\n", red("[ERROR]"), err)
+		return true
+	}
+
+	// Process the content
+	finalContent := strings.TrimSpace(string(content))
+
+	if finalContent == "" {
+		fmt.Fprintf(os.Stderr, "%s No content entered, canceling.\n", cyan("[REPL]"))
+		return true
+	}
+
+	// Add the message and run the conversation
+	fmt.Fprintf(os.Stderr, "%s Prompt entered via editor\n", cyan("[REPL]"))
+	app.messages = append(app.messages, openai.ChatCompletionMessage{
+		Role:    "user",
+		Content: finalContent,
+	})
+
+	fmt.Fprintf(os.Stderr, "%s ", color.New(color.FgRed).SprintFunc()("esa>"))
+	app.runConversationLoop(*opts)
+
 	return true
 }
 
