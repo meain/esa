@@ -1,22 +1,22 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"os"
-	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/fatih/color"
 	"github.com/sashabaranov/go-openai"
 )
 
-const historyTimeFormat = "20060102-150405"
+const (
+	historyTimeFormat = "20060102-150405"
+	defaultModel      = "openai/gpt-4o-mini"
+)
 
 type Application struct {
 	agent           Agent
@@ -41,24 +41,30 @@ type providerInfo struct {
 	apiKeyEnvar string
 }
 
-// parseModel parses model string in format "provider/model" and returns provider, model name, base URL and API key environment variable
+// parseModel parses model string in format "provider/model" and
+// returns provider, model name, base URL and API key environment
+// variable
 func (app *Application) parseModel() (provider string, model string, info providerInfo) {
 	modelStr := app.modelFlag
 	if modelStr == "" && app.agent.DefaultModel != "" {
 		modelStr = app.agent.DefaultModel
 	}
+
 	if modelStr == "" && app.config != nil {
 		modelStr = app.config.Settings.DefaultModel
 	}
 
-	// Use a reasonable default model
+	return parseModel(modelStr, app.config)
+}
+
+func parseModel(modelStr string, config *Config) (provider string, model string, info providerInfo) {
 	if modelStr == "" {
-		modelStr = "openai/gpt-4o-mini"
+		modelStr = defaultModel
 	}
 
 	// Check if the model string is an alias
-	if app.config != nil {
-		if aliasedModel, ok := app.config.ModelAliases[modelStr]; ok {
+	if config != nil {
+		if aliasedModel, ok := config.ModelAliases[modelStr]; ok {
 			modelStr = aliasedModel
 		}
 	}
@@ -101,8 +107,8 @@ func (app *Application) parseModel() (provider string, model string, info provid
 	}
 
 	// Override with config if present
-	if app.config != nil {
-		if providerCfg, ok := app.config.Providers[provider]; ok {
+	if config != nil {
+		if providerCfg, ok := config.Providers[provider]; ok {
 			// Only override non-empty values
 			if providerCfg.BaseURL != "" {
 				info.baseURL = providerCfg.BaseURL
@@ -225,7 +231,7 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 		return nil, fmt.Errorf("failed to load agent configuration: %v", err)
 	}
 
-	client, err := setupOpenAIClient(opts, config)
+	client, err := setupOpenAIClient(opts.Model, config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup OpenAI client: %v", err)
 	}
@@ -632,10 +638,8 @@ func (app *Application) handleMCPToolCall(toolCall openai.ToolCall, opts CLIOpti
 	})
 }
 
-func setupOpenAIClient(opts *CLIOptions, config *Config) (*openai.Client, error) {
-	// Get provider info
-	app := &Application{config: config, modelFlag: opts.Model} // Temporary app instance just for parsing model
-	_, _, info := app.parseModel()
+func setupOpenAIClient(modelStr string, config *Config) (*openai.Client, error) {
+	_, _, info := parseModel(modelStr, config)
 
 	configuredAPIKey := os.Getenv(info.apiKeyEnvar)
 	// Key name can be empty if we don't need any keys
@@ -687,74 +691,4 @@ func (app *Application) getSystemPrompt() (string, error) {
 
 func (app *Application) processSystemPrompt(prompt string) (string, error) {
 	return processShellBlocks(prompt)
-}
-
-func createNewHistoryFile(cacheDir string, agentName string) string {
-	if agentName == "" {
-		agentName = "default"
-	}
-	timestamp := time.Now().Format(historyTimeFormat)
-	return filepath.Join(cacheDir, fmt.Sprintf("%s-%s.json", agentName, timestamp))
-}
-
-func findLatestHistoryFile(cacheDir string) (string, error) {
-	entries, err := os.ReadDir(cacheDir)
-	if err != nil {
-		return "", err
-	}
-
-	var latestFile string
-	var latestTime time.Time
-
-	for _, entry := range entries {
-		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".json") {
-			info, err := entry.Info()
-			if err != nil {
-				continue
-			}
-			if latestFile == "" || info.ModTime().After(latestTime) {
-				latestFile = entry.Name()
-				latestTime = info.ModTime()
-			}
-		}
-	}
-
-	if latestFile == "" {
-		return "", fmt.Errorf("no history files found")
-	}
-	return filepath.Join(cacheDir, latestFile), nil
-}
-
-func getHistoryFilePath(cacheDir string, opts *CLIOptions) (string, bool) {
-	if !opts.ContinueChat && !opts.RetryChat {
-		cacheDir, err := setupCacheDir()
-		if err != nil {
-			// Handle error appropriately, maybe log or return an error
-			// For now, fallback or panic might occur depending on createNewHistoryFile
-			fmt.Fprintf(os.Stderr, "Warning: could not get cache dir: %v\n", err)
-		}
-		return createNewHistoryFile(cacheDir, opts.AgentName), false
-	}
-
-	if latestFile, err := findLatestHistoryFile(cacheDir); err == nil {
-		return latestFile, true
-	}
-
-	cacheDir, err := setupCacheDir()
-	if err != nil {
-		// Handle error appropriately
-		fmt.Fprintf(os.Stderr, "Warning: could not get cache dir: %v\n", err)
-	}
-	return createNewHistoryFile(cacheDir, opts.AgentName), false
-}
-
-func readStdin() string {
-	var input bytes.Buffer
-	stat, err := os.Stdin.Stat()
-	if err == nil && (stat.Mode()&os.ModeCharDevice) == 0 {
-		if _, err := io.Copy(&input, os.Stdin); err != nil {
-			return ""
-		}
-	}
-	return input.String()
 }

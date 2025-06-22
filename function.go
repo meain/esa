@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -150,33 +149,6 @@ func prepareCommand(fc FunctionConfig, parsedArgs map[string]any) (string, error
 
 	// Clean up any extra spaces from removed optional parameters
 	return strings.Join(strings.Fields(command), " "), nil
-}
-
-func readUserInput(prompt string) (string, error) {
-	reader := bufio.NewReader(os.Stdin)
-	var lines []string
-
-	if prompt != "" {
-		color.New(color.FgBlue).Fprint(os.Stderr, prompt)
-		color.New(color.FgHiWhite, color.Italic).Fprint(os.Stderr, " (end with empty line)\n")
-	}
-
-	// TODO(meain): allow for newline using shift+enter
-	for {
-		line, err := reader.ReadString('\n')
-		if err != nil {
-			return "", err
-		}
-
-		line = strings.TrimRight(line, "\r\n")
-		if line == "" {
-			break
-		}
-		lines = append(lines, line)
-	}
-
-	result := strings.Join(lines, "\n")
-	return result, nil
 }
 
 // processShellBlocks processes special blocks in a string:
