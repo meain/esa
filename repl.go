@@ -137,6 +137,8 @@ func handleReplCommand(input string, app *Application, opts *CLIOptions) bool {
 		return handleConfigCommand(app)
 	case "/model":
 		return handleModelCommand(args, app, opts)
+	case "/agent":
+		return handleAgentCommand(args, app, opts)
 	case "/editor":
 		return handleEditorCommand(app, opts)
 	default:
@@ -153,8 +155,8 @@ func handleHelpCommand() bool {
 	fmt.Fprintf(os.Stderr, "  %s - Show this help message\n", green("/help"))
 	fmt.Fprintf(os.Stderr, "  %s - Show current configuration\n", green("/config"))
 	fmt.Fprintf(os.Stderr, "  %s - Show or set model (e.g., /model openai/gpt-4)\n", green("/model <provider/model>"))
+	fmt.Fprintf(os.Stderr, "  %s - Show or set agent (e.g., /agent +k8s, /agent myagent)\n", green("/agent <agent>"))
 	fmt.Fprintf(os.Stderr, "  %s - Open the default editor\n", green("/editor"))
-	fmt.Fprintf(os.Stderr, "\n")
 	return true
 }
 
@@ -206,6 +208,50 @@ func handleModelCommand(args []string, app *Application, opts *CLIOptions) bool 
 	return true
 }
 
+func handleAgentCommand(args []string, app *Application, opts *CLIOptions) bool {
+	cyan := color.New(color.FgCyan).SprintFunc()
+	green := color.New(color.FgGreen).SprintFunc()
+	labelStyle := color.New(color.FgHiCyan, color.Bold).SprintFunc()
+
+	if len(args) == 0 {
+		// Show current agent information
+		fmt.Fprintf(os.Stderr, "%s %s:\n", cyan("[REPL]"), "Current agent")
+
+		// Show agent information
+		if app.agent.Name != "" {
+			fmt.Fprintf(os.Stderr, "%s %s\n", labelStyle("Name:"), app.agent.Name)
+		}
+		if app.agent.Description != "" {
+			fmt.Fprintf(os.Stderr, "%s %s\n", labelStyle("Description:"), app.agent.Description)
+		}
+		fmt.Fprintf(os.Stderr, "%s %s\n", labelStyle("Path:"), app.agentPath)
+
+		if app.agent.DefaultModel != "" {
+			fmt.Fprintf(os.Stderr, "%s %s\n", labelStyle("Default Model:"), app.agent.DefaultModel)
+		}
+
+		fmt.Fprintf(os.Stderr, "%s %d\n", labelStyle("Functions:"), len(app.agent.Functions))
+		fmt.Fprintf(os.Stderr, "%s %d\n", labelStyle("MCP Servers:"), len(app.agent.MCPServers))
+
+		return true
+	}
+
+	agentStr := args[0]
+	if err := validateAndSetAgent(app, opts, agentStr); err != nil {
+		fmt.Fprintf(os.Stderr, "%s %s\n", color.New(color.FgRed).Sprint("[ERROR]"), err.Error())
+		return true
+	}
+
+	// Show confirmation of the switch
+	agentName := app.agent.Name
+	if agentName == "" {
+		agentName = agentStr
+	}
+	fmt.Fprintf(os.Stderr, "%s %s: %s\n", cyan("[REPL]"), "Agent switched to", green(agentName))
+	return true
+}
+
+// handleEditorCommand handles the /editor command to open the default text editor
 func handleEditorCommand(app *Application, opts *CLIOptions) bool {
 	cyan := color.New(color.FgCyan).SprintFunc()
 	red := color.New(color.FgRed).SprintFunc()
@@ -289,4 +335,76 @@ func validateAndSetModel(app *Application, opts *CLIOptions, modelStr string) er
 
 	app.client = client
 	return nil
+}
+
+// validateAndSetAgent validates an agent string and sets it if valid
+func validateAndSetAgent(app *Application, opts *CLIOptions, agentStr string) error {
+	// Parse the agent string to determine the agent name and path
+	agentName, agentPath := parseAgentString(agentStr)
+
+	// Create a temporary CLIOptions to use with loadConfiguration
+	tempOpts := &CLIOptions{
+		AgentName: agentName,
+		AgentPath: agentPath,
+	}
+
+	// Load the agent using the existing loadConfiguration function
+	agent, err := loadConfiguration(tempOpts)
+	if err != nil {
+		return fmt.Errorf("failed to load agent '%s': %v", agentStr, err)
+	}
+
+	// Update the application and options
+	app.agent = agent
+	app.agentPath = tempOpts.AgentPath // Use the resolved path from loadConfiguration
+	opts.AgentPath = tempOpts.AgentPath
+	if agentName != "" {
+		opts.AgentName = agentName
+	}
+
+	// Restart MCP servers if needed
+	if len(agent.MCPServers) > 0 {
+		// Stop existing servers
+		app.mcpManager.StopAllServers()
+
+		// Start new servers
+		ctx := context.Background()
+		if err := app.mcpManager.StartServers(ctx, agent.MCPServers); err != nil {
+			return fmt.Errorf("failed to start MCP servers for agent: %v", err)
+		}
+	} else {
+		// Stop all servers if the new agent doesn't have any
+		app.mcpManager.StopAllServers()
+	}
+
+	return nil
+}
+
+// parseAgentString parses an agent string and returns the agent name and path
+func parseAgentString(agentStr string) (agentName, agentPath string) {
+	// Handle +agent syntax and direct paths
+	if strings.HasPrefix(agentStr, "+") {
+		// Handle +agent syntax
+		agentName = agentStr[1:] // Remove + prefix
+		agentPath = expandHomePath(fmt.Sprintf("%s/%s.toml", DefaultAgentsDir, agentName))
+	} else if strings.Contains(agentStr, "/") || strings.HasSuffix(agentStr, ".toml") {
+		// Treat as direct path
+		agentPath = agentStr
+		if !strings.HasPrefix(agentPath, "/") {
+			agentPath = expandHomePath(agentPath)
+		}
+	} else {
+		// Treat as agent name without + prefix
+		agentName = agentStr
+		agentPath = expandHomePath(fmt.Sprintf("%s/%s.toml", DefaultAgentsDir, agentName))
+	}
+
+	// Check for builtin agents
+	if agentName != "" {
+		if _, exists := builtinAgents[agentName]; exists {
+			agentPath = "builtin:" + agentName
+		}
+	}
+
+	return agentName, agentPath
 }
