@@ -104,6 +104,81 @@ esa --show-history 1 --output json
 esa --show-output 1
 ```
 
+### REPL Mode (Interactive Sessions)
+
+ESA supports REPL (Read-Eval-Print Loop) mode for interactive conversations. This is perfect for extended sessions where you want to have back-and-forth conversations with your AI assistant.
+
+```bash
+# Start REPL mode
+esa --repl
+
+# Start REPL with an initial query
+esa --repl what time is it
+
+# Start REPL with a specific agent
+esa --repl +k8s show me all pods
+```
+
+#### REPL Commands
+
+Once in REPL mode, you can use special commands:
+
+```bash
+# Get help
+you> /help
+
+# Exit the session
+you> /exit
+you> /quit
+
+# Show current configuration
+you> /config
+
+# View or change the model
+you> /model                    # Show current model
+you> /model openai/gpt-4o     # Switch to a different model
+you> /model mini              # Use a model alias
+```
+
+#### REPL Features
+
+- **Persistent Context**: The conversation continues across multiple inputs
+- **Agent Selection**: Use `+agent` syntax in your initial query or when starting REPL
+- **Model Switching**: Change models mid-conversation with `/model`
+- **Configuration Display**: View current settings with `/config`
+- **Multi-line Input**: Press enter twice to send your message
+- **History Preservation**: All REPL conversations are saved and can be viewed later
+
+#### Example REPL Session
+
+```bash
+$ esa --repl "+k8s"
+[REPL] Starting interactive mode
+- '/exit' or '/quit' to end the session
+- '/help' for available commands
+- Press enter twice to send your message.
+
+you> show me all pods in the default namespace
+
+esa> Here are all the pods in the default namespace:
+[... pod listing ...]
+
+you> what about in the kube-system namespace
+
+esa> Here are the pods in the kube-system namespace:
+[... pod listing ...]
+
+you> /model openai/gpt-4o
+[REPL] Model updated to: openai/gpt-4o
+
+you> can you explain what each of these pods does
+
+esa> [... detailed explanation ...]
+
+you> /exit
+[REPL] Goodbye!
+```
+
 ### Working with Different Models
 
 ```bash
@@ -182,6 +257,7 @@ See the [`examples/`](examples/) directory for more agent configurations.
 --config <path>          # Path to config file
 --debug                  # Enable debug output
 --ask <level>            # Confirmation level: none/unsafe/all
+--repl                   # Start interactive REPL mode
 
 # Conversation management
 -c, --continue           # Continue last conversation
@@ -220,6 +296,11 @@ esa --show-output 1
 # Conversation flow
 esa --continue "tell me more about that"
 esa --retry "make it shorter"
+
+# REPL mode
+esa --repl                                    # Start interactive mode
+esa --repl "what time is it"                  # Start with initial query
+esa --repl "+k8s show me all pods"            # Start with specific agent
 ```
 
 ## 📋 Safety and Security
