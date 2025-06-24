@@ -35,7 +35,7 @@ required = true
 [[functions]]
 name = "list_directory"
 description = "List files in a directory."
-command = "ls ./{{directory}}"
+command = "find './{{directory}}' -exec file {} \\;"
 safe = true
 
 [[functions.parameters]]
@@ -44,17 +44,67 @@ type = "string"
 description = "Directory to list. All paths should be relative paths. It will be prefixed with `./`"
 required = true
 
+## Search file
+[[functions]]
+name = "search_file"
+description = "Search for files with a given name in a directory."
+command = "find './{{directory}}' -name '*{{pattern}}*' -exec file {} \\;"
+
+[[functions.parameters]]
+name = "pattern"
+type = "string"
+description = "Pattern to search files with"
+required = true
+
+[[functions.parameters]]
+name = "directory"
+type = "string"
+description = "Base directory within which to search for files. All paths should be relative paths. It will be prefixed with `./`"
+required = true
+
 ## Print Directory Tree
 [[functions]]
 name = "print_tree"
 description = "Print directory tree (only folders)."
-command = "tree -d ./{{directory}}"
+command = "tree -d './{{directory}}'"
 safe = true
 
 [[functions.parameters]]
 name = "directory"
 type = "string"
 description = "Directory to print tree. All paths should be relative paths. It will be prefixed with `./`"
+required = true
+
+## Write file
+[[functions]]
+name = "write_file"
+description = "Write content to a file. If the file does not exist, it will be created."
+command = "tee './{{file}}' >/dev/null && echo 'Wrote {{file}}'"
+safe = false
+
+[[functions.parameters]]
+name = "file"
+type = "string"
+description = "File to write to. If the file does not exist, it will be created. All paths should be relative paths. It will be prefixed with `./`"
+required = true
+
+[[functions.parameters]]
+name = "content"
+type = "string"
+description = "Content to write to the file"
+required = true
+
+## Delete file
+[[functions]]
+name = "delete_file"
+description = "Delete a file with the given name/path"
+command = "rm -f './{{file}}' && echo 'Deleted {{file}}'"
+safe = false
+
+[[functions.parameters]]
+name = "file"
+type = "string"
+description = "File to delete. All paths should be relative paths. It will be prefixed with `./`"
 required = true
 
 ## Get Weather
@@ -72,7 +122,7 @@ required = false
 
 ## Open Website
 [[functions]]
-name = "open_website"
+name = "open_website_in_browser"
 description = """Open a website in the default browser.
 If the user asks to open a link, you can use this function."""
 command = "open '{{url}}'"

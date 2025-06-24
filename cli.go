@@ -197,6 +197,8 @@ func parseAgentCommand(opts *CLIOptions) {
 	}
 
 	// Separately handle builtin agents
+	// FIXME: We should allow user to override builtin agents or at
+	// least show a warning when there is a conflict
 	if _, exists := builtinAgents[opts.AgentName]; exists {
 		opts.AgentPath = "builtin:" + opts.AgentName
 		return
