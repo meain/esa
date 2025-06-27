@@ -1,5 +1,5 @@
 name="ESA Agent Finder"
-description="Automatically find the right esa agent based on the query and use it to process your query"
+description="Automatically find the right esa user agent and process your query"
 system_prompt="""
 You are an esa agent that can automatically find the right esa agent
 based on the query and use it to process the query.

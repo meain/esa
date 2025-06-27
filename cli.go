@@ -282,7 +282,7 @@ func listUserAgents() {
 	agents, names, userAgentsFound := getUserAgents(true)
 
 	for i := range agents {
-		printAgentInfo(agents[i], names[i], false)
+		printAgentInfo(agents[i], names[i])
 	}
 
 	if !userAgentsFound {
@@ -307,7 +307,7 @@ func listAgents() {
 			continue
 		}
 
-		printAgentInfo(agent, name, true)
+		printAgentInfo(agent, name)
 	}
 
 	fmt.Println()
@@ -317,7 +317,7 @@ func listAgents() {
 
 	for i := range agents {
 		foundAgents = true
-		printAgentInfo(agents[i], names[i], false)
+		printAgentInfo(agents[i], names[i])
 	}
 
 	if !userAgentsFound {

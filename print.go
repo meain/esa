@@ -33,21 +33,16 @@ func printFunctionInfo(fn FunctionConfig) {
 }
 
 // printAgentInfo prints information about an agent
-func printAgentInfo(agent Agent, agentName string, isPrefixed bool) {
+func printAgentInfo(agent Agent, agentName string) {
 	nameStyle := color.New(color.FgHiGreen).SprintFunc()
 	agentNameStyle := color.New(color.FgHiCyan, color.Bold).SprintFunc()
 	noDescStyle := color.New(color.FgHiBlack, color.Italic).SprintFunc()
 
-	displayName := agentName
-	if isPrefixed {
-		displayName = "builtin:" + agentName
-	}
-
 	// Print agent filename and name from config
 	if agent.Name != "" {
-		fmt.Printf("  %s (%s): ", nameStyle(agent.Name), agentNameStyle(displayName))
+		fmt.Printf("  %s (%s): ", nameStyle(agent.Name), agentNameStyle(agentName))
 	} else {
-		fmt.Printf("  %s: ", agentNameStyle(displayName))
+		fmt.Printf("  %s: ", agentNameStyle(agentName))
 	}
 
 	// Print description
