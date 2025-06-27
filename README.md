@@ -446,3 +446,29 @@ ESA's power comes from custom agents. See the [Agent Creation Guide](./docs/agen
 - Parameter handling and validation
 - Advanced templating features
 - Best practices and examples
+
+## FAQ
+
+<details>
+<summary>What all agents do I have?</summary>
+I have quite a few personal agents. The ones that I can make public are available in my [dotfiles](https://github.com/meain/dotfiles/tree/master/esa/.config/esa/agents).
+</details>
+
+<details>
+<summary>How to setup GitHub Copilot</summary>
+1. The easiest way to get the Copilot token is to sign in to Copilot from any JetBrains IDE (PyCharm, GoLand, etc).
+
+2. After authentication, locate the configuration file:
+   - Linux/macOS: `~/.config/github-copilot/apps.json`
+   - Windows: `~\AppData\Local\github-copilot\apps.json`
+
+3. Copy the `oauth_token` value from this file.
+
+4. Set the token as your `COPILOT_API_KEY`:
+
+   ```bash
+   export COPILOT_API_KEY=your_oauth_token_here
+   ```
+
+Important Note: Tokens created by the Neovim copilot.lua plugin (old `hosts.json`) sometimes lack the needed scopes. If you see "access to this endpoint is forbidden", regenerate the token with a JetBrains IDE.
+</details>.
