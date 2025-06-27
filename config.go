@@ -25,8 +25,9 @@ type Config struct {
 
 // ProviderConfig represents the configuration for a model provider
 type ProviderConfig struct {
-	BaseURL     string `toml:"base_url"`
-	APIKeyEnvar string `toml:"api_key_envar"`
+	BaseURL           string            `toml:"base_url"`
+	APIKeyEnvar       string            `toml:"api_key_envar"`
+	AdditionalHeaders map[string]string `toml:"additional_headers"`
 }
 
 // LoadConfig loads the configuration from the specified path

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/http"
 	"os"
 	"strings"
 
@@ -37,8 +38,9 @@ type Application struct {
 
 // providerInfo contains provider-specific configuration
 type providerInfo struct {
-	baseURL     string
-	apiKeyEnvar string
+	baseURL           string
+	apiKeyEnvar       string
+	additionalHeaders map[string]string
 }
 
 // parseModel parses model string in format "provider/model" and
@@ -104,6 +106,15 @@ func parseModel(modelStr string, config *Config) (provider string, model string,
 			baseURL:     "https://models.inference.ai.azure.com",
 			apiKeyEnvar: "GITHUB_MODELS_API_KEY",
 		}
+	case "copilot":
+		info = providerInfo{
+			baseURL:     "https://api.githubcopilot.com",
+			apiKeyEnvar: "COPILOT_API_KEY",
+			additionalHeaders: map[string]string{
+				"Content-Type":           "application/json",
+				"Copilot-Integration-Id": "vscode-chat",
+			},
+		}
 	}
 
 	// Override with config if present
@@ -113,8 +124,19 @@ func parseModel(modelStr string, config *Config) (provider string, model string,
 			if providerCfg.BaseURL != "" {
 				info.baseURL = providerCfg.BaseURL
 			}
+
 			if providerCfg.APIKeyEnvar != "" {
 				info.apiKeyEnvar = providerCfg.APIKeyEnvar
+			}
+
+			if len(providerCfg.AdditionalHeaders) > 0 {
+				if info.additionalHeaders == nil {
+					info.additionalHeaders = make(map[string]string)
+				}
+
+				for key, value := range providerCfg.AdditionalHeaders {
+					info.additionalHeaders[key] = value
+				}
 			}
 		}
 	}
@@ -638,6 +660,18 @@ func (app *Application) handleMCPToolCall(toolCall openai.ToolCall, opts CLIOpti
 	})
 }
 
+type transportWithCustomHeaders struct {
+	headers map[string]string
+	base    http.RoundTripper
+}
+
+func (t *transportWithCustomHeaders) RoundTrip(req *http.Request) (*http.Response, error) {
+	for key, value := range t.headers {
+		req.Header.Set(key, value)
+	}
+	return t.base.RoundTrip(req)
+}
+
 func setupOpenAIClient(modelStr string, config *Config) (*openai.Client, error) {
 	_, _, info := parseModel(modelStr, config)
 
@@ -650,7 +684,20 @@ func setupOpenAIClient(modelStr string, config *Config) (*openai.Client, error) 
 	llmConfig := openai.DefaultConfig(configuredAPIKey)
 	llmConfig.BaseURL = info.baseURL
 
-	return openai.NewClientWithConfig(llmConfig), nil
+	if len(info.additionalHeaders) != 0 {
+		httpClient := &http.Client{
+			Transport: &transportWithCustomHeaders{
+				headers: info.additionalHeaders,
+				base:    http.DefaultTransport,
+			},
+		}
+
+		llmConfig.HTTPClient = httpClient
+	}
+
+	client := openai.NewClientWithConfig(llmConfig)
+
+	return client, nil
 }
 
 func createDebugPrinter(debugMode bool) func(string, ...any) {
