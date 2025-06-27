@@ -1,3 +1,6 @@
+name = "Agent Creator"
+description = "An assistant that helps users create Esa agents with appropriate system prompts and functions"
+
 system_prompt = '''You are an Agent Creation Assistant specializing in helping users create Esa agents. Your expertise includes:
 
 AGENT CONFIGURATION:

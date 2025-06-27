@@ -71,6 +71,18 @@ The operations you can do and questions you can ask depends on the agent config.
 
 > 💡 **Tip**: The default agent provides basic system functions. See the [Agent Creation Guide](./docs/agents.md) to create specialized agents.
 
+### Built-in Agents
+
+ESA comes with several built-in agents that are always available:
+
+| Agent | Description | Usage |
+|-------|-------------|-------|
+| **+default** | Basic system operations like file management and calculations | `esa +default what time is it` |
+| **+new** | Creates new custom agents | `esa +new create a git agent` |
+| **+auto** | Automatically selects the right agent based on your query | `esa +auto analyze this code` |
+
+> 💡 **Tip**: You can override built-in agents by creating your own agent with the same name in `~/.config/esa/agents/`. When a name conflict occurs, your custom agent will be used instead of the built-in one.
+
 ### Using Specialized Agents
 
 ESA becomes powerful when you use specialized agents. The following are things you can do with the example agents provided in `./example`. Use the `+agent-name` syntax:
@@ -231,13 +243,26 @@ esa --show-agent ~/.config/esa/agents/custom.toml
 # Each agent is a .toml file defining its capabilities
 ```
 
-## 🎯 Available Example Agents
+## 🎯 Available Agents
 
-ESA includes several example agents you can use or customize:
+### Built-in Agents
+
+ESA includes several built-in agents that are always available:
+
+| Agent | Purpose | Example Usage |
+|-------|---------|---------------|
+| **+default** | Basic system operations (files, calculations, weather) | `esa +default "what time is it"` |
+| **+new** | Creates new custom agent configurations | `esa +new "create a git agent"` |
+| **+auto** | Automatically selects the appropriate agent based on your query | `esa +auto "analyze this code"` |
+
+> 💡 **Note**: You can override built-in agents by creating your own agent with the same name in `~/.config/esa/agents/`. Your custom agent will take precedence over the built-in one.
+
+### Example Agents
+
+ESA also includes several example agents you can use or customize:
 
 | Agent       | Purpose                       | Example Usage                         |
 | ----------- | ----------------------------- | ------------------------------------- |
-| **default** | Basic system operations       | `esa "what time is it"`               |
 | **commit**  | Git commit message generation | `esa +commit "create commit message"` |
 | **k8s**     | Kubernetes cluster operations | `esa +k8s "show pod status"`          |
 | **jira**    | JIRA issue management         | `esa +jira "list open issues"`        |

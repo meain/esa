@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/BurntSushi/toml"
 	"github.com/fatih/color"
 	"github.com/sashabaranov/go-openai"
 	"github.com/spf13/cobra"
@@ -24,24 +25,25 @@ const DefaultAgentsDir = "~/.config/esa/agents"
 const DefaultAgentPath = DefaultAgentsDir + "/default.toml"
 
 type CLIOptions struct {
-	DebugMode    bool
-	ContinueChat bool
-	RetryChat    bool
-	ReplMode     bool // Flag for REPL mode
-	AgentPath    string
-	AskLevel     string
-	ShowCommands bool
-	HideProgress bool
-	CommandStr   string
-	AgentName    string
-	Model        string
-	ConfigPath   string
-	OutputFormat string // Output format for show-history (text, markdown, json)
-	ShowAgent    bool   // Flag for showing agent details
-	ListAgents   bool   // Flag for listing agents
-	ListHistory  bool   // Flag for listing history
-	ShowHistory  bool   // Flag for showing specific history
-	ShowOutput   bool   // Flag for showing just output from history
+	DebugMode      bool
+	ContinueChat   bool
+	RetryChat      bool
+	ReplMode       bool // Flag for REPL mode
+	AgentPath      string
+	AskLevel       string
+	ShowCommands   bool
+	HideProgress   bool
+	CommandStr     string
+	AgentName      string
+	Model          string
+	ConfigPath     string
+	OutputFormat   string // Output format for show-history (text, markdown, json)
+	ShowAgent      bool   // Flag for showing agent details
+	ListAgents     bool   // Flag for listing agents
+	ListUserAgents bool   // Flag for listing only user agents
+	ListHistory    bool   // Flag for listing history
+	ShowHistory    bool   // Flag for showing specific history
+	ShowOutput     bool   // Flag for showing just output from history
 }
 
 func createRootCommand() *cobra.Command {
@@ -71,6 +73,11 @@ func createRootCommand() *cobra.Command {
 			// Handle list/show flags first
 			if opts.ListAgents {
 				listAgents()
+				return nil
+			}
+
+			if opts.ListUserAgents {
+				listUserAgents()
 				return nil
 			}
 
@@ -162,6 +169,7 @@ func createRootCommand() *cobra.Command {
 
 	// List/show flags
 	rootCmd.Flags().BoolVar(&opts.ListAgents, "list-agents", false, "List all available agents")
+	rootCmd.Flags().BoolVar(&opts.ListUserAgents, "list-user-agents", false, "List only user agents")
 	rootCmd.Flags().BoolVar(&opts.ListHistory, "list-history", false, "List all saved conversation histories")
 	rootCmd.Flags().BoolVar(&opts.ShowAgent, "show-agent", false, "Show agent details (requires agent name/path as argument)")
 	rootCmd.Flags().BoolVar(&opts.ShowHistory, "show-history", false, "Show conversation history (requires history index as argument)")
@@ -196,11 +204,20 @@ func parseAgentCommand(opts *CLIOptions) {
 		opts.CommandStr = parts[1]
 	}
 
-	// Separately handle builtin agents
-	// FIXME: We should allow user to override builtin agents or at
-	// least show a warning when there is a conflict
+	// Check if this is a builtin agent
 	if _, exists := builtinAgents[opts.AgentName]; exists {
-		opts.AgentPath = "builtin:" + opts.AgentName
+		// Check if a user agent with the same name exists (which would override the builtin)
+		userAgentPath := expandHomePath(fmt.Sprintf("%s/%s.toml", DefaultAgentsDir, opts.AgentName))
+		if _, err := os.Stat(userAgentPath); err == nil {
+			// User agent exists, it will override the builtin
+			if opts.DebugMode {
+				fmt.Printf("Note: Using user agent '%s' which overrides the built-in agent with the same name\n", opts.AgentName)
+			}
+			opts.AgentPath = userAgentPath
+		} else {
+			// Use the builtin agent
+			opts.AgentPath = "builtin:" + opts.AgentName
+		}
 		return
 	}
 
@@ -227,62 +244,135 @@ func printFunctionInfo(fn FunctionConfig) {
 	fmt.Println()
 }
 
-// listAgents lists all available agents in the default config directory
-func listAgents() {
+// printAgentInfo prints information about an agent
+func printAgentInfo(agent Agent, agentName string, isPrefixed bool) {
+	nameStyle := color.New(color.FgHiGreen).SprintFunc()
+	agentNameStyle := color.New(color.FgHiCyan, color.Bold).SprintFunc()
+	noDescStyle := color.New(color.FgHiBlack, color.Italic).SprintFunc()
+
+	displayName := agentName
+	if isPrefixed {
+		displayName = "builtin:" + agentName
+	}
+
+	// Print agent filename and name from config
+	if agent.Name != "" {
+		fmt.Printf("  %s (%s): ", nameStyle(agent.Name), agentNameStyle(displayName))
+	} else {
+		fmt.Printf("  %s: ", agentNameStyle(displayName))
+	}
+
+	// Print description
+	if agent.Description != "" {
+		fmt.Println(agent.Description)
+	} else {
+		fmt.Printf("%s\n", noDescStyle("(No description available)"))
+	}
+}
+
+// getUserAgents gets a list of user agents from the default config directory
+func getUserAgents(showErrors bool) ([]Agent, []string, bool) {
+	var agents []Agent
+	var names []string
+
 	// Expand the default config directory
 	agentDir := expandHomePath(DefaultAgentsDir)
 
 	// Check if the directory exists
 	if _, err := os.Stat(agentDir); os.IsNotExist(err) {
-		color.Red("Agent directory does not exist: %s\n", agentDir)
-		return
+		if showErrors {
+			color.Red("Agent directory does not exist: %s\n", agentDir)
+		}
+		return agents, names, false
 	}
 
 	// Read all .toml files in the directory
 	files, err := os.ReadDir(agentDir)
 	if err != nil {
-		color.Red("Error reading agent directory: %v\n", err)
-		return
+		if showErrors {
+			color.Red("Error reading agent directory: %v\n", err)
+		}
+		return agents, names, false
 	}
 
-	foundAgents := false
-
-	agentNameStyle := color.New(color.FgHiCyan, color.Bold).SprintFunc()
-	nameStyle := color.New(color.FgHiGreen).SprintFunc()
-	noDescStyle := color.New(color.FgHiBlack, color.Italic).SprintFunc()
+	userAgentsFound := false
 
 	for _, file := range files {
 		if !file.IsDir() && strings.HasSuffix(file.Name(), ".toml") {
-			foundAgents = true
+			userAgentsFound = true
 			agentName := strings.TrimSuffix(file.Name(), ".toml")
+			names = append(names, agentName)
 
 			// Load the agent config to get the description
 			agentPath := filepath.Join(agentDir, file.Name())
 			agent, err := loadAgent(agentPath)
 
 			if err != nil {
-				color.Red("%s: Error loading agent\n", agentName)
+				if showErrors {
+					color.Red("  %s: Error loading agent\n", agentName)
+				}
 				continue
 			}
 
-			// Print agent filename and name from config
-			if agent.Name != "" {
-				fmt.Printf("%s (%s): ", nameStyle(agent.Name), agentNameStyle(agentName))
-			} else {
-				fmt.Printf("%s: ", agentNameStyle(agentName))
-			}
-
-			// Print description
-			if agent.Description != "" {
-				fmt.Println(agent.Description)
-			} else {
-				fmt.Printf("%s\n", noDescStyle("(No description available)"))
-			}
+			agents = append(agents, agent)
 		}
 	}
 
+	return agents, names, userAgentsFound
+}
+
+// listUserAgents lists only user agents in the default config directory
+func listUserAgents() {
+	builtinStyle := color.New(color.FgHiMagenta, color.Bold).SprintFunc()
+	fmt.Println(builtinStyle("User Agents:"))
+
+	agents, names, userAgentsFound := getUserAgents(true)
+
+	for i := range agents {
+		printAgentInfo(agents[i], names[i], false)
+	}
+
+	if !userAgentsFound {
+		color.Yellow("  No user agents found in the agent directory.")
+	}
+}
+
+// listAgents lists all available agents in the default config directory and built-in agents
+func listAgents() {
+	builtinStyle := color.New(color.FgHiMagenta, color.Bold).SprintFunc()
+	foundAgents := false
+
+	// First list built-in agents
+	fmt.Println(builtinStyle("Built-in Agents:"))
+	for name, tomlContent := range builtinAgents {
+		foundAgents = true
+
+		// Parse the agent from TOML content
+		var agent Agent
+		if _, err := toml.Decode(tomlContent, &agent); err != nil {
+			color.Red("%s: Error loading built-in agent\n", name)
+			continue
+		}
+
+		printAgentInfo(agent, name, true)
+	}
+
+	fmt.Println()
+	fmt.Println(builtinStyle("User Agents:"))
+
+	agents, names, userAgentsFound := getUserAgents(false)
+
+	for i := range agents {
+		foundAgents = true
+		printAgentInfo(agents[i], names[i], false)
+	}
+
+	if !userAgentsFound {
+		color.Yellow("  No user agents found in the agent directory.")
+	}
+
 	if !foundAgents {
-		color.Yellow("No agents found in the agent directory.")
+		color.Yellow("No agents found.")
 	}
 }
 
