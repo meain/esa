@@ -85,27 +85,28 @@ func printHistoryMarkdown(fileName string, history ConversationHistory) {
 		role := strings.ToUpper(msg.Role)
 		fmt.Printf("## %s\n\n", role)
 
-		if msg.Content != "" {
-			// Check if content looks like code block for formatting
-			if strings.Contains(msg.Content, "\n") && (strings.Contains(msg.Content, "```") || strings.Contains(msg.Content, "  ")) {
-				fmt.Printf("```\n%s\n```\n\n", msg.Content)
-			} else {
-				fmt.Printf("%s\n\n", msg.Content)
-			}
+		if msg.Content != "" && msg.Role != openai.ChatMessageRoleTool {
+			fmt.Printf("%s\n\n", msg.Content)
 		}
 
 		if len(msg.ToolCalls) > 0 {
-			fmt.Println("**Tool Calls:**")
+			fmt.Println("**Tool Calls**")
 			for _, tc := range msg.ToolCalls {
-				fmt.Printf("- **%s** (`%s`):\n", tc.Function.Name, tc.ID)
-				// Attempt to format arguments as JSON code block
-				var argsMap map[string]any
+				fmt.Printf("\n\nTool: `%s` (ID: `%s`)\n", tc.Function.Name, tc.ID)
+				var argsMap map[string]string
 				argsStr := tc.Function.Arguments
 				if err := json.Unmarshal([]byte(argsStr), &argsMap); err == nil {
-					prettyJSON, _ := json.MarshalIndent(argsMap, "", "  ")
-					argsStr = string(prettyJSON)
+					for key, value := range argsMap {
+						fmt.Printf("\n**`%s`**", key)
+						if len(value) > 100 || strings.Contains(value, "\n") {
+							fmt.Printf("\n```\n%s\n```\n\n", value)
+						} else {
+							fmt.Printf(": %s\n\n", value)
+						}
+					}
+				} else {
+					fmt.Printf("```json\n%s\n```\n", argsStr)
 				}
-				fmt.Printf("  ```json\n  %s\n  ```\n", argsStr)
 			}
 			fmt.Println()
 		}
