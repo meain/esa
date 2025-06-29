@@ -553,7 +553,7 @@ func (app *Application) handleToolCalls(toolCalls []openai.ToolCall, opts CLIOpt
 		provider, model, _ := app.parseModel()
 		os.Setenv("ESA_MODEL", fmt.Sprintf("%s/%s", provider, model))
 
-		command, result, err := executeFunction(
+		command, stdin, result, err := executeFunction(
 			app.getEffectiveAskLevel(),
 			matchedFunc,
 			toolCall.Function.Arguments,
@@ -562,6 +562,7 @@ func (app *Application) handleToolCalls(toolCalls []openai.ToolCall, opts CLIOpt
 		app.debugPrint("Function Execution",
 			fmt.Sprintf("Function: %s", matchedFunc.Name),
 			fmt.Sprintf("Command: %s", command),
+			fmt.Sprintf("Stdin: %s", stdin),
 			fmt.Sprintf("Output: %s", result))
 
 		if err != nil {

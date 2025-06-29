@@ -62,15 +62,20 @@ func convertToOpenAIFunction(fc FunctionConfig) openai.FunctionDefinition {
 	}
 }
 
-func executeFunction(askLevel string, fc FunctionConfig, args string, showCommands bool) (string, string, error) {
+func executeFunction(
+	askLevel string,
+	fc FunctionConfig,
+	args string,
+	showCommands bool,
+) (string, string, string, error) {
 	parsedArgs, err := parseAndValidateArgs(fc, args)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 
 	command, err := prepareCommand(fc, parsedArgs)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 
 	origCommand := command
@@ -79,7 +84,7 @@ func executeFunction(askLevel string, fc FunctionConfig, args string, showComman
 	// Check if confirmation is needed
 	if needsConfirmation(askLevel, fc.Safe) {
 		if !confirm(fmt.Sprintf("Execute `%s`?", command)) {
-			return command, "Command execution cancelled by user.", nil
+			return command, "Command execution cancelled by user.", "", nil
 		}
 	}
 
@@ -87,12 +92,12 @@ func executeFunction(askLevel string, fc FunctionConfig, args string, showComman
 		color.New(color.FgCyan).Fprintf(os.Stderr, "$ %s\n", command)
 	}
 
-	output, err := executeShellCommand(command, fc, parsedArgs)
+	output, stdinContent, err := executeShellCommand(command, fc, parsedArgs)
 	if err != nil {
-		return command, "", err
+		return command, stdinContent, "", err
 	}
 
-	return origCommand, strings.TrimSpace(string(output)), nil
+	return origCommand, stdinContent, strings.TrimSpace(string(output)), nil
 }
 
 func parseAndValidateArgs(fc FunctionConfig, args string) (map[string]any, error) {
@@ -212,12 +217,18 @@ func needsConfirmation(askLevel string, isSafe bool) bool {
 	return askLevel == "all" || (askLevel == "unsafe" && !isSafe)
 }
 
-func executeShellCommand(command string, fc FunctionConfig, args map[string]any) ([]byte, error) {
+func executeShellCommand(
+	command string,
+	fc FunctionConfig,
+	args map[string]any,
+) ([]byte, string, error) {
+	var stdinContent string
+
 	if fc.Output != "" {
 		// Process output template similar to command
 		formattedOutput, err := processShellBlocks(fc.Output)
 		if err != nil {
-			return nil, fmt.Errorf("error processing output template: %v", err)
+			return nil, "", fmt.Errorf("error processing output template: %v", err)
 		}
 
 		// Replace parameters in output template
@@ -230,7 +241,7 @@ func executeShellCommand(command string, fc FunctionConfig, args map[string]any)
 			if value, exists := args[param.Name]; exists {
 				replacement, err := getParameterReplacement(param, value)
 				if err != nil {
-					return nil, err
+					return nil, "", err
 				}
 				formattedOutput = strings.ReplaceAll(formattedOutput, placeholder, replacement)
 			}
@@ -264,7 +275,7 @@ func executeShellCommand(command string, fc FunctionConfig, args map[string]any)
 			if value, exists := args[param.Name]; exists {
 				replacement, err := getParameterReplacement(param, value)
 				if err != nil {
-					return nil, err
+					return nil, "", err
 				}
 				pwd = strings.ReplaceAll(pwd, placeholder, replacement)
 			}
@@ -274,7 +285,7 @@ func executeShellCommand(command string, fc FunctionConfig, args map[string]any)
 	}
 
 	if fc.Stdin != "" {
-		stdinContent := prepareStdinContent(fc.Stdin, args)
+		stdinContent = prepareStdinContent(fc.Stdin, args)
 		cmd.Stdin = strings.NewReader(stdinContent)
 	} else {
 		cmd.Stdin = os.Stdin
@@ -295,9 +306,9 @@ func executeShellCommand(command string, fc FunctionConfig, args map[string]any)
 	case <-done:
 		// Command completed normally
 		if cmdErr != nil {
-			return nil, fmt.Errorf("%v\nCommand: %s\nOutput: %s", cmdErr, command, string(output))
+			return nil, "", fmt.Errorf("%v\nCommand: %s\nOutput: %s", cmdErr, command, string(output))
 		}
-		return output, nil
+		return output, stdinContent, nil
 
 	case <-ctx.Done():
 		// Context was cancelled (timeout or other cancellation)
@@ -315,9 +326,9 @@ func executeShellCommand(command string, fc FunctionConfig, args map[string]any)
 		}
 
 		if ctx.Err() == context.DeadlineExceeded {
-			return nil, fmt.Errorf("command timed out after %d seconds: %s", timeout, command)
+			return nil, "", fmt.Errorf("command timed out after %d seconds: %s", timeout, command)
 		}
-		return nil, fmt.Errorf("command was cancelled: %s", command)
+		return nil, "", fmt.Errorf("command was cancelled: %s", command)
 	}
 }
 
