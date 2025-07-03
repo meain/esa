@@ -156,7 +156,7 @@ func createRootCommand() *cobra.Command {
 	// Add flags
 	rootCmd.Flags().BoolVar(&opts.DebugMode, "debug", false, "Enable debug mode")
 	rootCmd.Flags().BoolVarP(&opts.ContinueChat, "continue", "c", false, "Continue last conversation")
-	rootCmd.Flags().IntVarP(&opts.ConversationIndex, "conversation", "C", 1, "Specify the conversation to continue or retry")
+	rootCmd.Flags().IntVarP(&opts.ConversationIndex, "conversation", "C", 0, "Specify the conversation to continue or retry")
 	rootCmd.Flags().BoolVarP(&opts.RetryChat, "retry", "r", false, "Retry last command")
 	rootCmd.Flags().BoolVar(&opts.ReplMode, "repl", false, "Start in REPL mode for interactive conversation")
 	rootCmd.Flags().StringVar(&opts.AgentPath, "agent", "", "Path to agent config file")
