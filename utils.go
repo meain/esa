@@ -93,7 +93,7 @@ func getHistoryFilePath(cacheDir string, opts *CLIOptions) (string, bool) {
 		return createNewHistoryFile(cacheDir, opts.AgentName), false
 	}
 
-	if latestFile, err := findHistoryFile(cacheDir, opts.ContinueConversation-1); err == nil {
+	if latestFile, err := findHistoryFile(cacheDir, opts.ConversationIndex-1); err == nil {
 		return latestFile, true
 	}
 
