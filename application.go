@@ -165,6 +165,12 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 		opts.ContinueChat = true
 	}
 
+	if opts.ContinueChat || opts.RetryChat {
+		if opts.ConversationIndex < 1 {
+			opts.ConversationIndex = 1
+		}
+	}
+
 	historyFile, hasHistory := getHistoryFilePath(cacheDir, opts)
 	if hasHistory && (opts.ContinueChat || opts.RetryChat) {
 		var history ConversationHistory
