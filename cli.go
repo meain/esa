@@ -23,25 +23,26 @@ const DefaultAgentsDir = "~/.config/esa/agents"
 const DefaultAgentPath = DefaultAgentsDir + "/default.toml"
 
 type CLIOptions struct {
-	DebugMode      bool
-	ContinueChat   bool
-	RetryChat      bool
-	ReplMode       bool // Flag for REPL mode
-	AgentPath      string
-	AskLevel       string
-	ShowCommands   bool
-	HideProgress   bool
-	CommandStr     string
-	AgentName      string
-	Model          string
-	ConfigPath     string
-	OutputFormat   string // Output format for show-history (text, markdown, json)
-	ShowAgent      bool   // Flag for showing agent details
-	ListAgents     bool   // Flag for listing agents
-	ListUserAgents bool   // Flag for listing only user agents
-	ListHistory    bool   // Flag for listing history
-	ShowHistory    bool   // Flag for showing specific history
-	ShowOutput     bool   // Flag for showing just output from history
+	DebugMode            bool
+	ContinueChat         bool
+	ContinueConversation int // continue non-last one
+	RetryChat            bool
+	ReplMode             bool // Flag for REPL mode
+	AgentPath            string
+	AskLevel             string
+	ShowCommands         bool
+	HideProgress         bool
+	CommandStr           string
+	AgentName            string
+	Model                string
+	ConfigPath           string
+	OutputFormat         string // Output format for show-history (text, markdown, json)
+	ShowAgent            bool   // Flag for showing agent details
+	ListAgents           bool   // Flag for listing agents
+	ListUserAgents       bool   // Flag for listing only user agents
+	ListHistory          bool   // Flag for listing history
+	ShowHistory          bool   // Flag for showing specific history
+	ShowOutput           bool   // Flag for showing just output from history
 }
 
 func createRootCommand() *cobra.Command {
@@ -155,6 +156,7 @@ func createRootCommand() *cobra.Command {
 	// Add flags
 	rootCmd.Flags().BoolVar(&opts.DebugMode, "debug", false, "Enable debug mode")
 	rootCmd.Flags().BoolVarP(&opts.ContinueChat, "continue", "c", false, "Continue last conversation")
+	rootCmd.Flags().IntVarP(&opts.ContinueConversation, "continue-conversation", "C", 0, "Continue a specific conversation")
 	rootCmd.Flags().BoolVarP(&opts.RetryChat, "retry", "r", false, "Retry last command")
 	rootCmd.Flags().BoolVar(&opts.ReplMode, "repl", false, "Start in REPL mode for interactive conversation")
 	rootCmd.Flags().StringVar(&opts.AgentPath, "agent", "", "Path to agent config file")

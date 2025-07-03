@@ -160,6 +160,13 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 		messages []openai.ChatCompletionMessage
 	)
 
+	// If continue conversation is set, also set continue chat
+	if opts.ContinueConversation > 0 {
+		opts.ContinueChat = true
+	} else if opts.ContinueChat {
+		opts.ContinueConversation = 1
+	}
+
 	historyFile, hasHistory := getHistoryFilePath(cacheDir, opts)
 	if hasHistory && (opts.ContinueChat || opts.RetryChat) {
 		var history ConversationHistory

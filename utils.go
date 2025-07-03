@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -40,14 +41,18 @@ func createNewHistoryFile(cacheDir string, agentName string) string {
 	return filepath.Join(cacheDir, fmt.Sprintf("%s-%s.json", agentName, timestamp))
 }
 
-func findLatestHistoryFile(cacheDir string) (string, error) {
+func findHistoryFile(cacheDir string, index int) (string, error) {
 	entries, err := os.ReadDir(cacheDir)
 	if err != nil {
 		return "", err
 	}
 
-	var latestFile string
-	var latestTime time.Time
+	type fileEntry struct {
+		name    string
+		modTime time.Time
+	}
+
+	var files []fileEntry
 
 	for _, entry := range entries {
 		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".json") {
@@ -55,17 +60,26 @@ func findLatestHistoryFile(cacheDir string) (string, error) {
 			if err != nil {
 				continue
 			}
-			if latestFile == "" || info.ModTime().After(latestTime) {
-				latestFile = entry.Name()
-				latestTime = info.ModTime()
-			}
+			files = append(files, fileEntry{
+				name:    entry.Name(),
+				modTime: info.ModTime(),
+			})
 		}
 	}
 
-	if latestFile == "" {
+	if len(files) == 0 {
 		return "", fmt.Errorf("no history files found")
 	}
-	return filepath.Join(cacheDir, latestFile), nil
+
+	sort.Slice(files, func(i, j int) bool {
+		return files[i].modTime.After(files[j].modTime)
+	})
+
+	if index < 0 || index >= len(files) {
+		return "", fmt.Errorf("history file index %d out of range (0-%d)", index, len(files)-1)
+	}
+
+	return filepath.Join(cacheDir, files[index].name), nil
 }
 
 func getHistoryFilePath(cacheDir string, opts *CLIOptions) (string, bool) {
@@ -79,7 +93,7 @@ func getHistoryFilePath(cacheDir string, opts *CLIOptions) (string, bool) {
 		return createNewHistoryFile(cacheDir, opts.AgentName), false
 	}
 
-	if latestFile, err := findLatestHistoryFile(cacheDir); err == nil {
+	if latestFile, err := findHistoryFile(cacheDir, opts.ContinueConversation-1); err == nil {
 		return latestFile, true
 	}
 
