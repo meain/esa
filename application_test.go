@@ -185,8 +185,17 @@ func TestParseModel(t *testing.T) {
 			if gotModel != tt.wantModel {
 				t.Errorf("parseModel() model = %v, want %v", gotModel, tt.wantModel)
 			}
-			if gotInfo != tt.wantInfo {
-				t.Errorf("parseModel() info = %+v, want %+v", gotInfo, tt.wantInfo)
+			if gotInfo.apiKeyEnvar != tt.wantInfo.apiKeyEnvar {
+				t.Errorf("parseModel() info = %+v, want %+v", gotInfo.apiKeyEnvar, tt.wantInfo.apiKeyEnvar)
+			}
+			if gotInfo.baseURL != tt.wantInfo.baseURL {
+				t.Errorf("parseModel() info = %+v, want %+v", gotInfo.baseURL, tt.wantInfo.baseURL)
+			}
+			if gotInfo.baseURL == "" {
+				t.Errorf("parseModel() info baseURL should not be empty")
+			}
+			if len(gotInfo.additionalHeaders) != len(tt.wantInfo.additionalHeaders) {
+				t.Errorf("parseModel() info additionalHeaders = %+v, want %+v", gotInfo.additionalHeaders, tt.wantInfo.additionalHeaders)
 			}
 		})
 	}
