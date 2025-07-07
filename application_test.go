@@ -186,17 +186,67 @@ func TestParseModel(t *testing.T) {
 				t.Errorf("parseModel() model = %v, want %v", gotModel, tt.wantModel)
 			}
 			if gotInfo.apiKeyEnvar != tt.wantInfo.apiKeyEnvar {
-				t.Errorf("parseModel() info = %+v, want %+v", gotInfo.apiKeyEnvar, tt.wantInfo.apiKeyEnvar)
+				t.Errorf("parseModel() info.apiKeyEnvar = %+v, want %+v", gotInfo.apiKeyEnvar, tt.wantInfo.apiKeyEnvar)
 			}
 			if gotInfo.baseURL != tt.wantInfo.baseURL {
-				t.Errorf("parseModel() info = %+v, want %+v", gotInfo.baseURL, tt.wantInfo.baseURL)
+				t.Errorf("parseModel() info.baseURL = %+v, want %+v", gotInfo.baseURL, tt.wantInfo.baseURL)
 			}
 			if gotInfo.baseURL == "" {
 				t.Errorf("parseModel() info baseURL should not be empty")
 			}
+			// Improved additionalHeaders test: check keys and values
 			if len(gotInfo.additionalHeaders) != len(tt.wantInfo.additionalHeaders) {
-				t.Errorf("parseModel() info additionalHeaders = %+v, want %+v", gotInfo.additionalHeaders, tt.wantInfo.additionalHeaders)
+				t.Errorf("parseModel() info.additionalHeaders len = %d, want %d", len(gotInfo.additionalHeaders), len(tt.wantInfo.additionalHeaders))
+			}
+			for k, v := range tt.wantInfo.additionalHeaders {
+				gotVal, ok := gotInfo.additionalHeaders[k]
+				if !ok {
+					t.Errorf("parseModel() info.additionalHeaders missing key %q", k)
+				} else if gotVal != v {
+					t.Errorf("parseModel() info.additionalHeaders[%q] = %q, want %q", k, gotVal, v)
+				}
+			}
+			for k := range gotInfo.additionalHeaders {
+				if _, ok := tt.wantInfo.additionalHeaders[k]; !ok {
+					t.Errorf("parseModel() info.additionalHeaders has unexpected key %q", k)
+				}
 			}
 		})
+	}
+
+}
+
+func TestProviderAdditionalHeadersMerging(t *testing.T) {
+	cfg := &Config{
+		Providers: map[string]ProviderConfig{
+			"copilot": {
+				AdditionalHeaders: map[string]string{
+					"Copilot-Integration-Id": "custom-override",
+					"X-Extra":                "foo",
+				},
+			},
+		},
+	}
+	app := &Application{
+		modelFlag: "copilot/some-model",
+		config:    cfg,
+		agent:     Agent{},
+	}
+	_, _, info := app.parseModel()
+	expected := map[string]string{
+		"Content-Type":           "application/json",
+		"Copilot-Integration-Id": "custom-override", // overridden
+		"X-Extra":                "foo",
+	}
+	if len(info.additionalHeaders) != len(expected) {
+		t.Errorf("additionalHeaders len = %d, want %d", len(info.additionalHeaders), len(expected))
+	}
+	for k, v := range expected {
+		got, ok := info.additionalHeaders[k]
+		if !ok {
+			t.Errorf("missing additionalHeader %q", k)
+		} else if got != v {
+			t.Errorf("additionalHeader[%q] = %q, want %q", k, got, v)
+		}
 	}
 }
