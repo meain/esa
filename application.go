@@ -61,7 +61,12 @@ func (app *Application) parseModel() (provider string, model string, info provid
 
 func parseModel(modelStr string, config *Config) (provider string, model string, info providerInfo) {
 	if modelStr == "" {
-		modelStr = defaultModel
+		if config.Settings.DefaultModel != "" {
+			modelStr = config.Settings.DefaultModel
+		} else {
+			// Fallback to default model if nothing is specified
+			modelStr = defaultModel
+		}
 	}
 
 	// Check if the model string is an alias
