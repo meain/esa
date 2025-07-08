@@ -48,17 +48,14 @@ type providerInfo struct {
 // returns provider, model name, base URL and API key environment
 // variable
 func (app *Application) parseModel() (provider string, model string, info providerInfo) {
-	modelStr := app.modelFlag
-	if modelStr == "" && app.agent.DefaultModel != "" {
-		modelStr = app.agent.DefaultModel
-	}
-
-	return parseModel(modelStr, app.config)
+	return parseModel(app.modelFlag, app.agent, app.config)
 }
 
-func parseModel(modelStr string, config *Config) (provider string, model string, info providerInfo) {
+func parseModel(modelStr string, agent Agent, config *Config) (provider string, model string, info providerInfo) {
 	if modelStr == "" {
-		if config.Settings.DefaultModel != "" {
+		if agent.DefaultModel != "" {
+			modelStr = agent.DefaultModel
+		} else if config.Settings.DefaultModel != "" {
 			modelStr = config.Settings.DefaultModel
 		} else {
 			// Fallback to default model if nothing is specified
@@ -280,7 +277,7 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 		return nil, fmt.Errorf("failed to load agent configuration: %v", err)
 	}
 
-	client, err := setupOpenAIClient(opts.Model, config)
+	client, err := setupOpenAIClient(opts.Model, agent, config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup OpenAI client: %v", err)
 	}
@@ -700,8 +697,8 @@ func (t *transportWithCustomHeaders) RoundTrip(req *http.Request) (*http.Respons
 	return t.base.RoundTrip(req)
 }
 
-func setupOpenAIClient(modelStr string, config *Config) (*openai.Client, error) {
-	_, _, info := parseModel(modelStr, config)
+func setupOpenAIClient(modelStr string, agent Agent, config *Config) (*openai.Client, error) {
+	_, _, info := parseModel(modelStr, agent, config)
 
 	configuredAPIKey := os.Getenv(info.apiKeyEnvar)
 	// Key name can be empty if we don't need any keys

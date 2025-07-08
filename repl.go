@@ -334,7 +334,7 @@ func validateAndSetModel(app *Application, opts *CLIOptions, modelStr string) er
 	app.modelFlag = modelStr
 	opts.Model = modelStr
 
-	client, err := setupOpenAIClient(modelStr, app.config)
+	client, err := setupOpenAIClient(modelStr, app.agent, app.config)
 	if err != nil {
 		return fmt.Errorf("failed to set model '%s': %v", modelStr, err)
 	}
