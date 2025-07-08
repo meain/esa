@@ -119,34 +119,50 @@ func readStdin() string {
 
 func readUserInput(prompt string, multiline bool) (string, error) {
 	reader := bufio.NewReader(os.Stdin)
-	var lines []string
-
 	if prompt != "" {
 		color.New(color.FgBlue).Fprint(os.Stderr, prompt)
-		color.New(color.FgHiWhite, color.Italic).Fprint(os.Stderr, " (end with empty line)\n")
+		color.New(color.FgHiWhite, color.Italic).Fprint(os.Stderr, " (ctrl+d on empty line to complete)\n")
 	}
 
-	// TODO(meain): allow for newline using shift+enter
-	// Not sure if that will be something that terminal supports, but
-	// we might be able to do that with some closing char and possibly
-	// with ability to jump into a text editor.
+	var result strings.Builder
+
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil {
+			if err.Error() == "EOF" {
+				// Ctrl+D pressed
+				break
+			}
 			return "", err
 		}
 
-		line = strings.TrimRight(line, "\r\n")
+		// Return if we just want a single line
 		if !multiline {
 			return line, nil
 		}
 
-		if line == "" {
-			break
+		// Remove the trailing newline and add to result
+		line = strings.TrimSuffix(line, "\n")
+
+		if result.Len() > 0 {
+			result.WriteByte('\n')
 		}
-		lines = append(lines, line)
+		result.WriteString(line)
+
+		// Check if line is empty and we got EOF (Ctrl+D)
+		if line == "" {
+			nextByte, err := reader.ReadByte()
+			if err != nil && err.Error() == "EOF" {
+				break
+			}
+			if err == nil {
+				// Put the byte back by creating a new reader with it
+				result.WriteByte('\n')
+				remaining, _ := reader.ReadString('\n')
+				result.WriteString(string(nextByte) + remaining)
+			}
+		}
 	}
 
-	result := strings.Join(lines, "\n")
-	return result, nil
+	return result.String(), nil
 }
