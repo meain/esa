@@ -326,8 +326,7 @@ func TestEmptyApiKeyAcceptance(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			config := &Config{}
-			_, err := setupOpenAIClient(tt.modelStr, config)
+			_, err := setupOpenAIClient(tt.modelStr, Agent{}, &Config{})
 
 			if (err != nil) != tt.expectError {
 				t.Errorf("Expected error: %v, got: %v", tt.expectError, err)
