@@ -17,6 +17,16 @@
 - **Safety Controls**: Built-in confirmation levels and safe/unsafe command classification
 - **Flexible Output**: Support for text, markdown, and JSON output formats
 
+| <video src="https://github.com/user-attachments/assets/cda852f3-edc2-4612-9920-4c53dc76a9a8"></video> |
+| ----------------------------------------------------------------------------------------------------- |
+| **Tree-Sitter agent**                                                                                 |
+
+| <video src="https://github.com/user-attachments/assets/ce584248-c50d-456d-aa35-4a080790c2a4"></video> |
+| ----------------------------------------------------------------------------------------------------- |
+| **Coder agent**                                                                                       |
+
+> See [meain/esa#4](https://github.com/meain/esa/issues/4) for more demos
+
 ## 🚀 Quick Start
 
 ### 1. Installation
@@ -75,11 +85,11 @@ The operations you can do and questions you can ask depends on the agent config.
 
 ESA comes with several built-in agents that are always available:
 
-| Agent | Description | Usage |
-|-------|-------------|-------|
+| Agent        | Description                                                   | Usage                          |
+| ------------ | ------------------------------------------------------------- | ------------------------------ |
 | **+default** | Basic system operations like file management and calculations | `esa +default what time is it` |
-| **+new** | Creates new custom agents | `esa +new create a git agent` |
-| **+auto** | Automatically selects the right agent based on your query | `esa +auto analyze this code` |
+| **+new**     | Creates new custom agents                                     | `esa +new create a git agent`  |
+| **+auto**    | Automatically selects the right agent based on your query     | `esa +auto analyze this code`  |
 
 > 💡 **Tip**: You can override built-in agents by creating your own agent with the same name in `~/.config/esa/agents/`. When a name conflict occurs, your custom agent will be used instead of the built-in one.
 
@@ -249,11 +259,11 @@ esa --show-agent ~/.config/esa/agents/custom.toml
 
 ESA includes several built-in agents that are always available:
 
-| Agent | Purpose | Example Usage |
-|-------|---------|---------------|
-| **+default** | Basic system operations (files, calculations, weather) | `esa +default "what time is it"` |
-| **+new** | Creates new custom agent configurations | `esa +new "create a git agent"` |
-| **+auto** | Automatically selects the appropriate agent based on your query | `esa +auto "analyze this code"` |
+| Agent        | Purpose                                                         | Example Usage                    |
+| ------------ | --------------------------------------------------------------- | -------------------------------- |
+| **+default** | Basic system operations (files, calculations, weather)          | `esa +default "what time is it"` |
+| **+new**     | Creates new custom agent configurations                         | `esa +new "create a git agent"`  |
+| **+auto**    | Automatically selects the appropriate agent based on your query | `esa +auto "analyze this code"`  |
 
 > 💡 **Note**: You can override built-in agents by creating your own agent with the same name in `~/.config/esa/agents/`. Your custom agent will take precedence over the built-in one.
 
@@ -261,12 +271,12 @@ ESA includes several built-in agents that are always available:
 
 ESA also includes several example agents you can use or customize:
 
-| Agent       | Purpose                       | Example Usage                         |
-| ----------- | ----------------------------- | ------------------------------------- |
-| **commit**  | Git commit message generation | `esa +commit "create commit message"` |
-| **k8s**     | Kubernetes cluster operations | `esa +k8s "show pod status"`          |
-| **jira**    | JIRA issue management         | `esa +jira "list open issues"`        |
-| **web**     | Web development tasks         | `esa +web "what is an agent?"`        |
+| Agent      | Purpose                       | Example Usage                         |
+| ---------- | ----------------------------- | ------------------------------------- |
+| **commit** | Git commit message generation | `esa +commit "create commit message"` |
+| **k8s**    | Kubernetes cluster operations | `esa +k8s "show pod status"`          |
+| **jira**   | JIRA issue management         | `esa +jira "list open issues"`        |
+| **web**    | Web development tasks         | `esa +web "what is an agent?"`        |
 
 Each agent can specify a preferred model optimized for its tasks. For
 example, lightweight agents might use `gpt-4.1-nano` for quick
@@ -484,6 +494,7 @@ I have quite a few personal agents. The ones that I can make public are availabl
 1. The easiest way to get the Copilot token is to sign in to Copilot from any JetBrains IDE (PyCharm, GoLand, etc).
 
 2. After authentication, locate the configuration file:
+
    - Linux/macOS: `~/.config/github-copilot/apps.json`
    - Windows: `~\AppData\Local\github-copilot\apps.json`
 
@@ -496,4 +507,5 @@ I have quite a few personal agents. The ones that I can make public are availabl
    ```
 
 Important Note: Tokens created by the Neovim copilot.lua plugin (old `hosts.json`) sometimes lack the needed scopes. If you see "access to this endpoint is forbidden", regenerate the token with a JetBrains IDE.
+
 </details>.
