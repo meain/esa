@@ -1,6 +1,8 @@
 package main
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestParseModel(t *testing.T) {
 	tests := []struct {
@@ -248,5 +250,92 @@ func TestProviderAdditionalHeadersMerging(t *testing.T) {
 		} else if got != v {
 			t.Errorf("additionalHeader[%q] = %q, want %q", k, got, v)
 		}
+	}
+}
+
+func TestOllamaHostFromEnvironment(t *testing.T) {
+	tests := []struct {
+		name      string
+		hostEnv   string
+		wantHost  string
+		needsTrim bool
+	}{
+		{
+			name:     "Default host when env not set",
+			hostEnv:  "",
+			wantHost: "http://localhost:11434/v1",
+		},
+		{
+			name:      "Custom host from environment",
+			hostEnv:   "http://192.168.1.100:11434",
+			wantHost:  "http://192.168.1.100:11434/v1",
+			needsTrim: false,
+		},
+		{
+			name:      "Custom host with trailing slash",
+			hostEnv:   "http://ollama-server:11434/",
+			wantHost:  "http://ollama-server:11434/v1",
+			needsTrim: true,
+		},
+		{
+			name:      "Host with existing /v1 path",
+			hostEnv:   "http://custom-ollama:8000/v1",
+			wantHost:  "http://custom-ollama:8000/v1",
+			needsTrim: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("OLLAMA_HOST", tt.hostEnv)
+
+			app := &Application{modelFlag: "ollama/llama2"}
+
+			_, _, info := app.parseModel()
+
+			if info.baseURL != tt.wantHost {
+				t.Errorf("Expected Ollama host %q, got %q", tt.wantHost, info.baseURL)
+			}
+		})
+	}
+}
+
+func TestEmptyApiKeyAcceptance(t *testing.T) {
+	t.Setenv("OLLAMA_API_KEY", "")
+	t.Setenv("OPENAI_API_KEY", "")
+
+	tests := []struct {
+		name             string
+		modelStr         string
+		expectError      bool
+		errorDescription string
+	}{
+		{
+			name:             "Ollama accepts empty API key",
+			modelStr:         "ollama/llama2",
+			expectError:      false,
+			errorDescription: "",
+		},
+		{
+			name:             "OpenAI requires API key",
+			modelStr:         "openai/gpt-4",
+			expectError:      true,
+			errorDescription: "OPENAI_API_KEY env not found",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := &Config{}
+			_, err := setupOpenAIClient(tt.modelStr, config)
+
+			if (err != nil) != tt.expectError {
+				t.Errorf("Expected error: %v, got: %v", tt.expectError, err)
+			}
+
+			if tt.expectError && err != nil && err.Error() != tt.errorDescription {
+				t.Errorf("Expected error message %q, got %q", tt.errorDescription, err.Error())
+			}
+		})
 	}
 }

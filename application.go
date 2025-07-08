@@ -40,6 +40,7 @@ type Application struct {
 type providerInfo struct {
 	baseURL           string
 	apiKeyEnvar       string
+	apiKeyCanBeEmpty  bool
 	additionalHeaders map[string]string
 }
 
@@ -50,10 +51,6 @@ func (app *Application) parseModel() (provider string, model string, info provid
 	modelStr := app.modelFlag
 	if modelStr == "" && app.agent.DefaultModel != "" {
 		modelStr = app.agent.DefaultModel
-	}
-
-	if modelStr == "" && app.config != nil {
-		modelStr = app.config.Settings.DefaultModel
 	}
 
 	return parseModel(modelStr, app.config)
@@ -92,9 +89,23 @@ func parseModel(modelStr string, config *Config) (provider string, model string,
 			apiKeyEnvar: "OPENAI_API_KEY",
 		}
 	case "ollama":
+		host := os.Getenv("OLLAMA_HOST")
+		if host == "" {
+			host = "http://localhost:11434"
+		}
+
+		if !strings.HasPrefix(host, "http://") && !strings.HasPrefix(host, "https://") {
+			host = "http://" + host
+		}
+
+		if !strings.HasSuffix(host, "/v1") {
+			host = strings.TrimSuffix(host, "/") + "/v1"
+		}
+
 		info = providerInfo{
-			baseURL:     "http://localhost:11434/v1",
-			apiKeyEnvar: "OLLAMA_API_KEY",
+			baseURL:          host,
+			apiKeyEnvar:      "OLLAMA_API_KEY",
+			apiKeyCanBeEmpty: true, // Ollama does not require an API key by default
 		}
 	case "openrouter":
 		info = providerInfo{
@@ -694,7 +705,7 @@ func setupOpenAIClient(modelStr string, config *Config) (*openai.Client, error) 
 
 	configuredAPIKey := os.Getenv(info.apiKeyEnvar)
 	// Key name can be empty if we don't need any keys
-	if info.apiKeyEnvar != "" && configuredAPIKey == "" {
+	if info.apiKeyEnvar != "" && configuredAPIKey == "" && !info.apiKeyCanBeEmpty {
 		return nil, fmt.Errorf(info.apiKeyEnvar + " env not found")
 	}
 
