@@ -43,6 +43,7 @@ type CLIOptions struct {
 	ListHistory       bool   // Flag for listing history
 	ShowHistory       bool   // Flag for showing specific history
 	ShowOutput        bool   // Flag for showing just output from history
+	ShowStats         bool   // Flag for showing usage statistics
 }
 
 func createRootCommand() *cobra.Command {
@@ -62,7 +63,8 @@ func createRootCommand() *cobra.Command {
   esa --list-history
   esa --show-history 1
   esa --show-history 1 --output json
-  esa --show-output 1`,
+  esa --show-output 1
+  esa --show-stats`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Handle REPL mode first
 			if opts.ReplMode {
@@ -112,6 +114,11 @@ func createRootCommand() *cobra.Command {
 				}
 
 				handleShowOutput(idx)
+				return nil
+			}
+			
+			if opts.ShowStats {
+				handleShowStats()
 				return nil
 			}
 
@@ -174,6 +181,7 @@ func createRootCommand() *cobra.Command {
 	rootCmd.Flags().BoolVar(&opts.ShowAgent, "show-agent", false, "Show agent details (requires agent name/path as argument)")
 	rootCmd.Flags().BoolVar(&opts.ShowHistory, "show-history", false, "Show conversation history (requires history index as argument)")
 	rootCmd.Flags().BoolVar(&opts.ShowOutput, "show-output", false, "Show just the output from a history entry (requires history index as argument)")
+	rootCmd.Flags().BoolVar(&opts.ShowStats, "show-stats", false, "Show usage statistics based on conversation history")
 
 	// Make history-index required when show-history is used
 	rootCmd.PreRunE = func(cmd *cobra.Command, args []string) error {
@@ -546,6 +554,229 @@ func handleShowOutput(index int) {
 	}
 
 	printOutput(history)
+}
+
+// handleShowStats analyzes history files and displays usage statistics
+func handleShowStats() {
+	// Get all history files
+	sortedFiles, fileInfo, err := getSortedHistoryFiles()
+	if err != nil {
+		if strings.Contains(err.Error(), "no history files found") || strings.Contains(err.Error(), "cache directory does not exist") {
+			color.Yellow(err.Error())
+		} else {
+			color.Red(err.Error())
+		}
+		return
+	}
+
+	cacheDir, _ := setupCacheDir()
+
+	// Data structures to store statistics
+	type DayStats struct {
+		Count    int
+		Tokens   int
+		Duration time.Duration
+	}
+	
+	type HourStats struct {
+		Count int
+	}
+	
+	type AgentStats struct {
+		Count    int
+		Tokens   int
+		Duration time.Duration
+	}
+	
+	type ModelStats struct {
+		Count    int
+		Tokens   int
+		Duration time.Duration
+	}
+
+	// Initialize statistics maps
+	dayStats := make(map[string]DayStats)
+	hourStats := make(map[int]HourStats)
+	agentStats := make(map[string]AgentStats)
+	modelStats := make(map[string]ModelStats)
+	
+	// Total stats
+	totalConversations := 0
+	// We're not currently tracking tokens and duration in history files
+	// These will be used in future enhancements
+	
+	// Process each history file
+	for _, fileName := range sortedFiles {
+		historyFilePath := filepath.Join(cacheDir, fileName)
+		historyData, err := os.ReadFile(historyFilePath)
+		if err != nil {
+			color.Red("Error reading history file %s: %v", fileName, err)
+			continue
+		}
+
+		var history ConversationHistory
+		err = json.Unmarshal(historyData, &history)
+		if err != nil {
+			// Skip files with JSON parsing errors without showing an error
+			// This prevents flooding the stats output with error messages
+			continue
+		}
+
+		// Extract date information from file info
+		fileModTime := fileInfo[fileName].ModTime()
+		dateKey := fileModTime.Format("2006-01-02")
+		hourKey := fileModTime.Hour()
+		
+		// Update day statistics
+		dayStat := dayStats[dateKey]
+		dayStat.Count++
+		dayStats[dateKey] = dayStat
+		
+		// Update hour statistics
+		hourStat := hourStats[hourKey]
+		hourStat.Count++
+		hourStats[hourKey] = hourStat
+		
+		// Extract agent name
+		agentName := "unknown"
+		if strings.HasPrefix(fileName, "default-") {
+			agentName = "default"
+		} else {
+			parts := strings.SplitN(strings.TrimSuffix(fileName, ".json"), "-", 2)
+			if len(parts) == 2 {
+				agentName = parts[0]
+			}
+		}
+		
+		// Update agent statistics
+		agentStat := agentStats[agentName]
+		agentStat.Count++
+		agentStats[agentName] = agentStat
+		
+		// Update model statistics
+		modelName := history.Model
+		if modelName == "" {
+			modelName = "unknown"
+		}
+		modelStat := modelStats[modelName]
+		modelStat.Count++
+		modelStats[modelName] = modelStat
+		
+		// Update totals
+		totalConversations++
+	}
+	
+	// Display statistics
+	headerStyle := color.New(color.FgHiCyan, color.Bold).SprintFunc()
+	sectionStyle := color.New(color.FgHiMagenta).SprintFunc()
+	
+	fmt.Println(headerStyle("Usage Statistics"))
+	fmt.Printf("Total conversations: %d\n\n", totalConversations)
+	
+	// Display daily usage
+	fmt.Println(sectionStyle("Daily Usage:"))
+	
+	// Sort days by date (descending - most recent first)
+	type dayUsage struct {
+		date  string
+		count int
+	}
+	var sortedDays []dayUsage
+	for day, stat := range dayStats {
+		sortedDays = append(sortedDays, dayUsage{day, stat.Count})
+	}
+	sort.Slice(sortedDays, func(i, j int) bool {
+		return sortedDays[i].date > sortedDays[j].date
+	})
+	
+	// Show last 10 days
+	lastDays := sortedDays
+	if len(lastDays) > 10 {
+		lastDays = lastDays[:10]
+	}
+	for _, usage := range lastDays {
+		fmt.Printf("  %s: %d conversations\n", usage.date, usage.count)
+	}
+	fmt.Println()
+	
+	// Display hourly usage
+	fmt.Println(sectionStyle("Hourly Usage:"))
+	
+	// Sort hours by conversation count (descending)
+	type hourUsage struct {
+		hour  int
+		count int
+	}
+	var sortedHours []hourUsage
+	for hour, stat := range hourStats {
+		if stat.Count > 0 {
+			sortedHours = append(sortedHours, hourUsage{hour, stat.Count})
+		}
+	}
+	sort.Slice(sortedHours, func(i, j int) bool {
+		return sortedHours[i].count > sortedHours[j].count
+	})
+	
+	// Show top 10 hours
+	topHours := sortedHours
+	if len(topHours) > 10 {
+		topHours = topHours[:10]
+	}
+	for _, usage := range topHours {
+		fmt.Printf("  %02d:00-%02d:59: %d conversations\n", usage.hour, usage.hour, usage.count)
+	}
+	fmt.Println()
+	
+	// Display agent usage
+	fmt.Println(sectionStyle("Agent Usage:"))
+	
+	// Sort agents by usage count (descending)
+	type agentUsage struct {
+		name  string
+		count int
+	}
+	var sortedAgents []agentUsage
+	for agent, stat := range agentStats {
+		sortedAgents = append(sortedAgents, agentUsage{agent, stat.Count})
+	}
+	sort.Slice(sortedAgents, func(i, j int) bool {
+		return sortedAgents[i].count > sortedAgents[j].count
+	})
+	
+	// Show top 10 agents
+	topAgents := sortedAgents
+	if len(topAgents) > 10 {
+		topAgents = topAgents[:10]
+	}
+	for _, usage := range topAgents {
+		fmt.Printf("  +%s: %d conversations\n", usage.name, usage.count)
+	}
+	fmt.Println()
+	
+	// Display model usage
+	fmt.Println(sectionStyle("Model Usage:"))
+	
+	// Sort models by usage count (descending)
+	type modelUsage struct {
+		name  string
+		count int
+	}
+	var sortedModels []modelUsage
+	for model, stat := range modelStats {
+		sortedModels = append(sortedModels, modelUsage{model, stat.Count})
+	}
+	sort.Slice(sortedModels, func(i, j int) bool {
+		return sortedModels[i].count > sortedModels[j].count
+	})
+	
+	// Show top 10 models
+	topModels := sortedModels
+	if len(topModels) > 10 {
+		topModels = topModels[:10]
+	}
+	for _, usage := range topModels {
+		fmt.Printf("  %s: %d conversations\n", usage.name, usage.count)
+	}
 }
 
 // handleShowAgent displays the details of the agent specified by the agentPath.

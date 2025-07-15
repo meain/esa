@@ -126,6 +126,9 @@ esa --show-history 1 --output json
 
 # Show last output of a previous interaction
 esa --show-output 1
+
+# Display agent and model statistics
+esa --show-stats
 ```
 
 ### REPL Mode (Interactive Sessions)
@@ -305,12 +308,13 @@ See the [`examples/`](examples/) directory for more agent configurations.
 --hide-progress          # Disable progress indicators
 --output <format>        # Output format for --show-history: text/markdown/json
 
-# Information commands (require arguments)
+# Information commands
 --list-agents            # Show all available agents
 --list-history           # Show conversation history
 --show-history <index>   # Display specific conversation (e.g., --show-history 1)
 --show-output <index>    # Display only last output from conversation (e.g., --show-output 1)
 --show-agent <agent>     # Show agent details (e.g., --show-agent +coder)
+--show-stats             # Display agent and model statistics
 ```
 
 ### Examples
