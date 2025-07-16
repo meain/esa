@@ -338,3 +338,27 @@ func TestEmptyApiKeyAcceptance(t *testing.T) {
 		})
 	}
 }
+
+func TestSystemPromptOverrideFromCLI(t *testing.T) {
+	// Agent with default system prompt
+	agent := Agent{
+		SystemPrompt: "Default system prompt",
+	}
+	opts := &CLIOptions{
+		SystemPrompt: "CLI system prompt override",
+	}
+	app := &Application{
+		agent: agent,
+	}
+	// Simulate NewApplication logic
+	if opts.SystemPrompt != "" {
+		app.agent.SystemPrompt = opts.SystemPrompt
+	}
+	prompt, err := app.getSystemPrompt()
+	if err != nil {
+		t.Fatalf("getSystemPrompt error: %v", err)
+	}
+	if prompt != "CLI system prompt override" {
+		t.Errorf("Expected system prompt to be overridden by CLI, got: %q", prompt)
+	}
+}

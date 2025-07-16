@@ -277,6 +277,11 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 		return nil, fmt.Errorf("failed to load agent configuration: %v", err)
 	}
 
+	// If SystemPrompt is set in CLI options, override agent's SystemPrompt
+	if opts.SystemPrompt != "" {
+		agent.SystemPrompt = opts.SystemPrompt
+	}
+
 	client, err := setupOpenAIClient(opts.Model, agent, config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup OpenAI client: %v", err)

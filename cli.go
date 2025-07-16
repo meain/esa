@@ -44,6 +44,7 @@ type CLIOptions struct {
 	ShowHistory       bool   // Flag for showing specific history
 	ShowOutput        bool   // Flag for showing just output from history
 	ShowStats         bool   // Flag for showing usage statistics
+	SystemPrompt      string // System prompt override from CLI
 }
 
 func createRootCommand() *cobra.Command {
@@ -116,7 +117,7 @@ func createRootCommand() *cobra.Command {
 				handleShowOutput(idx)
 				return nil
 			}
-			
+
 			if opts.ShowStats {
 				handleShowStats()
 				return nil
@@ -173,6 +174,9 @@ func createRootCommand() *cobra.Command {
 	rootCmd.Flags().BoolVar(&opts.ShowCommands, "show-commands", false, "Show executed commands during run")
 	rootCmd.Flags().BoolVar(&opts.HideProgress, "hide-progress", false, "Disable progress info for each function")
 	rootCmd.Flags().StringVar(&opts.OutputFormat, "output", "text", "Output format for --show-history (text, markdown, json)")
+
+	// System prompt override flag
+	rootCmd.Flags().StringVar(&opts.SystemPrompt, "system-prompt", "", "Override the system prompt for the agent")
 
 	// List/show flags
 	rootCmd.Flags().BoolVar(&opts.ListAgents, "list-agents", false, "List all available agents")
@@ -577,17 +581,17 @@ func handleShowStats() {
 		Tokens   int
 		Duration time.Duration
 	}
-	
+
 	type HourStats struct {
 		Count int
 	}
-	
+
 	type AgentStats struct {
 		Count    int
 		Tokens   int
 		Duration time.Duration
 	}
-	
+
 	type ModelStats struct {
 		Count    int
 		Tokens   int
@@ -599,12 +603,12 @@ func handleShowStats() {
 	hourStats := make(map[int]HourStats)
 	agentStats := make(map[string]AgentStats)
 	modelStats := make(map[string]ModelStats)
-	
+
 	// Total stats
 	totalConversations := 0
 	// We're not currently tracking tokens and duration in history files
 	// These will be used in future enhancements
-	
+
 	// Process each history file
 	for _, fileName := range sortedFiles {
 		historyFilePath := filepath.Join(cacheDir, fileName)
@@ -626,17 +630,17 @@ func handleShowStats() {
 		fileModTime := fileInfo[fileName].ModTime()
 		dateKey := fileModTime.Format("2006-01-02")
 		hourKey := fileModTime.Hour()
-		
+
 		// Update day statistics
 		dayStat := dayStats[dateKey]
 		dayStat.Count++
 		dayStats[dateKey] = dayStat
-		
+
 		// Update hour statistics
 		hourStat := hourStats[hourKey]
 		hourStat.Count++
 		hourStats[hourKey] = hourStat
-		
+
 		// Extract agent name
 		agentName := "unknown"
 		if strings.HasPrefix(fileName, "default-") {
@@ -647,12 +651,12 @@ func handleShowStats() {
 				agentName = parts[0]
 			}
 		}
-		
+
 		// Update agent statistics
 		agentStat := agentStats[agentName]
 		agentStat.Count++
 		agentStats[agentName] = agentStat
-		
+
 		// Update model statistics
 		modelName := history.Model
 		if modelName == "" {
@@ -661,21 +665,21 @@ func handleShowStats() {
 		modelStat := modelStats[modelName]
 		modelStat.Count++
 		modelStats[modelName] = modelStat
-		
+
 		// Update totals
 		totalConversations++
 	}
-	
+
 	// Display statistics
 	headerStyle := color.New(color.FgHiCyan, color.Bold).SprintFunc()
 	sectionStyle := color.New(color.FgHiMagenta).SprintFunc()
-	
+
 	fmt.Println(headerStyle("Usage Statistics"))
 	fmt.Printf("Total conversations: %d\n\n", totalConversations)
-	
+
 	// Display daily usage
 	fmt.Println(sectionStyle("Daily Usage:"))
-	
+
 	// Sort days by date (descending - most recent first)
 	type dayUsage struct {
 		date  string
@@ -688,7 +692,7 @@ func handleShowStats() {
 	sort.Slice(sortedDays, func(i, j int) bool {
 		return sortedDays[i].date > sortedDays[j].date
 	})
-	
+
 	// Show last 10 days
 	lastDays := sortedDays
 	if len(lastDays) > 10 {
@@ -698,10 +702,10 @@ func handleShowStats() {
 		fmt.Printf("  %s: %d conversations\n", usage.date, usage.count)
 	}
 	fmt.Println()
-	
+
 	// Display hourly usage
 	fmt.Println(sectionStyle("Hourly Usage:"))
-	
+
 	// Sort hours by conversation count (descending)
 	type hourUsage struct {
 		hour  int
@@ -716,7 +720,7 @@ func handleShowStats() {
 	sort.Slice(sortedHours, func(i, j int) bool {
 		return sortedHours[i].count > sortedHours[j].count
 	})
-	
+
 	// Show top 10 hours
 	topHours := sortedHours
 	if len(topHours) > 10 {
@@ -726,10 +730,10 @@ func handleShowStats() {
 		fmt.Printf("  %02d:00-%02d:59: %d conversations\n", usage.hour, usage.hour, usage.count)
 	}
 	fmt.Println()
-	
+
 	// Display agent usage
 	fmt.Println(sectionStyle("Agent Usage:"))
-	
+
 	// Sort agents by usage count (descending)
 	type agentUsage struct {
 		name  string
@@ -742,7 +746,7 @@ func handleShowStats() {
 	sort.Slice(sortedAgents, func(i, j int) bool {
 		return sortedAgents[i].count > sortedAgents[j].count
 	})
-	
+
 	// Show top 10 agents
 	topAgents := sortedAgents
 	if len(topAgents) > 10 {
@@ -752,10 +756,10 @@ func handleShowStats() {
 		fmt.Printf("  +%s: %d conversations\n", usage.name, usage.count)
 	}
 	fmt.Println()
-	
+
 	// Display model usage
 	fmt.Println(sectionStyle("Model Usage:"))
-	
+
 	// Sort models by usage count (descending)
 	type modelUsage struct {
 		name  string
@@ -768,7 +772,7 @@ func handleShowStats() {
 	sort.Slice(sortedModels, func(i, j int) bool {
 		return sortedModels[i].count > sortedModels[j].count
 	})
-	
+
 	// Show top 10 models
 	topModels := sortedModels
 	if len(topModels) > 10 {
