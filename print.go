@@ -232,14 +232,18 @@ func printHistoryText(fileName string, history ConversationHistory) {
 }
 
 // printOutput prints last output of a history file
-func printOutput(history ConversationHistory) {
+func printOutput(history ConversationHistory, pretty bool) {
 	if len(history.Messages) < 1 {
 		fmt.Println("No messages found in this history.")
 		return
 	}
 
 	lastMessage := history.Messages[len(history.Messages)-1]
-	fmt.Println(lastMessage.Content)
+	if pretty {
+		printPrettyOutput(lastMessage.Content)
+	} else {
+		fmt.Println(lastMessage.Content)
+	}
 }
 
 func printMCPServerInfo(name string, server MCPServerConfig) {

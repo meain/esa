@@ -115,7 +115,7 @@ func createRootCommand() *cobra.Command {
 					return fmt.Errorf("invalid history index: %s (must be a positive number)", args[0])
 				}
 
-				handleShowOutput(idx)
+				handleShowOutput(idx, opts.Pretty)
 				return nil
 			}
 
@@ -522,7 +522,7 @@ func handleShowHistory(index int, outputFormat string) {
 }
 
 // handleShowOutput displays output from a specific history file.
-func handleShowOutput(index int) {
+func handleShowOutput(index int, pretty bool) {
 	sortedFiles, _, err := getSortedHistoryFiles()
 	if err != nil {
 		if strings.Contains(err.Error(), "no history files found") || strings.Contains(err.Error(), "cache directory does not exist") {
@@ -557,7 +557,7 @@ func handleShowOutput(index int) {
 		return
 	}
 
-	printOutput(history)
+	printOutput(history, pretty)
 }
 
 // handleShowStats analyzes history files and displays usage statistics

@@ -509,6 +509,8 @@ func (app *Application) handleStreamResponse(stream *openai.ChatCompletionStream
 
 	if hasContent {
 		if app.prettyOutput {
+			// TODO: Add support for rendering pretty markdown in a
+			// streming manner (charmbracelet/glow/issues/601)
 			printPrettyOutput(fullContent.String())
 		} else {
 			fmt.Println()
