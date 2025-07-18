@@ -333,7 +333,11 @@ func (c *MCPClient) CallTool(toolName string, arguments interface{}, askLevel st
 			argsDisplay = "{}"
 		}
 
-		if !confirm(fmt.Sprintf("Call %s:%s(%s)?", c.name, actualToolName, argsDisplay)) {
+		response := confirm(fmt.Sprintf("Call %s:%s(%s)?", c.name, actualToolName, argsDisplay))
+		if !response.approved {
+			if response.message != "" {
+				return fmt.Sprintf("Message from user: %s", response.message), nil
+			}
 			return "MCP tool execution cancelled by user.", nil
 		}
 	}

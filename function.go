@@ -67,15 +67,15 @@ func executeFunction(
 	fc FunctionConfig,
 	args string,
 	showCommands bool,
-) (string, string, string, error) {
+) (bool, string, string, string, error) {
 	parsedArgs, err := parseAndValidateArgs(fc, args)
 	if err != nil {
-		return "", "", "", err
+		return false, "", "", "", err
 	}
 
 	command, err := prepareCommand(fc, parsedArgs)
 	if err != nil {
-		return "", "", "", err
+		return false, "", "", "", err
 	}
 
 	origCommand := command
@@ -83,8 +83,12 @@ func executeFunction(
 
 	// Check if confirmation is needed
 	if needsConfirmation(askLevel, fc.Safe) {
-		if !confirm(fmt.Sprintf("Execute `%s`?", command)) {
-			return command, "Command execution cancelled by user.", "", nil
+		response := confirm(fmt.Sprintf("Execute `%s`?", command))
+		if !response.approved {
+			if response.message != "" {
+				return false, command, "", fmt.Sprintf("Message from user: %s", response.message), nil
+			}
+			return false, command, "", "Command execution cancelled by user.", nil
 		}
 	}
 
@@ -94,10 +98,10 @@ func executeFunction(
 
 	output, stdinContent, err := executeShellCommand(command, fc, parsedArgs)
 	if err != nil {
-		return command, stdinContent, "", err
+		return true, command, stdinContent, "", err
 	}
 
-	return origCommand, stdinContent, strings.TrimSpace(string(output)), nil
+	return true, origCommand, stdinContent, strings.TrimSpace(string(output)), nil
 }
 
 func parseAndValidateArgs(fc FunctionConfig, args string) (map[string]any, error) {

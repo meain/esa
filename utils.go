@@ -14,13 +14,28 @@ import (
 	"github.com/fatih/color"
 )
 
-// confirm prompts the user for confirmation with a yes/no question
-func confirm(prompt string) bool {
+// confirmResponse represents the response type from a confirmation prompt
+type confirmResponse struct {
+	approved bool
+	message  string
+}
+
+// confirm prompts the user for confirmation with yes/no/message options
+func confirm(prompt string) confirmResponse {
 	var response string
 	cyan := color.New(color.FgCyan).SprintFunc()
-	fmt.Fprintf(os.Stderr, "%s %s (y/N): ", cyan("[?]"), prompt)
+	fmt.Fprintf(os.Stderr, "%s %s (m/y/N): ", cyan("[?]"), prompt)
 	fmt.Scanln(&response)
-	return strings.ToLower(response) == "y"
+	response = strings.ToLower(response)
+
+	if response == "m" {
+		fmt.Fprintf(os.Stderr, "%s Enter message: ", cyan("[?]"))
+		message, _ := bufio.NewReader(os.Stdin).ReadString('\n')
+		message = strings.TrimSuffix(message, "\n")
+		return confirmResponse{approved: false, message: message}
+	}
+
+	return confirmResponse{approved: response == "y", message: ""}
 }
 
 // setupCacheDir ensures the cache directory exists and returns its path.
