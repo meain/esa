@@ -18,6 +18,7 @@ This guide provides comprehensive instructions for creating custom ESA agents. A
 ## Overview
 
 ESA agents are defined in TOML files that specify:
+
 - **System Prompt**: Instructions that guide the AI's behavior
 - **Functions**: Command-line tools the agent can execute
 - **Parameters**: Input validation and formatting
@@ -121,14 +122,14 @@ esa +files "based on README.md how can I use this project"
 
 ### Agent Properties
 
-| Property | Type | Required | Description |
-|----------|------|----------|-------------|
-| `name` | string | No | Human-readable agent name |
-| `description` | string | No | Brief description for `list-agents` |
-| `system_prompt` | string | Yes | Core instructions for the AI |
-| `initial_message` | string | No | Default message when no input provided |
-| `ask` | string | No | Confirmation level: `none`, `unsafe`, `all` |
-| `default_model` | string | No | Preferred model for this agent (e.g., `openai/gpt-4o-mini`) |
+| Property          | Type   | Required | Description                                                 |
+| ----------------- | ------ | -------- | ----------------------------------------------------------- |
+| `name`            | string | No       | Human-readable agent name                                   |
+| `description`     | string | No       | Brief description for `list-agents`                         |
+| `system_prompt`   | string | Yes      | Core instructions for the AI                                |
+| `initial_message` | string | No       | Default message when no input provided                      |
+| `ask`             | string | No       | Confirmation level: `none`, `unsafe`, `all`                 |
+| `default_model`   | string | No       | Preferred model for this agent (e.g., `openai/gpt-4o-mini`) |
 
 ### Model Selection Hierarchy
 
@@ -140,11 +141,13 @@ ESA uses the following priority order to determine which model to use:
 4. **Built-in Fallback** (`openai/gpt-4o-mini`) - Lowest priority
 
 This hierarchy allows you to:
+
 - Set reasonable defaults for specific agents
 - Override globally via configuration
 - Override per-command via CLI flags
 
 **Example Usage:**
+
 ```bash
 # Uses agent's default model
 esa +code-analysis "review this function"
@@ -156,6 +159,7 @@ esa --model "openai/gpt-4" +code-analysis "review this function"
 ### System Prompt Guidelines
 
 The system prompt is crucial for agent behavior. It should:
+
 - Clearly define the agent's role and purpose
 - Provide specific instructions for handling tasks
 - Include any domain-specific knowledge or constraints
@@ -179,7 +183,7 @@ The most effective system prompts include input/output examples in XML tags to g
 
 ```toml
 system_prompt = """
-You are a Kubernetes assistant helping manage clusters and workloads. 
+You are a Kubernetes assistant helping manage clusters and workloads.
 Working in {{$pwd}} on {{$date '+%A, %B %d, %Y'}}.
 Current context: {{$kubectl config current-context 2>/dev/null || echo 'Not configured'}}
 
@@ -219,11 +223,11 @@ Keep responses concise but informative. Always explain what actions you're takin
 
 ### Confirmation Levels
 
-| Level | Behavior |
-|-------|----------|
-| `none` | No confirmation required (default) |
+| Level    | Behavior                                  |
+| -------- | ----------------------------------------- |
+| `none`   | No confirmation required (default)        |
 | `unsafe` | Confirm commands marked as `safe = false` |
-| `all` | Confirm every command execution |
+| `all`    | Confirm every command execution           |
 
 ## Function Definition
 
@@ -241,16 +245,16 @@ safe = true
 
 ### Function Properties
 
-| Property | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `name` | string | Yes | - | Unique function identifier |
-| `description` | string | Yes | - | Detailed function description |
-| `command` | string | Yes | - | Shell command template |
-| `safe` | boolean | No | `false` | Whether command is safe to run |
-| `stdin` | string | No | - | Input to pass to command's stdin |
-| `output` | string | No | - | Show output to user during execution|
-| `pwd` | string | No | - | Working directory for command |
-| `timeout` | integer | No | 30 | Command timeout in seconds |
+| Property      | Type    | Required | Default | Description                          |
+| ------------- | ------- | -------- | ------- | ------------------------------------ |
+| `name`        | string  | Yes      | -       | Unique function identifier           |
+| `description` | string  | Yes      | -       | Detailed function description        |
+| `command`     | string  | Yes      | -       | Shell command template               |
+| `safe`        | boolean | No       | `false` | Whether command is safe to run       |
+| `stdin`       | string  | No       | -       | Input to pass to command's stdin     |
+| `output`      | string  | No       | -       | Show output to user during execution |
+| `pwd`         | string  | No       | -       | Working directory for command        |
+| `timeout`     | integer | No       | 30      | Command timeout in seconds           |
 
 ### Command Templates
 
@@ -261,10 +265,12 @@ command = "grep '{{pattern}}' {{file}} {{flags}}"
 ```
 
 **Special Shell Blocks:**
+
 - `{{$command}}` - Execute shell command and insert output
 - `{{#prompt}}` - Prompt user for input
 
 Examples:
+
 ```toml
 # Get current date in command
 command = "echo 'Today is {{$date}}'"
@@ -294,18 +300,19 @@ options = ["option1", "option2"]
 
 ### Parameter Properties
 
-| Property | Type | Required | Description |
-|----------|------|----------|-------------|
-| `name` | string | Yes | Parameter name for `{{name}}` placeholder |
-| `type` | string | Yes | Data type: `string`, `number`, `boolean` |
-| `description` | string | Yes | Clear description for the AI |
-| `required` | boolean | No | Whether parameter is required |
-| `format` | string | No | Format string for parameter substitution |
-| `options` | array | No | Allowed values (creates enum) |
+| Property      | Type    | Required | Description                               |
+| ------------- | ------- | -------- | ----------------------------------------- |
+| `name`        | string  | Yes      | Parameter name for `{{name}}` placeholder |
+| `type`        | string  | Yes      | Data type: `string`, `number`, `boolean`  |
+| `description` | string  | Yes      | Clear description for the AI              |
+| `required`    | boolean | No       | Whether parameter is required             |
+| `format`      | string  | No       | Format string for parameter substitution  |
+| `options`     | array   | No       | Allowed values (creates enum)             |
 
 ### Parameter Types
 
 **String Parameters:**
+
 ```toml
 [[functions.parameters]]
 name = "filename"
@@ -315,6 +322,7 @@ required = true
 ```
 
 **Boolean Parameters:**
+
 ```toml
 [[functions.parameters]]
 name = "verbose"
@@ -325,6 +333,7 @@ format = "-v"  # Only added if true
 ```
 
 **Enum Parameters:**
+
 ```toml
 [[functions.parameters]]
 name = "log_level"
@@ -335,6 +344,7 @@ required = true
 ```
 
 **Number Parameters:**
+
 ```toml
 [[functions.parameters]]
 name = "port"
@@ -363,7 +373,7 @@ Boolean parameters have special handling - they only appear in the command when 
 ```toml
 [[functions.parameters]]
 name = "verbose"
-type = "boolean" 
+type = "boolean"
 format = "-v"  # Only appears if verbose=true
 
 # Usage in command: ls {{verbose}} {{path}}
@@ -433,13 +443,13 @@ format = "--timeout=%d"
 
 #### Format Pattern Summary
 
-| Pattern | Description | Example |
-|---------|-------------|---------|
-| `"--flag %s"` | Space-separated flag and value | `--output json` |
-| `"--flag=%s"` | Equals-separated flag and value | `--output=json` |
-| `"-f"` | Simple flag (boolean only) | `-f` (if true) |
-| `"%s"` | Raw value substitution | `myfile.txt` |
-| No format | Direct parameter replacement | `{{param}}` → `value` |
+| Pattern       | Description                     | Example               |
+| ------------- | ------------------------------- | --------------------- |
+| `"--flag %s"` | Space-separated flag and value  | `--output json`       |
+| `"--flag=%s"` | Equals-separated flag and value | `--output=json`       |
+| `"-f"`        | Simple flag (boolean only)      | `-f` (if true)        |
+| `"%s"`        | Raw value substitution          | `myfile.txt`          |
+| No format     | Direct parameter replacement    | `{{param}}` → `value` |
 
 > **Note**: The `%s`, `%d`, `%f` format specifiers follow Go's fmt package conventions for string, integer, and float formatting respectively.
 
@@ -463,6 +473,7 @@ required = true
 ```
 
 **Advanced pwd usage:**
+
 ```toml
 # Use environment variables
 pwd = "$HOME/projects/{{project_name}}"
@@ -492,6 +503,7 @@ required = true
 ```
 
 **Advanced stdin examples:**
+
 ```toml
 # Multi-line stdin with parameter substitution
 [[functions]]
@@ -581,6 +593,7 @@ command = "cp {{file}} {{file}}.bak.{{$whoami}}.{{$date '+%Y%m%d'}}"
 ### User Input Prompting
 
 Use the `{{#prompt}}` syntax to interactively collect input during command execution:
+
 ```toml
 [[functions]]
 name = "create_issue"
@@ -714,7 +727,7 @@ Use `options` for enum-like parameters and clear `description` fields:
 ```toml
 [[functions.parameters]]
 name = "priority"
-type = "string" 
+type = "string"
 description = "Issue priority level"
 options = ["low", "medium", "high", "critical"]
 required = true
@@ -878,6 +891,7 @@ esa --debug +myagent "test command"
 ```
 
 This shows:
+
 - System prompt processing
 - Function calls and parameters
 - Command execution details
@@ -914,15 +928,18 @@ esa +myagent "use the list_files function to show current directory"
 ### 5. Common Issues
 
 **Parameter Not Found:**
+
 - Check parameter names match exactly between function command and parameter definition
 - Ensure required parameters are marked correctly
 
 **Command Failures:**
+
 - Test commands manually in terminal first
 - Check file paths and permissions
 - Verify required tools are installed
 
 **AI Not Using Functions:**
+
 - Make function descriptions more specific
 - Ensure system prompt mentions when to use functions
 - Check that function names are descriptive
@@ -972,6 +989,7 @@ cp ~/shared/myagent.toml ~/.config/esa/agents/
 ESA agents provide a powerful way to create specialized AI assistants for any domain. Start with simple agents and gradually add complexity as you learn the system.
 
 Key points to remember:
+
 - Focus on clear, descriptive system prompts
 - Mark functions as safe/unsafe appropriately
 - Use parameter validation to prevent errors
