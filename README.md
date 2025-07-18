@@ -315,6 +315,7 @@ See the [`examples/`](examples/) directory for more agent configurations.
 --show-output <index>    # Display only last output from conversation (e.g., --show-output 1)
 --show-agent <agent>     # Show agent details (e.g., --show-agent +coder)
 --show-stats             # Display agent and model statistics
+--pretty, -p             # Pretty print markdown output (disables streaming)
 ```
 
 ### Examples
@@ -333,6 +334,7 @@ esa --list-history
 esa --show-history 1
 esa --show-history 1 --output json
 esa --show-output 1
+esa --show-output 1 --pretty   # Pretty print markdown output
 
 # Conversation flow
 esa --continue "tell me more about that"
