@@ -57,6 +57,40 @@ func loadAgent(agentPath string) (Agent, error) {
 		return agent, err
 	}
 
+	for i, fc := range agent.Functions {
+		if fc.Name == "" {
+			return agent, fmt.Errorf("function %d in agent '%s' has no name", i+1, agent.Name)
+		}
+		if fc.Command == "" {
+			return agent, fmt.Errorf("function %s in agent '%s' has no command defined", fc.Name, agent.Name)
+		}
+		if fc.Description == "" {
+			fc.Description = "No description provided"
+		}
+
+		agent.Functions[i].Description, err = processShellBlocks(fc.Description)
+		if err != nil {
+			return agent, fmt.Errorf("error processing shell blocks in function %s: %v", fc.Name, err)
+		}
+
+		for j, param := range fc.Parameters {
+			if param.Name == "" {
+				return agent, fmt.Errorf("parameter %d in function '%s' has no name", j+1, fc.Name)
+			}
+			if param.Type == "" {
+				return agent, fmt.Errorf("parameter %s in function '%s' has no type defined", param.Name, fc.Name)
+			}
+			if param.Description == "" {
+				param.Description = "No description provided"
+			}
+
+			agent.Functions[i].Parameters[j].Description, err = processShellBlocks(param.Description)
+			if err != nil {
+				return agent, fmt.Errorf("error processing shell blocks in parameter %s of function %s: %v", param.Name, fc.Name, err)
+			}
+		}
+	}
+
 	return agent, err
 }
 
