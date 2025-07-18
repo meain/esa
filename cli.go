@@ -45,6 +45,7 @@ type CLIOptions struct {
 	ShowOutput        bool   // Flag for showing just output from history
 	ShowStats         bool   // Flag for showing usage statistics
 	SystemPrompt      string // System prompt override from CLI
+	Pretty            bool   // Pretty print markdown output using glow
 }
 
 func createRootCommand() *cobra.Command {
@@ -174,8 +175,7 @@ func createRootCommand() *cobra.Command {
 	rootCmd.Flags().BoolVar(&opts.ShowCommands, "show-commands", false, "Show executed commands during run")
 	rootCmd.Flags().BoolVar(&opts.HideProgress, "hide-progress", false, "Disable progress info for each function")
 	rootCmd.Flags().StringVar(&opts.OutputFormat, "output", "text", "Output format for --show-history (text, markdown, json)")
-
-	// System prompt override flag
+	rootCmd.Flags().BoolVarP(&opts.Pretty, "pretty", "p", false, "Pretty print markdown output (disables streaming)")
 	rootCmd.Flags().StringVar(&opts.SystemPrompt, "system-prompt", "", "Override the system prompt for the agent")
 
 	// List/show flags

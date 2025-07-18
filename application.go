@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/charmbracelet/glamour"
 	"github.com/fatih/color"
 	"github.com/sashabaranov/go-openai"
 )
@@ -34,6 +35,7 @@ type Application struct {
 	config          *Config
 	mcpManager      *MCPManager
 	cliAskLevel     string
+	prettyOutput    bool
 }
 
 // providerInfo contains provider-specific configuration
@@ -293,15 +295,16 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 	mcpManager := NewMCPManager()
 
 	app := &Application{
-		agent:       agent,
-		agentPath:   opts.AgentPath,
-		client:      client,
-		historyFile: historyFile,
-		messages:    messages,
-		modelFlag:   opts.Model,
-		config:      config,
-		mcpManager:  mcpManager,
-		cliAskLevel: opts.AskLevel,
+		agent:        agent,
+		agentPath:    opts.AgentPath,
+		client:       client,
+		historyFile:  historyFile,
+		messages:     messages,
+		modelFlag:    opts.Model,
+		config:       config,
+		mcpManager:   mcpManager,
+		cliAskLevel:  opts.AskLevel,
+		prettyOutput: opts.Pretty,
 
 		debug:        opts.DebugMode,
 		showCommands: showCommands && !opts.DebugMode,
@@ -496,19 +499,44 @@ func (app *Application) handleStreamResponse(stream *openai.ChatCompletionStream
 			content := response.Choices[0].Delta.Content
 			if content != "" {
 				hasContent = true
-				fmt.Print(content)
+				if !app.prettyOutput {
+					fmt.Print(content)
+				}
 				fullContent.WriteString(content)
 			}
 		}
 	}
 
 	if hasContent {
-		fmt.Println()
+		if app.prettyOutput {
+			printPrettyOutput(fullContent.String())
+		} else {
+			fmt.Println()
+		}
 	}
 
 	assistantMsg.Role = "assistant"
 	assistantMsg.Content = fullContent.String()
 	return assistantMsg
+}
+
+func printPrettyOutput(content string) {
+	renderer, err := glamour.NewTermRenderer(
+		glamour.WithAutoStyle(),
+		glamour.WithWordWrap(80),
+	)
+	if err != nil {
+		fmt.Println(content)
+		return
+	}
+
+	out, err := renderer.Render(content)
+	if err != nil {
+		fmt.Println(content)
+		return
+	}
+
+	fmt.Print(out)
 }
 
 type ConversationHistory struct {
