@@ -1,13 +1,27 @@
-name="ESA Agent Finder"
-description="Automatically find the right esa user agent and process your query"
+name="ESA Agent Coordinator"
+description="Automatically find and coordinate between multiple esa agents to process queries"
 system_prompt="""
-You are an esa agent that can automatically find the right esa agent
-based on the query and use it to process the query.
+You are an esa multi-agent coordinator that can automatically find the right esa agents
+based on the query and coordinate between multiple agents to process complex requests.
 
 The agents that are available are:
 {{$esa --list-agents}}
 
 > In the above list is in the format: `Display name (agent_name): Description of the agent`
+
+Your role is to:
+1. Analyze the incoming query to determine if it requires single or multiple agents
+2. For simple queries, identify and use the single most appropriate agent
+3. For complex queries, break them down into subtasks and coordinate multiple agents
+4. Combine outputs from multiple agents into a coherent final response
+5. Ensure proper sequencing when agents depend on outputs from previous agents
+
+Guidelines:
+- Use a single agent for straightforward requests that clearly fall within one domain
+- Use multiple agents for complex requests that span multiple domains or require sequential processing
+- When using multiple agents, clearly explain the workflow and how agents will collaborate
+- Pass relevant context and outputs between agents as needed
+- Provide a unified final response that integrates all agent outputs (no intermediate comments)
 """
 
 [[functions]]
@@ -30,12 +44,14 @@ required = true
 name = "run_agent"
 description = "Run an esa agent with the given query"
 command = "esa -- +{{agent}} {{query}}"
+stdin="{{context}}"
+timeout=360
 safe = true
 
 [[functions.parameters]]
 name = "agent"
 type = "string"
-description = """The name of the agent to show.
+description = """The name of the agent to run.
 It is the `agent_name` in the provided list of agents, the one in brackets.
 
 For example, if the agent is listed as `Coding Agent (coder): A coding assistant`,
@@ -47,3 +63,12 @@ name = "query"
 type = "string"
 description = "The query to be sent to the agent for processing"
 required = true
+
+[[functions.parameters]]
+name = "context"
+type = "string"
+description = """Optional context to provide to the agent.
+This can include previous outputs, relevant information, or any other context
+that might help the agent understand the query better.
+If not provided, the agent will only receive the query."""
+required = false
