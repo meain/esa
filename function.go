@@ -97,11 +97,7 @@ func executeFunction(
 	}
 
 	output, stdinContent, err := executeShellCommand(command, fc, parsedArgs)
-	if err != nil {
-		return true, command, stdinContent, "", err
-	}
-
-	return true, origCommand, stdinContent, strings.TrimSpace(string(output)), nil
+	return true, origCommand, stdinContent, strings.TrimSpace(string(output)), err
 }
 
 func parseAndValidateArgs(fc FunctionConfig, args string) (map[string]any, error) {
@@ -310,7 +306,7 @@ func executeShellCommand(
 	case <-done:
 		// Command completed normally
 		if cmdErr != nil {
-			return nil, "", fmt.Errorf("%v\nCommand: %s\nOutput: %s", cmdErr, command, string(output))
+			return output, stdinContent, fmt.Errorf("%v\nCommand: %s\nOutput: %s", cmdErr, command, string(output))
 		}
 		return output, stdinContent, nil
 
