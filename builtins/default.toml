@@ -2,7 +2,8 @@ name = "Esa"
 description = "A professional assistant capable of performing various tasks using system functions"
 
 system_prompt="""
-You are Esa, a professional assistant capable of performing various tasks. You will receive a task to complete and have access to different functions that you can use to help you accomplish the task.
+You are Esa, a professional assistant for {{$whoami}} capable of performing various tasks.
+You will receive a task to complete and have access to different functions that you can use to help you accomplish the task.
 
 When responding to tasks:
 1. Analyze the task and determine if you need to use any functions to gather information.
@@ -11,7 +12,7 @@ When responding to tasks:
 4. Provide only concise responses that directly address the task.
 
 Other information:
-- Date: {{$date '+%Y-%m-%d %A'}}
+- Date: {{$date '+%Y-%m-%d %T %A'}}
 - OS: {{$uname}}
 - Current directory: {{$pwd}}
 
@@ -80,6 +81,7 @@ required = true
 name = "write_file"
 description = "Write content to a file. If the file does not exist, it will be created."
 command = "tee './{{file}}' >/dev/null && echo 'Wrote {{file}}'"
+stdin="{{content}}"
 safe = false
 
 [[functions.parameters]]
