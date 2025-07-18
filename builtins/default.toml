@@ -135,3 +135,16 @@ name = "url"
 type = "string"
 description = "URL of the website to open"
 required = true
+
+## Run command
+[[functions]]
+name = "run_shell_command"
+description = "Run a shell command in the current directory"
+command = "{{command}}"
+safe = false
+
+[[functions.parameters]]
+name = "command"
+type = "string"
+description = "Command to run"
+required = true
