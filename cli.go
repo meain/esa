@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -52,9 +53,11 @@ func createRootCommand() *cobra.Command {
 	opts := &CLIOptions{}
 
 	rootCmd := &cobra.Command{
-		Use:   "esa [text]",
-		Short: "AI assistant with tool calling capabilities",
-		Long:  `An AI assistant that can execute functions and tools to help with various tasks.`,
+		Use:          "esa [text]",
+		SilenceUsage: true,
+		Short:        "Personalized micro agents",
+		Long: "Esa is a command-line tool for interacting with personalized micro agents" +
+			" that can execute tasks, answer questions, and assist with various functions.",
 		Example: `  esa Will it rain tomorrow
   esa +coder How do I write a function in Go
   esa --repl
@@ -71,6 +74,22 @@ func createRootCommand() *cobra.Command {
 			// Handle REPL mode first
 			if opts.ReplMode {
 				return runReplMode(opts, args)
+			}
+
+			if opts.AskLevel != "" &&
+				!slices.Contains([]string{"none", "unsafe", "all"}, opts.AskLevel) {
+				return fmt.Errorf(
+					"invalid ask level: %s. Must be one of: none, unsafe, all",
+					opts.AskLevel,
+				)
+			}
+
+			if opts.OutputFormat == "" &&
+				!slices.Contains([]string{"text", "markdown", "json"}, opts.OutputFormat) {
+				return fmt.Errorf(
+					"invalid output format: %s. Must be one of: text, markdown, json",
+					opts.OutputFormat,
+				)
 			}
 
 			// Handle list/show flags first
