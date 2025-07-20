@@ -18,6 +18,18 @@ const (
 	defaultModel         = "openai/gpt-4o-mini"
 	toolCallCommandColor = color.FgCyan
 	toolCallOutputColor  = color.FgWhite
+	maxRetryCount        = 3
+	defaultTimeout       = 30 // seconds
+)
+
+// Common error messages
+const (
+	errFailedToLoadConfig    = "failed to load global config"
+	errFailedToSetupCache    = "failed to setup cache directory"
+	errFailedToLoadHistory   = "failed to load conversation history"
+	errFailedToUnmarshalHist = "failed to unmarshal conversation history"
+	errFailedToLoadAgent     = "failed to load agent configuration"
+	errFailedToSetupClient   = "failed to setup OpenAI client"
 )
 
 type Application struct {
@@ -58,12 +70,12 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 	// Load global config first
 	config, err := LoadConfig(opts.ConfigPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load global config: %v", err)
+		return nil, fmt.Errorf("%s: %w", errFailedToLoadConfig, err)
 	}
 
 	cacheDir, err := setupCacheDir()
 	if err != nil {
-		return nil, fmt.Errorf("failed to setup cache directory: %v", err)
+		return nil, fmt.Errorf("%s: %w", errFailedToSetupCache, err)
 	}
 
 	var (
@@ -86,11 +98,11 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 		var history ConversationHistory
 		data, err := os.ReadFile(historyFile)
 		if err != nil {
-			return nil, fmt.Errorf("failed to load conversation history: %v", err)
+			return nil, fmt.Errorf("%s: %w", errFailedToLoadHistory, err)
 		}
 		err = json.Unmarshal(data, &history)
 		if err != nil {
-			return nil, fmt.Errorf("failed to unmarshal conversation history: %v", err)
+			return nil, fmt.Errorf("%s: %w", errFailedToUnmarshalHist, err)
 		}
 
 		allMessages := history.Messages
@@ -171,7 +183,7 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 
 	agent, err := loadConfiguration(opts)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load agent configuration: %v", err)
+		return nil, fmt.Errorf("%s: %w", errFailedToLoadAgent, err)
 	}
 
 	// If SystemPrompt is set in CLI options, override agent's SystemPrompt
@@ -181,7 +193,7 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 
 	client, err := setupOpenAIClient(opts.Model, agent, config)
 	if err != nil {
-		return nil, fmt.Errorf("failed to setup OpenAI client: %v", err)
+		return nil, fmt.Errorf("%s: %w", errFailedToSetupClient, err)
 	}
 
 	showCommands := opts.ShowCommands || config.Settings.ShowCommands

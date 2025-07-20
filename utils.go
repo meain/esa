@@ -15,6 +15,56 @@ import (
 	"github.com/fatih/color"
 )
 
+// expandHomePath expands the ~ character in a path to the user's home directory
+func expandHomePath(path string) string {
+	if strings.HasPrefix(path, "~") {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return path // Return original path if we can't get home dir
+		}
+		return filepath.Join(homeDir, path[1:])
+	}
+	return path
+}
+
+// CacheError represents errors related to cache directory operations
+type CacheError struct {
+	Operation string
+	Path      string
+	Err       error
+}
+
+func (e *CacheError) Error() string {
+	return fmt.Sprintf("cache %s failed for path '%s': %v", e.Operation, e.Path, e.Err)
+}
+
+// FileError represents errors related to file operations
+type FileError struct {
+	Operation string
+	Path      string
+	Err       error
+}
+
+func (e *FileError) Error() string {
+	return fmt.Sprintf("file %s failed for path '%s': %v", e.Operation, e.Path, e.Err)
+}
+
+// wrapCacheError wraps an error with cache context
+func wrapCacheError(operation, path string, err error) error {
+	if err == nil {
+		return nil
+	}
+	return &CacheError{Operation: operation, Path: path, Err: err}
+}
+
+// wrapFileError wraps an error with file context
+func wrapFileError(operation, path string, err error) error {
+	if err == nil {
+		return nil
+	}
+	return &FileError{Operation: operation, Path: path, Err: err}
+}
+
 // confirmResponse represents the response type from a confirmation prompt
 type confirmResponse struct {
 	approved bool
@@ -43,10 +93,24 @@ func confirm(prompt string) confirmResponse {
 func setupCacheDir() (string, error) {
 	cacheDir, err := os.UserCacheDir()
 	if err != nil {
-		return "", err
+		return "", wrapCacheError("get user cache directory", "", err)
 	}
 	esaDir := filepath.Join(cacheDir, "esa")
-	return esaDir, os.MkdirAll(esaDir, 0755)
+	if err := os.MkdirAll(esaDir, 0755); err != nil {
+		return "", wrapCacheError("create directory", esaDir, err)
+	}
+	return esaDir, nil
+}
+
+// setupCacheDirWithFallback ensures the cache directory exists and handles errors gracefully
+func setupCacheDirWithFallback() string {
+	cacheDir, err := setupCacheDir()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: could not setup cache directory: %v\n", err)
+		// Fallback to temp directory
+		return filepath.Join(os.TempDir(), "esa")
+	}
+	return cacheDir
 }
 
 func createNewHistoryFile(cacheDir string, agentName string) string {
@@ -100,12 +164,7 @@ func findHistoryFile(cacheDir string, index int) (string, error) {
 
 func getHistoryFilePath(cacheDir string, opts *CLIOptions) (string, bool) {
 	if !opts.ContinueChat && !opts.RetryChat {
-		cacheDir, err := setupCacheDir()
-		if err != nil {
-			// Handle error appropriately, maybe log or return an error
-			// For now, fallback or panic might occur depending on createNewHistoryFile
-			fmt.Fprintf(os.Stderr, "Warning: could not get cache dir: %v\n", err)
-		}
+		cacheDir = setupCacheDirWithFallback()
 		return createNewHistoryFile(cacheDir, opts.AgentName), false
 	}
 
@@ -113,11 +172,7 @@ func getHistoryFilePath(cacheDir string, opts *CLIOptions) (string, bool) {
 		return latestFile, true
 	}
 
-	cacheDir, err := setupCacheDir()
-	if err != nil {
-		// Handle error appropriately
-		fmt.Fprintf(os.Stderr, "Warning: could not get cache dir: %v\n", err)
-	}
+	cacheDir = setupCacheDirWithFallback()
 	return createNewHistoryFile(cacheDir, opts.AgentName), false
 }
 
@@ -187,18 +242,18 @@ func readUserInput(prompt string, multiline bool) (string, error) {
 func getSortedHistoryFiles() ([]string, map[string]os.FileInfo, error) {
 	cacheDir, err := setupCacheDir()
 	if err != nil {
-		return nil, nil, fmt.Errorf("error accessing cache directory: %v", err)
+		return nil, nil, err
 	}
 
 	// Check if the directory exists
 	if _, err := os.Stat(cacheDir); os.IsNotExist(err) {
-		return nil, nil, fmt.Errorf("cache directory does not exist: %s", cacheDir)
+		return nil, nil, wrapCacheError("access", cacheDir, fmt.Errorf("directory does not exist"))
 	}
 
 	// Read all .json files in the directory
 	files, err := os.ReadDir(cacheDir)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error reading cache directory: %v", err)
+		return nil, nil, wrapCacheError("read", cacheDir, err)
 	}
 
 	historyItems := make(map[string]os.FileInfo) // Store file info to sort by mod time later
@@ -214,7 +269,7 @@ func getSortedHistoryFiles() ([]string, map[string]os.FileInfo, error) {
 	}
 
 	if len(historyItems) == 0 {
-		return nil, nil, fmt.Errorf("no history files found in the cache directory: %s", cacheDir)
+		return nil, nil, wrapCacheError("find history files", cacheDir, fmt.Errorf("no history files found"))
 	}
 
 	// Sort files by modification time (most recent first)

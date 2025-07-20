@@ -3,8 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/BurntSushi/toml"
 )
@@ -154,17 +152,6 @@ func loadConfiguration(opts *CLIOptions) (Agent, error) {
 	}
 
 	return loadAgent(agentPath)
-}
-
-func expandHomePath(path string) string {
-	if strings.HasPrefix(path, "~") {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			return path
-		}
-		return filepath.Join(homeDir, path[2:])
-	}
-	return path
 }
 
 const systemPrompt = `You are Esa, a professional assistant capable of performing various tasks. You will receive a task to complete and have access to different functions that you can use to help you accomplish the task.
