@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fatih/color"
 	"github.com/sashabaranov/go-openai"
 )
 
@@ -66,7 +65,6 @@ func executeFunction(
 	askLevel string,
 	fc FunctionConfig,
 	args string,
-	showCommands bool,
 ) (bool, string, string, string, error) {
 	parsedArgs, err := parseAndValidateArgs(fc, args)
 	if err != nil {
@@ -90,10 +88,6 @@ func executeFunction(
 			}
 			return false, command, "", "Command execution cancelled by user.", nil
 		}
-	}
-
-	if showCommands {
-		color.New(color.FgCyan).Fprintf(os.Stderr, "$ %s\n", command)
 	}
 
 	output, stdinContent, err := executeShellCommand(command, fc, parsedArgs)

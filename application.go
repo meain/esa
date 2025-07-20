@@ -16,8 +16,10 @@ import (
 )
 
 const (
-	historyTimeFormat = "20060102-150405"
-	defaultModel      = "openai/gpt-4o-mini"
+	historyTimeFormat    = "20060102-150405"
+	defaultModel         = "openai/gpt-4o-mini"
+	toolCallCommandColor = color.FgCyan
+	toolCallOutputColor  = color.FgWhite
 )
 
 type Application struct {
@@ -29,6 +31,7 @@ type Application struct {
 	messages        []openai.ChatCompletionMessage
 	debugPrint      func(section string, v ...any)
 	showCommands    bool
+	showToolCalls   bool
 	showProgress    bool
 	lastProgressLen int
 	modelFlag       string
@@ -290,6 +293,7 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 	}
 
 	showCommands := opts.ShowCommands || config.Settings.ShowCommands
+	showToolCalls := opts.ShowToolCalls || config.Settings.ShowToolCalls
 
 	// Initialize MCP manager
 	mcpManager := NewMCPManager()
@@ -306,9 +310,10 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 		cliAskLevel:  opts.AskLevel,
 		prettyOutput: opts.Pretty,
 
-		debug:        opts.DebugMode,
-		showCommands: showCommands && !opts.DebugMode,
-		showProgress: !opts.HideProgress && !opts.DebugMode && !showCommands,
+		debug:         opts.DebugMode,
+		showCommands:  showCommands && !showToolCalls && !opts.DebugMode,
+		showToolCalls: showToolCalls && !opts.DebugMode,
+		showProgress:  !opts.HideProgress && !opts.DebugMode && !(showCommands || showToolCalls),
 	}
 
 	app.debugPrint = createDebugPrinter(app.debug)
@@ -322,6 +327,8 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 		fmt.Sprintf("Agent path: %q", opts.AgentPath),
 		fmt.Sprintf("History file: %q", historyFile),
 		fmt.Sprintf("Debug mode: %v", app.debug),
+		fmt.Sprintf("Show commands: %v", app.showCommands),
+		fmt.Sprintf("Show tool calls: %v", app.showToolCalls),
 		fmt.Sprintf("Show progress: %v", app.showProgress),
 	)
 
@@ -616,7 +623,6 @@ func (app *Application) handleToolCalls(toolCalls []openai.ToolCall, opts CLIOpt
 			app.getEffectiveAskLevel(),
 			matchedFunc,
 			toolCall.Function.Arguments,
-			app.showCommands,
 		)
 		app.debugPrint("Function Execution",
 			fmt.Sprintf("Function: %s", matchedFunc.Name),
@@ -644,6 +650,16 @@ func (app *Application) handleToolCalls(toolCalls []openai.ToolCall, opts CLIOpt
 
 		content := fmt.Sprintf("Command: %s\n\nOutput: \n%s", command, result)
 
+		// Display command when --show-commands is enabled
+		if app.showCommands || app.showToolCalls {
+			color.New(toolCallCommandColor).Fprintf(os.Stderr, "$ %s\n", command)
+		}
+
+		// Display tool call output when --show-tool-calls is enabled
+		if app.showToolCalls {
+			color.New(toolCallOutputColor).Fprintf(os.Stderr, "%s\n", result)
+		}
+
 		app.messages = append(app.messages, openai.ChatCompletionMessage{
 			Role:       "tool",
 			Name:       toolCall.Function.Name,
@@ -668,7 +684,7 @@ func (app *Application) handleMCPToolCall(toolCall openai.ToolCall, opts CLIOpti
 	}
 
 	// Parse the arguments
-	var arguments interface{}
+	var arguments any
 	if toolCall.Function.Arguments != "" {
 		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &arguments); err != nil {
 			app.debugPrint("MCP Tool Error", fmt.Sprintf("Failed to parse arguments: %v", err))
@@ -688,8 +704,8 @@ func (app *Application) handleMCPToolCall(toolCall openai.ToolCall, opts CLIOpti
 		}
 	}
 
-	// Call the MCP tool with ask level and show commands options
-	result, err := app.mcpManager.CallTool(toolCall.Function.Name, arguments, app.getEffectiveAskLevel(), app.showCommands)
+	// Call the MCP tool with ask level
+	result, err := app.mcpManager.CallTool(toolCall.Function.Name, arguments, app.getEffectiveAskLevel())
 
 	app.debugPrint("MCP Tool Execution",
 		fmt.Sprintf("Tool: %s", toolCall.Function.Name),
@@ -711,6 +727,28 @@ func (app *Application) handleMCPToolCall(toolCall openai.ToolCall, opts CLIOpti
 			ToolCallID: toolCall.ID,
 		})
 		return
+	}
+
+	// Format arguments for display
+	var argsDisplay string
+	if arguments != nil {
+		if argsJSON, err := json.Marshal(arguments); err == nil {
+			argsDisplay = string(argsJSON)
+		} else {
+			argsDisplay = fmt.Sprintf("%v", arguments)
+		}
+	} else {
+		argsDisplay = "{}"
+	}
+
+	// Display command when --show-commands is enabled
+	if app.showCommands || app.showToolCalls {
+		color.New(toolCallCommandColor).Fprintf(os.Stderr, "# %s(%s)\n", toolCall.Function.Name, argsDisplay)
+	}
+
+	// Display MCP tool call with output when --show-tool-calls is enabled
+	if app.showToolCalls {
+		color.New(toolCallOutputColor).Fprintf(os.Stderr, "%s\n", result)
 	}
 
 	app.messages = append(app.messages, openai.ChatCompletionMessage{

@@ -11,7 +11,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/fatih/color"
 	"github.com/sashabaranov/go-openai"
 )
 
@@ -297,7 +296,7 @@ func (c *MCPClient) GetTools() []openai.Tool {
 }
 
 // CallTool calls a tool on the MCP server
-func (c *MCPClient) CallTool(toolName string, arguments interface{}, askLevel string, showCommands bool) (string, error) {
+func (c *MCPClient) CallTool(toolName string, arguments interface{}, askLevel string) (string, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -340,21 +339,6 @@ func (c *MCPClient) CallTool(toolName string, arguments interface{}, askLevel st
 			}
 			return "MCP tool execution cancelled by user.", nil
 		}
-	}
-
-	// Show command if requested
-	if showCommands {
-		var argsDisplay string
-		if arguments != nil {
-			if argsJSON, err := json.Marshal(arguments); err == nil {
-				argsDisplay = string(argsJSON)
-			} else {
-				argsDisplay = fmt.Sprintf("%v", arguments)
-			}
-		} else {
-			argsDisplay = "{}"
-		}
-		color.New(color.FgCyan).Fprintf(os.Stderr, "# %s:%s(%s)\n", c.name, actualToolName, argsDisplay)
 	}
 
 	request := MCPRequest{
@@ -531,7 +515,7 @@ func (m *MCPManager) GetAllTools() []openai.Tool {
 }
 
 // CallTool calls a tool on the appropriate MCP server
-func (m *MCPManager) CallTool(toolName string, arguments interface{}, askLevel string, showCommands bool) (string, error) {
+func (m *MCPManager) CallTool(toolName string, arguments interface{}, askLevel string) (string, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -539,7 +523,7 @@ func (m *MCPManager) CallTool(toolName string, arguments interface{}, askLevel s
 	for serverName, client := range m.clients {
 		prefix := fmt.Sprintf("mcp_%s_", serverName)
 		if strings.HasPrefix(toolName, prefix) {
-			return client.CallTool(toolName, arguments, askLevel, showCommands)
+			return client.CallTool(toolName, arguments, askLevel)
 		}
 	}
 

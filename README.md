@@ -305,6 +305,7 @@ See the [`examples/`](examples/) directory for more agent configurations.
 
 # Output and display
 --show-commands          # Show executed commands
+--show-tool-calls        # Show LLM tool call requests and responses
 --hide-progress          # Disable progress indicators
 --output <format>        # Output format for --show-history: text/markdown/json
 
@@ -344,6 +345,10 @@ esa --retry "make it shorter"
 esa --repl                                    # Start interactive mode
 esa --repl "what time is it"                  # Start with initial query
 esa --repl "+k8s show me all pods"            # Start with specific agent
+
+# Display options
+esa --show-commands "list files"              # Show command executions
+esa --show-tool-calls "read README.md"        # Show tool calls and results
 ```
 
 ## 📋 Safety and Security
@@ -442,13 +447,20 @@ MCP servers support the same security model as regular functions:
 - **Function-level Safety**: Use `safe_functions = ["func1", "func2"]` to override safety for specific functions
 - **Function Filtering**: Use `allowed_functions = ["func1", "func2"]` to limit which functions are exposed to the LLM
 
-### Command Display
+### Command and Tool Call Display
 
 Use `--show-commands` to see MCP tool executions:
 
 ```bash
 esa --show-commands +filesystem "list files in current directory"
 # Shows: # filesystem:list_directory({"path": "."})
+```
+
+Use `--show-tool-calls` to see the raw tool call requests and responses:
+
+```bash
+esa --show-tool-calls +filesystem "read the first 10 lines of README.md"
+# Shows detailed JSON of tool call request and response
 ```
 
 ### Usage
@@ -463,8 +475,9 @@ esa +database "show me all users in the database"
 # View available MCP tools and their security settings
 esa --show-agent examples/mcp.toml
 
-# Use with confirmation and command display
-esa --ask unsafe --show-commands +filesystem "write a file"
+# Use with confirmation and tool visibility
+esa --ask unsafe --show-commands +filesystem "write a file"  # See command execution
+esa --ask unsafe --show-tool-calls +filesystem "write a file"  # See command and output
 ```
 
 ### Benefits

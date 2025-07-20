@@ -32,6 +32,7 @@ type CLIOptions struct {
 	AgentPath         string
 	AskLevel          string
 	ShowCommands      bool
+	ShowToolCalls     bool
 	HideProgress      bool
 	CommandStr        string
 	AgentName         string
@@ -192,6 +193,7 @@ func createRootCommand() *cobra.Command {
 	rootCmd.Flags().StringVarP(&opts.Model, "model", "m", "", "Model to use (e.g., openai/gpt-4)")
 	rootCmd.Flags().StringVar(&opts.AskLevel, "ask", "", "Ask level (none, unsafe, all)")
 	rootCmd.Flags().BoolVar(&opts.ShowCommands, "show-commands", false, "Show executed commands during run")
+	rootCmd.Flags().BoolVar(&opts.ShowToolCalls, "show-tool-calls", false, "Show executed commands and their outputs during run")
 	rootCmd.Flags().BoolVar(&opts.HideProgress, "hide-progress", false, "Disable progress info for each function")
 	rootCmd.Flags().StringVar(&opts.OutputFormat, "output", "text", "Output format for --show-history (text, markdown, json)")
 	rootCmd.Flags().BoolVarP(&opts.Pretty, "pretty", "p", false, "Pretty print markdown output (disables streaming)")
