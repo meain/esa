@@ -340,12 +340,17 @@ func (app *Application) runConversationLoop(opts CLIOptions) {
 		assistantMsg := app.handleStreamResponse(stream)
 		app.messages = append(app.messages, assistantMsg)
 
+		// Save history after each assistant response
+		app.saveConversationHistory()
+
 		if len(assistantMsg.ToolCalls) == 0 {
-			app.saveConversationHistory()
 			break
 		}
 
 		app.handleToolCalls(assistantMsg.ToolCalls, opts)
+
+		// Save history after processing tool calls
+		app.saveConversationHistory()
 	}
 }
 
