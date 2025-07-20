@@ -360,30 +360,7 @@ func validateAndSetAgent(app *Application, opts *CLIOptions, agentStr string) er
 }
 
 // parseAgentString parses an agent string and returns the agent name and path
+// This function is a thin wrapper around ParseAgentString from agent_util.go
 func parseAgentString(agentStr string) (agentName, agentPath string) {
-	// Handle +agent syntax and direct paths
-	if strings.HasPrefix(agentStr, "+") {
-		// Handle +agent syntax
-		agentName = agentStr[1:] // Remove + prefix
-		agentPath = expandHomePath(fmt.Sprintf("%s/%s.toml", DefaultAgentsDir, agentName))
-	} else if strings.Contains(agentStr, "/") || strings.HasSuffix(agentStr, ".toml") {
-		// Treat as direct path
-		agentPath = agentStr
-		if !strings.HasPrefix(agentPath, "/") {
-			agentPath = expandHomePath(agentPath)
-		}
-	} else {
-		// Treat as agent name without + prefix
-		agentName = agentStr
-		agentPath = expandHomePath(fmt.Sprintf("%s/%s.toml", DefaultAgentsDir, agentName))
-	}
-
-	// Check for builtin agents
-	if agentName != "" {
-		if _, exists := builtinAgents[agentName]; exists {
-			agentPath = "builtin:" + agentName
-		}
-	}
-
-	return agentName, agentPath
+	return ParseAgentString(agentStr)
 }

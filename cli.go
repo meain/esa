@@ -150,16 +150,7 @@ func createRootCommand() *cobra.Command {
 					return fmt.Errorf("agent must be provided as argument: esa --show-agent <agent> or esa --show-agent +<agent>")
 				}
 
-				var agentPath string
-				if strings.HasPrefix(args[0], "+") {
-					// Handle +agent syntax
-					agentName := args[0][1:] // Remove + prefix
-					agentPath = expandHomePath(fmt.Sprintf("%s/%s.toml", DefaultAgentsDir, agentName))
-				} else {
-					// Treat as direct path
-					agentPath = args[0]
-				}
-
+				_, agentPath := ParseAgentString(args[0])
 				handleShowAgent(agentPath)
 				return nil
 			}
@@ -226,8 +217,8 @@ func createRootCommand() *cobra.Command {
 func parseAgentCommand(opts *CLIOptions) {
 	parts := strings.SplitN(opts.CommandStr, " ", 2)
 
-	// Extract agent name (remove + prefix)
-	opts.AgentName = parts[0][1:]
+	// Extract agent string (with + prefix)
+	agentStr := parts[0]
 
 	// Update command string if there's content after the agent name
 	if len(parts) < 2 {
@@ -237,25 +228,19 @@ func parseAgentCommand(opts *CLIOptions) {
 		opts.CommandStr = parts[1]
 	}
 
-	// Check if this is a builtin agent
-	if _, exists := builtinAgents[opts.AgentName]; exists {
-		// Check if a user agent with the same name exists (which would override the builtin)
-		userAgentPath := expandHomePath(fmt.Sprintf("%s/%s.toml", DefaultAgentsDir, opts.AgentName))
-		if _, err := os.Stat(userAgentPath); err == nil {
-			// User agent exists, it will override the builtin
-			if opts.DebugMode {
-				fmt.Printf("Note: Using user agent '%s' which overrides the built-in agent with the same name\n", opts.AgentName)
-			}
-			opts.AgentPath = userAgentPath
-		} else {
-			// Use the builtin agent
-			opts.AgentPath = "builtin:" + opts.AgentName
-		}
-		return
-	}
+	// Parse agent string
+	agentName, agentPath := ParseAgentString(agentStr)
+	opts.AgentName = agentName
+	opts.AgentPath = agentPath
 
-	// Set agent path based on agent name
-	opts.AgentPath = expandHomePath(fmt.Sprintf("%s/%s.toml", DefaultAgentsDir, opts.AgentName))
+	// Check if this is a user agent that overrides a builtin
+	if strings.HasPrefix(agentPath, "builtin:") && opts.DebugMode {
+		userAgentPath := expandHomePath(fmt.Sprintf("%s/%s.toml", DefaultAgentsDir, agentName))
+		if _, err := os.Stat(userAgentPath); err == nil {
+			fmt.Printf("Note: Using user agent '%s' which overrides the built-in agent with the same name\n", agentName)
+			opts.AgentPath = userAgentPath
+		}
+	}
 }
 
 // getUserAgents gets a list of user agents from the default config directory
