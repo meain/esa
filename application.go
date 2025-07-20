@@ -6,11 +6,9 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net/http"
 	"os"
 	"strings"
 
-	"github.com/charmbracelet/glamour"
 	"github.com/fatih/color"
 	"github.com/sashabaranov/go-openai"
 )
@@ -54,112 +52,6 @@ type providerInfo struct {
 // variable
 func (app *Application) parseModel() (provider string, model string, info providerInfo) {
 	return parseModel(app.modelFlag, app.agent, app.config)
-}
-
-func parseModel(modelStr string, agent Agent, config *Config) (provider string, model string, info providerInfo) {
-	if modelStr == "" {
-		if agent.DefaultModel != "" {
-			modelStr = agent.DefaultModel
-		} else if config.Settings.DefaultModel != "" {
-			modelStr = config.Settings.DefaultModel
-		} else {
-			// Fallback to default model if nothing is specified
-			modelStr = defaultModel
-		}
-	}
-
-	// Check if the model string is an alias
-	if config != nil {
-		if aliasedModel, ok := config.ModelAliases[modelStr]; ok {
-			modelStr = aliasedModel
-		}
-	}
-
-	parts := strings.SplitN(modelStr, "/", 2)
-	if len(parts) != 2 {
-		log.Fatalf("invalid model format %q - must be provider/model", modelStr)
-	}
-
-	provider = parts[0]
-	model = parts[1]
-
-	// Start with default provider info
-	switch provider {
-	case "openai":
-		info = providerInfo{
-			baseURL:     "https://api.openai.com/v1",
-			apiKeyEnvar: "OPENAI_API_KEY",
-		}
-	case "ollama":
-		host := os.Getenv("OLLAMA_HOST")
-		if host == "" {
-			host = "http://localhost:11434"
-		}
-
-		if !strings.HasPrefix(host, "http://") && !strings.HasPrefix(host, "https://") {
-			host = "http://" + host
-		}
-
-		if !strings.HasSuffix(host, "/v1") {
-			host = strings.TrimSuffix(host, "/") + "/v1"
-		}
-
-		info = providerInfo{
-			baseURL:          host,
-			apiKeyEnvar:      "OLLAMA_API_KEY",
-			apiKeyCanBeEmpty: true, // Ollama does not require an API key by default
-		}
-	case "openrouter":
-		info = providerInfo{
-			baseURL:     "https://openrouter.ai/api/v1",
-			apiKeyEnvar: "OPENROUTER_API_KEY",
-		}
-	case "groq":
-		info = providerInfo{
-			baseURL:     "https://api.groq.com/openai/v1",
-			apiKeyEnvar: "GROQ_API_KEY",
-		}
-	case "github":
-		info = providerInfo{
-			baseURL:     "https://models.inference.ai.azure.com",
-			apiKeyEnvar: "GITHUB_MODELS_API_KEY",
-		}
-	case "copilot":
-		info = providerInfo{
-			baseURL:     "https://api.githubcopilot.com",
-			apiKeyEnvar: "COPILOT_API_KEY",
-			additionalHeaders: map[string]string{
-				"Content-Type":           "application/json",
-				"Copilot-Integration-Id": "vscode-chat",
-			},
-		}
-	}
-
-	// Override with config if present
-	if config != nil {
-		if providerCfg, ok := config.Providers[provider]; ok {
-			// Only override non-empty values
-			if providerCfg.BaseURL != "" {
-				info.baseURL = providerCfg.BaseURL
-			}
-
-			if providerCfg.APIKeyEnvar != "" {
-				info.apiKeyEnvar = providerCfg.APIKeyEnvar
-			}
-
-			if len(providerCfg.AdditionalHeaders) > 0 {
-				if info.additionalHeaders == nil {
-					info.additionalHeaders = make(map[string]string)
-				}
-
-				for key, value := range providerCfg.AdditionalHeaders {
-					info.additionalHeaders[key] = value
-				}
-			}
-		}
-	}
-
-	return provider, model, info
 }
 
 func NewApplication(opts *CLIOptions) (*Application, error) {
@@ -529,25 +421,6 @@ func (app *Application) handleStreamResponse(stream *openai.ChatCompletionStream
 	return assistantMsg
 }
 
-func printPrettyOutput(content string) {
-	renderer, err := glamour.NewTermRenderer(
-		glamour.WithAutoStyle(),
-		glamour.WithWordWrap(80),
-	)
-	if err != nil {
-		fmt.Println(content)
-		return
-	}
-
-	out, err := renderer.Render(content)
-	if err != nil {
-		fmt.Println(content)
-		return
-	}
-
-	fmt.Print(out)
-}
-
 type ConversationHistory struct {
 	AgentPath string                         `json:"agent_path"`
 	Model     string                         `json:"model"`
@@ -757,75 +630,6 @@ func (app *Application) handleMCPToolCall(toolCall openai.ToolCall, opts CLIOpti
 		Content:    result,
 		ToolCallID: toolCall.ID,
 	})
-}
-
-type transportWithCustomHeaders struct {
-	headers map[string]string
-	base    http.RoundTripper
-}
-
-func (t *transportWithCustomHeaders) RoundTrip(req *http.Request) (*http.Response, error) {
-	for key, value := range t.headers {
-		req.Header.Set(key, value)
-	}
-	return t.base.RoundTrip(req)
-}
-
-func setupOpenAIClient(modelStr string, agent Agent, config *Config) (*openai.Client, error) {
-	_, _, info := parseModel(modelStr, agent, config)
-
-	configuredAPIKey := os.Getenv(info.apiKeyEnvar)
-	// Key name can be empty if we don't need any keys
-	if info.apiKeyEnvar != "" && configuredAPIKey == "" && !info.apiKeyCanBeEmpty {
-		return nil, fmt.Errorf(info.apiKeyEnvar + " env not found")
-	}
-
-	llmConfig := openai.DefaultConfig(configuredAPIKey)
-	llmConfig.BaseURL = info.baseURL
-
-	if len(info.additionalHeaders) != 0 {
-		httpClient := &http.Client{
-			Transport: &transportWithCustomHeaders{
-				headers: info.additionalHeaders,
-				base:    http.DefaultTransport,
-			},
-		}
-
-		llmConfig.HTTPClient = httpClient
-	}
-
-	client := openai.NewClientWithConfig(llmConfig)
-
-	return client, nil
-}
-
-func createDebugPrinter(debugMode bool) func(string, ...any) {
-	return func(section string, v ...any) {
-		if !debugMode {
-			return
-		}
-
-		width := 80
-		headerColor := color.New(color.FgHiCyan, color.Bold)
-		borderColor := color.New(color.FgCyan)
-		labelColor := color.New(color.FgYellow)
-
-		borderColor.Printf("+--- ")
-		headerColor.Printf("DEBUG: %s", section)
-		borderColor.Printf(" %s\n", strings.Repeat("-", width-13-len(section)))
-
-		for _, item := range v {
-			str := fmt.Sprintf("%v", item)
-			if strings.Contains(str, ": ") {
-				parts := strings.SplitN(str, ": ", 2)
-				labelColor.Printf("%s: ", parts[0])
-				fmt.Printf("%s\n", parts[1])
-			} else {
-				fmt.Printf("%s\n", str)
-			}
-		}
-		fmt.Println()
-	}
 }
 
 func (app *Application) getSystemPrompt() (string, error) {

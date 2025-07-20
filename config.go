@@ -12,9 +12,9 @@ const DefaultConfigPath = "~/.config/esa/config.toml"
 
 // Settings represents global settings that can be overridden by CLI flags
 type Settings struct {
-	ShowCommands   bool   `toml:"show_commands"`
-	ShowToolCalls  bool   `toml:"show_tool_calls"`
-	DefaultModel   string `toml:"default_model"`
+	ShowCommands  bool   `toml:"show_commands"`
+	ShowToolCalls bool   `toml:"show_tool_calls"`
+	DefaultModel  string `toml:"default_model"`
 }
 
 // Config represents the global configuration structure

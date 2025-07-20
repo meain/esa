@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -180,4 +181,157 @@ func readUserInput(prompt string, multiline bool) (string, error) {
 	}
 
 	return result.String(), nil
+}
+
+// getSortedHistoryFiles retrieves and sorts history files by modification time.
+func getSortedHistoryFiles() ([]string, map[string]os.FileInfo, error) {
+	cacheDir, err := setupCacheDir()
+	if err != nil {
+		return nil, nil, fmt.Errorf("error accessing cache directory: %v", err)
+	}
+
+	// Check if the directory exists
+	if _, err := os.Stat(cacheDir); os.IsNotExist(err) {
+		return nil, nil, fmt.Errorf("cache directory does not exist: %s", cacheDir)
+	}
+
+	// Read all .json files in the directory
+	files, err := os.ReadDir(cacheDir)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error reading cache directory: %v", err)
+	}
+
+	historyItems := make(map[string]os.FileInfo) // Store file info to sort by mod time later
+
+	for _, file := range files {
+		if !file.IsDir() && strings.HasSuffix(file.Name(), ".json") {
+			info, err := file.Info()
+			if err != nil {
+				continue // Skip files we can't get info for
+			}
+			historyItems[file.Name()] = info
+		}
+	}
+
+	if len(historyItems) == 0 {
+		return nil, nil, fmt.Errorf("no history files found in the cache directory: %s", cacheDir)
+	}
+
+	// Sort files by modification time (most recent first)
+	sortedFiles := make([]string, 0, len(historyItems))
+	for name := range historyItems {
+		sortedFiles = append(sortedFiles, name)
+	}
+	// Custom sort function
+	sort.Slice(sortedFiles, func(i, j int) bool {
+		return historyItems[sortedFiles[i]].ModTime().After(historyItems[sortedFiles[j]].ModTime())
+	})
+
+	return sortedFiles, historyItems, nil
+}
+
+func parseModel(modelStr string, agent Agent, config *Config) (provider string, model string, info providerInfo) {
+	if modelStr == "" {
+		if agent.DefaultModel != "" {
+			modelStr = agent.DefaultModel
+		} else if config.Settings.DefaultModel != "" {
+			modelStr = config.Settings.DefaultModel
+		} else {
+			// Fallback to default model if nothing is specified
+			modelStr = defaultModel
+		}
+	}
+
+	// Check if the model string is an alias
+	if config != nil {
+		if aliasedModel, ok := config.ModelAliases[modelStr]; ok {
+			modelStr = aliasedModel
+		}
+	}
+
+	parts := strings.SplitN(modelStr, "/", 2)
+	if len(parts) != 2 {
+		log.Fatalf("invalid model format %q - must be provider/model", modelStr)
+	}
+
+	provider = parts[0]
+	model = parts[1]
+
+	// Start with default provider info
+	switch provider {
+	case "openai":
+		info = providerInfo{
+			baseURL:     "https://api.openai.com/v1",
+			apiKeyEnvar: "OPENAI_API_KEY",
+		}
+	case "ollama":
+		host := os.Getenv("OLLAMA_HOST")
+		if host == "" {
+			host = "http://localhost:11434"
+		}
+
+		if !strings.HasPrefix(host, "http://") && !strings.HasPrefix(host, "https://") {
+			host = "http://" + host
+		}
+
+		if !strings.HasSuffix(host, "/v1") {
+			host = strings.TrimSuffix(host, "/") + "/v1"
+		}
+
+		info = providerInfo{
+			baseURL:          host,
+			apiKeyEnvar:      "OLLAMA_API_KEY",
+			apiKeyCanBeEmpty: true, // Ollama does not require an API key by default
+		}
+	case "openrouter":
+		info = providerInfo{
+			baseURL:     "https://openrouter.ai/api/v1",
+			apiKeyEnvar: "OPENROUTER_API_KEY",
+		}
+	case "groq":
+		info = providerInfo{
+			baseURL:     "https://api.groq.com/openai/v1",
+			apiKeyEnvar: "GROQ_API_KEY",
+		}
+	case "github":
+		info = providerInfo{
+			baseURL:     "https://models.inference.ai.azure.com",
+			apiKeyEnvar: "GITHUB_MODELS_API_KEY",
+		}
+	case "copilot":
+		info = providerInfo{
+			baseURL:     "https://api.githubcopilot.com",
+			apiKeyEnvar: "COPILOT_API_KEY",
+			additionalHeaders: map[string]string{
+				"Content-Type":           "application/json",
+				"Copilot-Integration-Id": "vscode-chat",
+			},
+		}
+	}
+
+	// Override with config if present
+	if config != nil {
+		if providerCfg, ok := config.Providers[provider]; ok {
+			// Only override non-empty values
+			if providerCfg.BaseURL != "" {
+				info.baseURL = providerCfg.BaseURL
+			}
+
+			if providerCfg.APIKeyEnvar != "" {
+				info.apiKeyEnvar = providerCfg.APIKeyEnvar
+			}
+
+			if len(providerCfg.AdditionalHeaders) > 0 {
+				if info.additionalHeaders == nil {
+					info.additionalHeaders = make(map[string]string)
+				}
+
+				for key, value := range providerCfg.AdditionalHeaders {
+					info.additionalHeaders[key] = value
+				}
+			}
+		}
+	}
+
+	return provider, model, info
 }

@@ -74,11 +74,11 @@ func TestParseAgentString(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			name, path := ParseAgentString(tt.input)
-			
+
 			if name != tt.expectName {
 				t.Errorf("Expected name %q, got %q", tt.expectName, name)
 			}
-			
+
 			if !tt.expectPathFunc(path) {
 				t.Errorf("Path validation failed for %q, got %q", tt.input, path)
 			}

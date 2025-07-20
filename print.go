@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/glamour"
 	"github.com/fatih/color"
 	"github.com/sashabaranov/go-openai"
 )
@@ -58,7 +59,7 @@ func printAgentInfo(agent Agent, agentName string) {
 // Used for --show-agent and /config commands
 func printDetailedAgentInfo(agent Agent, agentPath string) {
 	labelStyle := color.New(color.FgHiCyan, color.Bold).SprintFunc()
-	
+
 	// Print agent name and path
 	if agent.Name != "" {
 		fmt.Printf("  %s %s\n", labelStyle("Name:"), agent.Name)
@@ -323,4 +324,52 @@ func printMCPServerInfo(name string, server MCPServerConfig) {
 		fmt.Printf("    %s %s\n", descStyle("Tools:"), "No tools discovered")
 	}
 	fmt.Println()
+}
+
+func printPrettyOutput(content string) {
+	renderer, err := glamour.NewTermRenderer(
+		glamour.WithAutoStyle(),
+		glamour.WithWordWrap(80),
+	)
+	if err != nil {
+		fmt.Println(content)
+		return
+	}
+
+	out, err := renderer.Render(content)
+	if err != nil {
+		fmt.Println(content)
+		return
+	}
+
+	fmt.Print(out)
+}
+
+func createDebugPrinter(debugMode bool) func(string, ...any) {
+	return func(section string, v ...any) {
+		if !debugMode {
+			return
+		}
+
+		width := 80
+		headerColor := color.New(color.FgHiCyan, color.Bold)
+		borderColor := color.New(color.FgCyan)
+		labelColor := color.New(color.FgYellow)
+
+		borderColor.Printf("+--- ")
+		headerColor.Printf("DEBUG: %s", section)
+		borderColor.Printf(" %s\n", strings.Repeat("-", width-13-len(section)))
+
+		for _, item := range v {
+			str := fmt.Sprintf("%v", item)
+			if strings.Contains(str, ": ") {
+				parts := strings.SplitN(str, ": ", 2)
+				labelColor.Printf("%s: ", parts[0])
+				fmt.Printf("%s\n", parts[1])
+			} else {
+				fmt.Printf("%s\n", str)
+			}
+		}
+		fmt.Println()
+	}
 }

@@ -349,53 +349,6 @@ func listAgents() {
 	}
 }
 
-// getSortedHistoryFiles retrieves and sorts history files by modification time.
-func getSortedHistoryFiles() ([]string, map[string]os.FileInfo, error) {
-	cacheDir, err := setupCacheDir()
-	if err != nil {
-		return nil, nil, fmt.Errorf("error accessing cache directory: %v", err)
-	}
-
-	// Check if the directory exists
-	if _, err := os.Stat(cacheDir); os.IsNotExist(err) {
-		return nil, nil, fmt.Errorf("cache directory does not exist: %s", cacheDir)
-	}
-
-	// Read all .json files in the directory
-	files, err := os.ReadDir(cacheDir)
-	if err != nil {
-		return nil, nil, fmt.Errorf("error reading cache directory: %v", err)
-	}
-
-	historyItems := make(map[string]os.FileInfo) // Store file info to sort by mod time later
-
-	for _, file := range files {
-		if !file.IsDir() && strings.HasSuffix(file.Name(), ".json") {
-			info, err := file.Info()
-			if err != nil {
-				continue // Skip files we can't get info for
-			}
-			historyItems[file.Name()] = info
-		}
-	}
-
-	if len(historyItems) == 0 {
-		return nil, nil, fmt.Errorf("no history files found in the cache directory: %s", cacheDir)
-	}
-
-	// Sort files by modification time (most recent first)
-	sortedFiles := make([]string, 0, len(historyItems))
-	for name := range historyItems {
-		sortedFiles = append(sortedFiles, name)
-	}
-	// Custom sort function
-	sort.Slice(sortedFiles, func(i, j int) bool {
-		return historyItems[sortedFiles[i]].ModTime().After(historyItems[sortedFiles[j]].ModTime())
-	})
-
-	return sortedFiles, historyItems, nil
-}
-
 // listHistory lists all available history files in the cache directory
 func listHistory() {
 	sortedFiles, _, err := getSortedHistoryFiles() // Use blank identifier for unused historyItems
