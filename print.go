@@ -32,7 +32,8 @@ func printFunctionInfo(fn FunctionConfig) {
 	fmt.Println()
 }
 
-// printAgentInfo prints information about an agent
+// printAgentInfo prints basic information about an agent (name and description)
+// Used for listing agents in CLI commands
 func printAgentInfo(agent Agent, agentName string) {
 	nameStyle := color.New(color.FgHiGreen).SprintFunc()
 	agentNameStyle := color.New(color.FgHiCyan, color.Bold).SprintFunc()
@@ -51,6 +52,46 @@ func printAgentInfo(agent Agent, agentName string) {
 	} else {
 		fmt.Printf("%s\n", noDescStyle("(No description available)"))
 	}
+}
+
+// printDetailedAgentInfo prints detailed information about an agent
+// Used for --show-agent and /config commands
+func printDetailedAgentInfo(agent Agent, agentPath string) {
+	labelStyle := color.New(color.FgHiCyan, color.Bold).SprintFunc()
+	
+	// Print agent name and path
+	if agent.Name != "" {
+		fmt.Printf("  %s %s\n", labelStyle("Name:"), agent.Name)
+	}
+	if agent.Description != "" {
+		fmt.Printf("  %s %s\n", labelStyle("Description:"), agent.Description)
+	}
+	fmt.Printf("  %s %s\n", labelStyle("Path:"), agentPath)
+
+	if agent.DefaultModel != "" {
+		fmt.Printf("  %s %s\n", labelStyle("Default Model:"), agent.DefaultModel)
+	}
+
+	fmt.Printf("  %s %d\n", labelStyle("Functions:"), len(agent.Functions))
+	fmt.Printf("  %s %d\n", labelStyle("MCP Servers:"), len(agent.MCPServers))
+}
+
+// printError prints an error message with consistent formatting
+func printError(msg string) {
+	errorStyle := color.New(color.FgRed, color.Bold).SprintFunc()
+	fmt.Printf("%s %s\n", errorStyle("[ERROR]"), msg)
+}
+
+// printWarning prints a warning message with consistent formatting
+func printWarning(msg string) {
+	warnStyle := color.New(color.FgYellow).SprintFunc()
+	fmt.Printf("%s %s\n", warnStyle("[WARNING]"), msg)
+}
+
+// printInfo prints an informational message with consistent formatting
+func printInfo(msg string) {
+	infoStyle := color.New(color.FgCyan).SprintFunc()
+	fmt.Printf("%s %s\n", infoStyle("[INFO]"), msg)
 }
 
 // printJSONError prints an error message in JSON format.
@@ -246,6 +287,8 @@ func printOutput(history ConversationHistory, pretty bool) {
 	}
 }
 
+// printMCPServerInfo prints information about an MCP server
+// It attempts to start the server temporarily to discover available tools
 func printMCPServerInfo(name string, server MCPServerConfig) {
 	nameStyle := color.New(color.FgHiGreen, color.Bold).SprintFunc()
 	descStyle := color.New(color.FgHiBlack).SprintFunc()

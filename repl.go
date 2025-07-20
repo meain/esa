@@ -171,15 +171,6 @@ func handleConfigCommand(app *Application) bool {
 
 	fmt.Fprintf(os.Stderr, "%s %s\n", cyan("[REPL]"), "Current configuration:")
 
-	// Show agent information
-	if app.agent.Name != "" {
-		fmt.Fprintf(os.Stderr, "%s %s\n", labelStyle("Agent Name:"), app.agent.Name)
-	}
-	if app.agent.Description != "" {
-		fmt.Fprintf(os.Stderr, "%s %s\n", labelStyle("Agent Description:"), app.agent.Description)
-	}
-	fmt.Fprintf(os.Stderr, "%s %s\n", labelStyle("Agent Path:"), app.agentPath)
-
 	provider, model, info := app.parseModel()
 	askLevel := app.getEffectiveAskLevel()
 
@@ -188,8 +179,6 @@ func handleConfigCommand(app *Application) bool {
 	fmt.Fprintf(os.Stderr, "%s %s\n", labelStyle("API Key Env:"), info.apiKeyEnvar)
 	fmt.Fprintf(os.Stderr, "%s %s\n", labelStyle("Ask Level:"), askLevel)
 	fmt.Fprintf(os.Stderr, "%s %v\n", labelStyle("Debug Mode:"), app.debug)
-	fmt.Fprintf(os.Stderr, "%s %d\n", labelStyle("Functions:"), len(app.agent.Functions))
-	fmt.Fprintf(os.Stderr, "%s %d\n", labelStyle("MCP Servers:"), len(app.agent.MCPServers))
 
 	return true
 }
@@ -216,27 +205,11 @@ func handleModelCommand(args []string, app *Application, opts *CLIOptions) bool 
 func handleAgentCommand(args []string, app *Application, opts *CLIOptions) bool {
 	cyan := color.New(color.FgCyan).SprintFunc()
 	green := color.New(color.FgGreen).SprintFunc()
-	labelStyle := color.New(color.FgHiCyan, color.Bold).SprintFunc()
 
 	if len(args) == 0 {
 		// Show current agent information
 		fmt.Fprintf(os.Stderr, "%s %s:\n", cyan("[REPL]"), "Current agent")
-
-		// Show agent information
-		if app.agent.Name != "" {
-			fmt.Fprintf(os.Stderr, "%s %s\n", labelStyle("Name:"), app.agent.Name)
-		}
-		if app.agent.Description != "" {
-			fmt.Fprintf(os.Stderr, "%s %s\n", labelStyle("Description:"), app.agent.Description)
-		}
-		fmt.Fprintf(os.Stderr, "%s %s\n", labelStyle("Path:"), app.agentPath)
-
-		if app.agent.DefaultModel != "" {
-			fmt.Fprintf(os.Stderr, "%s %s\n", labelStyle("Default Model:"), app.agent.DefaultModel)
-		}
-
-		fmt.Fprintf(os.Stderr, "%s %d\n", labelStyle("Functions:"), len(app.agent.Functions))
-		fmt.Fprintf(os.Stderr, "%s %d\n", labelStyle("MCP Servers:"), len(app.agent.MCPServers))
+		printDetailedAgentInfo(app.agent, app.agentPath)
 
 		return true
 	}

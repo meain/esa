@@ -417,9 +417,9 @@ func listHistory() {
 	if err != nil {
 		// Handle specific errors or just print the message
 		if strings.Contains(err.Error(), "no history files found") || strings.Contains(err.Error(), "cache directory does not exist") {
-			color.Yellow(err.Error())
+			printWarning(err.Error())
 		} else {
-			color.Red(err.Error())
+			printError(err.Error())
 		}
 		return
 	}
@@ -808,13 +808,13 @@ func handleShowStats() {
 func handleShowAgent(agentPath string) {
 	agent, err := loadAgent(agentPath)
 	if err != nil {
-		color.Red("Error loading agent: %v\n", err)
+		printError(fmt.Sprintf("Error loading agent: %v", err))
 		return
 	}
 
 	labelStyle := color.New(color.FgHiCyan, color.Bold).SprintFunc()
 
-	// Print agent name and description if available
+	// Print agent header
 	if agent.Name != "" {
 		fmt.Printf("%s %s (%s)\n", labelStyle("Agent:"), agent.Name, filepath.Base(agentPath))
 	} else {
