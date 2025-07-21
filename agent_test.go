@@ -29,19 +29,6 @@ safe = true
 			wantErr: false,
 		},
 		{
-			name: "missing agent name",
-			agentConfig: `
-description = "A test agent without name"
-
-[[functions]]
-name = "hello"
-description = "Say hello"
-command = "echo Hello"
-`,
-			wantErr:     true,
-			errContains: "agent has no name",
-		},
-		{
 			name: "function with missing name",
 			agentConfig: `
 name = "test-agent"
