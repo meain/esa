@@ -63,16 +63,6 @@ func loadAgent(agentPath string) (Agent, error) {
 func validateAgent(agent Agent) (Agent, error) {
 	var err error
 
-	// Validate agent level configuration
-	if agent.Name == "" {
-		return agent, fmt.Errorf("agent has no name defined")
-	}
-
-	// Validate model if specified
-	if agent.DefaultModel != "" {
-		// This could be expanded to validate against a list of known models
-	}
-
 	// Validate each function configuration
 	for i, fc := range agent.Functions {
 		if fc.Name == "" {
@@ -80,9 +70,6 @@ func validateAgent(agent Agent) (Agent, error) {
 		}
 		if fc.Command == "" {
 			return agent, fmt.Errorf("function %s in agent '%s' has no command defined", fc.Name, agent.Name)
-		}
-		if fc.Description == "" {
-			fc.Description = "No description provided"
 		}
 
 		agent.Functions[i].Description, err = processShellBlocks(fc.Description)
@@ -100,13 +87,15 @@ func validateAgent(agent Agent) (Agent, error) {
 			}
 
 			// Validate parameter type
-			validTypes := map[string]bool{"string": true, "number": true, "boolean": true, "array": true, "object": true}
+			validTypes := map[string]bool{
+				"string":  true,
+				"number":  true,
+				"boolean": true,
+				"array":   true,
+				"object":  true,
+			}
 			if !validTypes[param.Type] {
 				return agent, fmt.Errorf("parameter %s in function '%s' has invalid type: %s", param.Name, fc.Name, param.Type)
-			}
-
-			if param.Description == "" {
-				param.Description = "No description provided"
 			}
 
 			agent.Functions[i].Parameters[j].Description, err = processShellBlocks(param.Description)
