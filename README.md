@@ -95,7 +95,15 @@ ESA comes with several built-in agents that are always available:
 
 ### Using Specialized Agents
 
-ESA becomes powerful when you use specialized agents. The following are things you can do with the example agents provided in `./example`. Use the `+agent-name` syntax:
+ESA becomes powerful when you use specialized agents. **See the [Agent Creation Guide](./docs/agents.md) for detailed instructions on:**
+
+- Writing agent configuration files
+- Defining custom functions
+- Parameter handling and validation
+- Advanced templating features
+- Best practices and examples
+
+The following are things you can do with the example agents provided in `./example`. Use the `+agent-name` syntax:
 
 ```bash
 # Kubernetes operations
@@ -109,6 +117,8 @@ esa +jira pending issues related to authentication
 # Git operations with the commit agent
 git diff --staged | esa +commit
 ```
+
+> You can see my personal list of custom agents at [esa/agents](https://github.com/meain/dotfiles/tree/master/esa/.config/esa/agents).
 
 ### Conversation Features
 
@@ -490,16 +500,6 @@ esa --ask unsafe --show-tool-calls +filesystem "write a file"  # See command and
 - **Command Visibility**: Full transparency with `--show-commands` flag support
 
 See [`examples/mcp.toml`](examples/mcp.toml) for a complete example.
-
-## 📚 Custom Agents
-
-ESA's power comes from custom agents. See the [Agent Creation Guide](./docs/agents.md) for detailed instructions on:
-
-- Writing agent configuration files
-- Defining custom functions
-- Parameter handling and validation
-- Advanced templating features
-- Best practices and examples
 
 ## FAQ
 
