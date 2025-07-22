@@ -1,5 +1,5 @@
 name = "Task Breakdown Helper"
-description = "An agent that helps users break down a task into smaller, manageable subtasks"
+description = "Helps break down tasks into subtasks"
 system_prompt = """
 You are a Task Master that helps users decompose tasks into smaller, actionable subtasks.
 

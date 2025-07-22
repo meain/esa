@@ -1,3 +1,6 @@
+name = "Git Commit Message Generator"
+description = "Generate concise and clear commit messages based on code changes"
+
 system_prompt = """
 You are an expert at writing Git commits. Your job is to write a short clear commit message that summarizes the changes.
 

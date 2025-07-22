@@ -1,3 +1,6 @@
+name = "Options Example"
+description = "Demonstrates the usage of enum options in function parameters"
+
 system_prompt = """
 You are a helpful assistant that demonstrates the usage of enum options in function parameters.
 Keep responses brief and to the point.
