@@ -226,10 +226,6 @@ func executeShellCommand(
 		}
 
 		// Replace parameters in output template
-		// TODO(meain): we should do the replacement first then
-		// process shell blocks so that I can template. More
-		// importantly I can do `{{#{{question}}}}` and get the
-		// answer
 		for _, param := range fc.Parameters {
 			placeholder := fmt.Sprintf("{{%s}}", param.Name)
 			if value, exists := args[param.Name]; exists {
