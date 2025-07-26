@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	"golang.org/x/term"
 )
 
 // expandHomePath expands the ~ character in a path to the user's home directory
@@ -73,11 +74,21 @@ type confirmResponse struct {
 
 // confirm prompts the user for confirmation with yes/no/message options
 func confirm(prompt string) confirmResponse {
-	var response string
 	cyan := color.New(color.FgCyan).SprintFunc()
 	fmt.Fprintf(os.Stderr, "%s %s (m/y/N): ", cyan("[?]"), prompt)
-	fmt.Scanln(&response)
-	response = strings.ToLower(response)
+
+	oldState, _ := term.MakeRaw(int(os.Stdin.Fd()))
+
+	reader := bufio.NewReader(os.Stdin)
+	char, err := reader.ReadByte()
+	if err != nil {
+		return confirmResponse{approved: false, message: ""}
+	}
+
+	response := strings.ToLower(string(char))
+	fmt.Fprintf(os.Stderr, "%s\n\r", response)
+
+	term.Restore(int(os.Stdin.Fd()), oldState)
 
 	if response == "m" {
 		fmt.Fprintf(os.Stderr, "%s Enter message: ", cyan("[?]"))
