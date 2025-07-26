@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/huh"
 	"github.com/fatih/color"
 	"golang.org/x/term"
 )
@@ -91,9 +92,19 @@ func confirm(prompt string) confirmResponse {
 	term.Restore(int(os.Stdin.Fd()), oldState)
 
 	if response == "m" {
-		fmt.Fprintf(os.Stderr, "%s Enter message: ", cyan("[?]"))
-		message, _ := bufio.NewReader(os.Stdin).ReadString('\n')
-		message = strings.TrimSuffix(message, "\n")
+		var message string
+
+		messageForm := huh.NewForm(
+			huh.NewGroup(
+				huh.NewText().
+					Title("User message").
+					Value(&message),
+			),
+		)
+
+		if err := messageForm.Run(); err != nil {
+			return confirmResponse{approved: false, message: ""}
+		}
 		return confirmResponse{approved: false, message: message}
 	}
 
@@ -200,53 +211,36 @@ func readStdin() string {
 }
 
 func readUserInput(prompt string, multiline bool) (string, error) {
-	reader := bufio.NewReader(os.Stdin)
-	if prompt != "" {
-		color.New(color.FgBlue).Fprint(os.Stderr, prompt)
-		color.New(color.FgHiWhite, color.Italic).Fprint(os.Stderr, " (ctrl+d on empty line to complete)\n")
-	}
+	var input string
 
-	var result strings.Builder
+	if multiline {
+		form := huh.NewForm(
+			huh.NewGroup(
+				huh.NewText().
+					Title(prompt).
+					Lines(3).
+					Value(&input),
+			),
+		)
 
-	for {
-		line, err := reader.ReadString('\n')
-		if err != nil {
-			if err.Error() == "EOF" {
-				// Ctrl+D pressed
-				break
-			}
+		if err := form.Run(); err != nil {
 			return "", err
 		}
+	} else {
+		form := huh.NewForm(
+			huh.NewGroup(
+				huh.NewInput().
+					Title(prompt).
+					Value(&input),
+			),
+		)
 
-		// Return if we just want a single line
-		if !multiline {
-			return line, nil
-		}
-
-		// Remove the trailing newline and add to result
-		line = strings.TrimSuffix(line, "\n")
-
-		if result.Len() > 0 {
-			result.WriteByte('\n')
-		}
-		result.WriteString(line)
-
-		// Check if line is empty and we got EOF (Ctrl+D)
-		if line == "" {
-			nextByte, err := reader.ReadByte()
-			if err != nil && err.Error() == "EOF" {
-				break
-			}
-			if err == nil {
-				// Put the byte back by creating a new reader with it
-				result.WriteByte('\n')
-				remaining, _ := reader.ReadString('\n')
-				result.WriteString(string(nextByte) + remaining)
-			}
+		if err := form.Run(); err != nil {
+			return "", err
 		}
 	}
 
-	return result.String(), nil
+	return input, nil
 }
 
 // getSortedHistoryFiles retrieves and sorts history files by modification time.

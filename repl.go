@@ -63,13 +63,12 @@ func runReplMode(opts *CLIOptions, args []string) error {
 
 	fmt.Fprintf(
 		os.Stderr,
-		"%s %s\n\n",
+		"%s %s\n",
 		cyan("[REPL]"),
 		strings.Join([]string{
 			"Starting interactive mode",
 			"- '/exit' or '/quit' to end the session",
 			"- '/help' for available commands",
-			"- Use /editor command for multi line input",
 		}, "\n"),
 	)
 	// Handle initial query if provided
@@ -86,11 +85,7 @@ func runReplMode(opts *CLIOptions, args []string) error {
 
 	// Main REPL loop
 	for {
-		fmt.Fprintf(os.Stderr, "%s ", green("you>"))
-
-		// NOTE: Will enable multi when we can do that without double
-		// enter. For now one can use /editor command
-		input, err := readUserInput("", false)
+		input, err := readUserInput("you>", true)
 		if err != nil {
 			if err == io.EOF {
 				fmt.Fprintf(os.Stderr, "\n%s %s\n", cyan("[REPL]"), "Goodbye!")
@@ -100,6 +95,8 @@ func runReplMode(opts *CLIOptions, args []string) error {
 		}
 
 		input = strings.TrimSpace(input)
+		fmt.Fprintf(os.Stderr, "%s %s\n", green("you>"), input)
+
 		if input == "/exit" || input == "/quit" || input == "" {
 			fmt.Fprintf(os.Stderr, "%s %s\n", cyan("[REPL]"), "Goodbye!")
 			break
@@ -144,8 +141,6 @@ func handleReplCommand(input string, app *Application, opts *CLIOptions) bool {
 		return handleModelCommand(args, app, opts)
 	case "/agent":
 		return handleAgentCommand(args, app, opts)
-	case "/editor":
-		return handleEditorCommand(app, opts)
 	default:
 		return handleUnknownCommand(command)
 	}

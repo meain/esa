@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fatih/color"
 	"github.com/sashabaranov/go-openai"
 )
 
@@ -174,6 +175,11 @@ func processShellBlocks(input string) (string, error) {
 		if err != nil {
 			return fmt.Sprintf("Error: %v", err)
 		}
+
+		cyan := color.New(color.FgCyan).SprintFunc()
+		green := color.New(color.FgGreen).SprintFunc()
+		fmt.Fprintf(os.Stderr, "%s %s\n", cyan("[#]"), prompt)
+		fmt.Fprintf(os.Stderr, "%s %s\n", green("you>"), strings.TrimSpace(input))
 
 		return input
 	})
