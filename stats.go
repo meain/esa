@@ -129,21 +129,21 @@ func (sc *StatsCollector) updateModelStats(model string) {
 }
 
 // PrintStatistics prints formatted usage statistics
-func (sc *StatsCollector) PrintStatistics() {
+func (sc *StatsCollector) PrintStatistics(showAll bool) {
 	headerStyle := color.New(color.FgHiCyan, color.Bold).SprintFunc()
 	sectionStyle := color.New(color.FgCyan, color.Bold).SprintFunc()
 
 	fmt.Println(headerStyle("Usage Statistics"))
 	fmt.Printf("Total conversations: %d\n\n", sc.totalConversations)
 
-	sc.printDailyStats(sectionStyle)
-	sc.printHourlyStats(sectionStyle)
-	sc.printAgentStats(sectionStyle)
-	sc.printModelStats(sectionStyle)
+	sc.printDailyStats(sectionStyle, showAll)
+	sc.printHourlyStats(sectionStyle, showAll)
+	sc.printAgentStats(sectionStyle, showAll)
+	sc.printModelStats(sectionStyle, showAll)
 }
 
 // printDailyStats prints daily usage statistics
-func (sc *StatsCollector) printDailyStats(sectionStyle func(a ...interface{}) string) {
+func (sc *StatsCollector) printDailyStats(sectionStyle func(a ...interface{}) string, showAll bool) {
 	fmt.Println(sectionStyle("Daily Usage:"))
 
 	type dailyUsage struct {
@@ -162,7 +162,7 @@ func (sc *StatsCollector) printDailyStats(sectionStyle func(a ...interface{}) st
 
 	// Show last 7 days
 	lastDays := sortedDays
-	if len(lastDays) > 7 {
+	if len(lastDays) > 7 && !showAll {
 		lastDays = lastDays[:7]
 	}
 
@@ -173,7 +173,7 @@ func (sc *StatsCollector) printDailyStats(sectionStyle func(a ...interface{}) st
 }
 
 // printHourlyStats prints hourly usage statistics
-func (sc *StatsCollector) printHourlyStats(sectionStyle func(a ...interface{}) string) {
+func (sc *StatsCollector) printHourlyStats(sectionStyle func(a ...interface{}) string, showAll bool) {
 	fmt.Println(sectionStyle("Hourly Usage:"))
 
 	type hourlyUsage struct {
@@ -192,7 +192,7 @@ func (sc *StatsCollector) printHourlyStats(sectionStyle func(a ...interface{}) s
 
 	// Show top 5 hours
 	topHours := sortedHours
-	if len(topHours) > 5 {
+	if len(topHours) > 5 && !showAll {
 		topHours = topHours[:5]
 	}
 
@@ -203,7 +203,7 @@ func (sc *StatsCollector) printHourlyStats(sectionStyle func(a ...interface{}) s
 }
 
 // printAgentStats prints agent usage statistics
-func (sc *StatsCollector) printAgentStats(sectionStyle func(a ...interface{}) string) {
+func (sc *StatsCollector) printAgentStats(sectionStyle func(a ...interface{}) string, showAll bool) {
 	fmt.Println(sectionStyle("Agent Usage:"))
 
 	type agentUsage struct {
@@ -222,7 +222,7 @@ func (sc *StatsCollector) printAgentStats(sectionStyle func(a ...interface{}) st
 
 	// Show top 10 agents
 	topAgents := sortedAgents
-	if len(topAgents) > 10 {
+	if len(topAgents) > 10 && !showAll {
 		topAgents = topAgents[:10]
 	}
 
@@ -233,7 +233,7 @@ func (sc *StatsCollector) printAgentStats(sectionStyle func(a ...interface{}) st
 }
 
 // printModelStats prints model usage statistics
-func (sc *StatsCollector) printModelStats(sectionStyle func(a ...interface{}) string) {
+func (sc *StatsCollector) printModelStats(sectionStyle func(a ...interface{}) string, showAll bool) {
 	fmt.Println(sectionStyle("Model Usage:"))
 
 	type modelUsage struct {
@@ -252,7 +252,7 @@ func (sc *StatsCollector) printModelStats(sectionStyle func(a ...interface{}) st
 
 	// Show top 10 models
 	topModels := sortedModels
-	if len(topModels) > 10 {
+	if len(topModels) > 10 && !showAll {
 		topModels = topModels[:10]
 	}
 

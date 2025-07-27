@@ -45,6 +45,7 @@ type CLIOptions struct {
 	ShowHistory       bool   // Flag for showing specific history
 	ShowOutput        bool   // Flag for showing just output from history
 	ShowStats         bool   // Flag for showing usage statistics
+	ShowAll           bool   // Flag for showing both stats and history
 	SystemPrompt      string // System prompt override from CLI
 	Pretty            bool   // Pretty print markdown output using glow
 }
@@ -104,7 +105,7 @@ func createRootCommand() *cobra.Command {
 			}
 
 			if opts.ListHistory {
-				listHistory()
+				listHistory(opts.ShowAll)
 				return nil
 			}
 
@@ -139,7 +140,7 @@ func createRootCommand() *cobra.Command {
 			}
 
 			if opts.ShowStats {
-				handleShowStats()
+				handleShowStats(opts.ShowAll)
 				return nil
 			}
 
@@ -197,6 +198,7 @@ func createRootCommand() *cobra.Command {
 	rootCmd.Flags().BoolVar(&opts.ShowHistory, "show-history", false, "Show conversation history (requires history index as argument)")
 	rootCmd.Flags().BoolVar(&opts.ShowOutput, "show-output", false, "Show just the output from a history entry (requires history index as argument)")
 	rootCmd.Flags().BoolVar(&opts.ShowStats, "show-stats", false, "Show usage statistics based on conversation history")
+	rootCmd.Flags().BoolVar(&opts.ShowAll, "all", false, "Show all items when used with --list-history or --show-stats")
 
 	// Make history-index required when show-history is used
 	rootCmd.PreRunE = func(cmd *cobra.Command, args []string) error {
@@ -348,8 +350,8 @@ func listAgents() {
 	}
 }
 
-// listHistory lists all available history files in the cache directory
-func listHistory() {
+// listHistory lists available history files in the cache directory
+func listHistory(showAll bool) {
 	sortedFiles, _, err := getSortedHistoryFiles() // Use blank identifier for unused historyItems
 	if err != nil {
 		// Handle specific errors or just print the message
@@ -367,8 +369,15 @@ func listHistory() {
 
 	fmt.Printf("Available conversation histories (total: %d):\n", len(sortedFiles))
 
-	// TODO(meain): Add additional flag to list all items
-	for i, fileName := range sortedFiles[:15] {
+	// Determine how many items to show
+	itemsToShow := sortedFiles
+	if !showAll {
+		if len(sortedFiles) > 15 {
+			itemsToShow = sortedFiles[:15]
+		}
+	}
+
+	for i, fileName := range itemsToShow {
 		parts := strings.SplitN(strings.TrimSuffix(fileName, ".json"), "-", 2)
 		agentName := "unknown"
 		timestampStr := "unknown"
@@ -519,7 +528,7 @@ func handleShowOutput(index int, pretty bool) {
 }
 
 // handleShowStats analyzes history files and displays usage statistics
-func handleShowStats() {
+func handleShowStats(showAll bool) {
 	// Get all history files
 	sortedFiles, fileInfo, err := getSortedHistoryFiles()
 	if err != nil {
@@ -544,7 +553,7 @@ func handleShowStats() {
 		}
 	}
 
-	collector.PrintStatistics()
+	collector.PrintStatistics(showAll)
 }
 
 // handleShowAgent displays the details of the agent specified by the agentPath.
