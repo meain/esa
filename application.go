@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/sashabaranov/go-openai"
@@ -18,8 +19,9 @@ const (
 	defaultModel         = "openai/gpt-4o-mini"
 	toolCallCommandColor = color.FgCyan
 	toolCallOutputColor  = color.FgWhite
-	maxRetryCount        = 3
-	defaultTimeout       = 30 // seconds
+	maxRetryCount        = 5
+	baseRetryDelay       = 1 * time.Second
+	maxRetryDelay        = 1 * time.Minute
 )
 
 // Common error messages
@@ -64,6 +66,57 @@ type providerInfo struct {
 // variable
 func (app *Application) parseModel() (provider string, model string, info providerInfo) {
 	return parseModel(app.modelFlag, app.agent, app.config)
+}
+
+// isRateLimitError checks if the error is a rate limit error (429)
+func isRateLimitError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := err.Error()
+	return strings.Contains(errStr, "429") ||
+		strings.Contains(errStr, "Too Many Requests") ||
+		strings.Contains(errStr, "rate limit")
+}
+
+// createChatCompletionWithRetry creates a chat completion stream with retry logic for rate limiting
+func (app *Application) createChatCompletionWithRetry(tools []openai.Tool) (*openai.ChatCompletionStream, error) {
+	var stream *openai.ChatCompletionStream
+	var err error
+
+	// Retry logic for rate limiting
+	for attempt := 0; attempt <= maxRetryCount; attempt++ {
+		stream, err = app.client.CreateChatCompletionStream(
+			context.Background(),
+			openai.ChatCompletionRequest{
+				Model:    app.getModel(),
+				Messages: app.messages,
+				Tools:    tools,
+			})
+
+		if err == nil {
+			return stream, nil // Success
+		}
+
+		if !isRateLimitError(err) {
+			// Not a rate limit error, return immediately
+			return nil, err
+		}
+
+		if attempt == maxRetryCount {
+			// Last attempt failed
+			return nil, fmt.Errorf("ChatCompletionStream error after %d retries: %w", maxRetryCount, err)
+		}
+
+		// Calculate delay and wait
+		delay := calculateRetryDelay(attempt)
+		app.debugPrint("Rate Limit",
+			fmt.Sprintf("Rate limit hit, retrying in %v (attempt %d/%d)", delay, attempt+1, maxRetryCount))
+
+		time.Sleep(delay)
+	}
+
+	return nil, err // Should never reach here, but for safety
 }
 
 func NewApplication(opts *CLIOptions) (*Application, error) {
@@ -325,14 +378,7 @@ func (app *Application) runConversationLoop(opts CLIOptions) {
 	openAITools = append(openAITools, mcpTools...)
 
 	for {
-		stream, err := app.client.CreateChatCompletionStream(
-			context.Background(),
-			openai.ChatCompletionRequest{
-				Model:    app.getModel(),
-				Messages: app.messages,
-				Tools:    openAITools,
-			})
-
+		stream, err := app.createChatCompletionWithRetry(openAITools)
 		if err != nil {
 			log.Fatalf("ChatCompletionStream error: %v", err)
 		}

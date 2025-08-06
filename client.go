@@ -2,8 +2,10 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/sashabaranov/go-openai"
 )
@@ -46,4 +48,17 @@ func (t *transportWithCustomHeaders) RoundTrip(req *http.Request) (*http.Respons
 		req.Header.Set(key, value)
 	}
 	return t.base.RoundTrip(req)
+}
+
+// calculateRetryDelay calculates exponential backoff delay with jitter
+func calculateRetryDelay(attempt int) time.Duration {
+	// Exponential backoff: baseDelay * 2^attempt
+	delay := time.Duration(float64(baseRetryDelay) * math.Pow(2, float64(attempt)))
+
+	// Cap the delay
+	if delay > maxRetryDelay {
+		delay = maxRetryDelay
+	}
+
+	return delay
 }
