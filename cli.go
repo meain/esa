@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -23,31 +22,31 @@ const DefaultAgentsDir = "~/.config/esa/agents"
 const DefaultAgentPath = DefaultAgentsDir + "/default.toml"
 
 type CLIOptions struct {
-	DebugMode         bool
-	ContinueChat      bool
-	ConversationIndex int // continue non-last one
-	RetryChat         bool
-	ReplMode          bool // Flag for REPL mode
-	AgentPath         string
-	AskLevel          string
-	ShowCommands      bool
-	ShowToolCalls     bool
-	HideProgress      bool
-	CommandStr        string
-	AgentName         string
-	Model             string
-	ConfigPath        string
-	OutputFormat      string // Output format for show-history (text, markdown, json)
-	ShowAgent         bool   // Flag for showing agent details
-	ListAgents        bool   // Flag for listing agents
-	ListUserAgents    bool   // Flag for listing only user agents
-	ListHistory       bool   // Flag for listing history
-	ShowHistory       bool   // Flag for showing specific history
-	ShowOutput        bool   // Flag for showing just output from history
-	ShowStats         bool   // Flag for showing usage statistics
-	ShowAll           bool   // Flag for showing both stats and history
-	SystemPrompt      string // System prompt override from CLI
-	Pretty            bool   // Pretty print markdown output using glow
+	DebugMode      bool
+	ContinueChat   bool
+	Conversation   string // continue non-last one
+	RetryChat      bool
+	ReplMode       bool // Flag for REPL mode
+	AgentPath      string
+	AskLevel       string
+	ShowCommands   bool
+	ShowToolCalls  bool
+	HideProgress   bool
+	CommandStr     string
+	AgentName      string
+	Model          string
+	ConfigPath     string
+	OutputFormat   string // Output format for show-history (text, markdown, json)
+	ShowAgent      bool   // Flag for showing agent details
+	ListAgents     bool   // Flag for listing agents
+	ListUserAgents bool   // Flag for listing only user agents
+	ListHistory    bool   // Flag for listing history
+	ShowHistory    bool   // Flag for showing specific history
+	ShowOutput     bool   // Flag for showing just output from history
+	ShowStats      bool   // Flag for showing usage statistics
+	ShowAll        bool   // Flag for showing both stats and history
+	SystemPrompt   string // System prompt override from CLI
+	Pretty         bool   // Pretty print markdown output using glow
 }
 
 func createRootCommand() *cobra.Command {
@@ -115,12 +114,7 @@ func createRootCommand() *cobra.Command {
 					return fmt.Errorf("history index must be provided as argument: esa --show-history <index>")
 				}
 
-				idx, err := strconv.Atoi(args[0])
-				if err != nil || idx <= 0 {
-					return fmt.Errorf("invalid history index: %s (must be a positive number)", args[0])
-				}
-
-				handleShowHistory(idx, opts.OutputFormat)
+				handleShowHistory(args[0], opts.OutputFormat)
 				return nil
 			}
 
@@ -130,12 +124,7 @@ func createRootCommand() *cobra.Command {
 					return fmt.Errorf("history index must be provided as argument: esa --show-output <index>")
 				}
 
-				idx, err := strconv.Atoi(args[0])
-				if err != nil || idx <= 0 {
-					return fmt.Errorf("invalid history index: %s (must be a positive number)", args[0])
-				}
-
-				handleShowOutput(idx, opts.Pretty)
+				handleShowOutput(args[0], opts.Pretty)
 				return nil
 			}
 
@@ -176,7 +165,7 @@ func createRootCommand() *cobra.Command {
 	// Add flags
 	rootCmd.Flags().BoolVar(&opts.DebugMode, "debug", false, "Enable debug mode")
 	rootCmd.Flags().BoolVarP(&opts.ContinueChat, "continue", "c", false, "Continue last conversation")
-	rootCmd.Flags().IntVarP(&opts.ConversationIndex, "conversation", "C", 0, "Specify the conversation to continue or retry")
+	rootCmd.Flags().StringVarP(&opts.Conversation, "conversation", "C", "", "Specify the conversation to continue or retry")
 	rootCmd.Flags().BoolVarP(&opts.RetryChat, "retry", "r", false, "Retry last command")
 	rootCmd.Flags().BoolVar(&opts.ReplMode, "repl", false, "Start in REPL mode for interactive conversation")
 	rootCmd.Flags().StringVar(&opts.AgentPath, "agent", "", "Path to agent config file")
@@ -378,12 +367,14 @@ func listHistory(showAll bool) {
 	}
 
 	for i, fileName := range itemsToShow {
-		parts := strings.SplitN(strings.TrimSuffix(fileName, ".json"), "-", 2)
+		parts := strings.SplitN(strings.TrimSuffix(fileName, ".json"), "-", 5)
+		conversation := ""
 		agentName := "unknown"
 		timestampStr := "unknown"
-		if len(parts) == 2 {
-			agentName = parts[0]
-			timestampStr = parts[1]
+		if len(parts) == 5 {
+			conversation = parts[0]
+			agentName = parts[3]
+			timestampStr = parts[4]
 			if parsedTime, err := time.Parse("20060102-150405", timestampStr); err == nil {
 				timestampStr = parsedTime.Format("2006-01-02 15:04:05")
 			}
@@ -411,8 +402,13 @@ func listHistory(showAll bool) {
 			}
 		}
 
-		fmt.Printf(" %2d: %s %s %s\n",
+		if len(conversation) > 0 {
+			conversation = fmt.Sprintf("(%s) ", conversation)
+		}
+
+		fmt.Printf(" %2d: %s%s %s %s\n",
 			i+1,
+			conversation,
 			highPriStyle("+"+agentName),
 			query,
 			lowPriStyle(timestampStr),
@@ -422,65 +418,15 @@ func listHistory(showAll bool) {
 }
 
 // handleShowHistory displays the content of a specific history file in the specified format.
-func handleShowHistory(index int, outputFormat string) {
-	sortedFiles, _, err := getSortedHistoryFiles()
-	if err != nil {
-		// For JSON output, print error as JSON
-		if outputFormat == "json" {
-			printJSONError(fmt.Sprintf("Error getting history files: %v", err))
-			return
-		}
-		if strings.Contains(err.Error(), "no history files found") || strings.Contains(err.Error(), "cache directory does not exist") {
-			color.Yellow(err.Error())
-		} else {
-			color.Red(err.Error())
-		}
+func handleShowHistory(conversation string, outputFormat string) {
+	historyFilePath, history, ok := readHistoryFile(conversation)
+	if !ok {
 		return
 	}
 
-	if index <= 0 || index > len(sortedFiles) {
-		errMsg := fmt.Sprintf("Error: Invalid history number %d. Please choose a number between 1 and %d.", index, len(sortedFiles))
-		if outputFormat == "json" {
-			printJSONError(errMsg)
-		} else {
-			color.Red(errMsg)
-		}
-		return
-	}
-
-	fileName := sortedFiles[index-1] // Adjust index to be 0-based
-
-	cacheDir, _ := setupCacheDir() // Error already checked in getSortedHistoryFiles
-	historyFilePath := filepath.Join(cacheDir, fileName)
-
-	// Load the conversation history data
-	historyData, err := os.ReadFile(historyFilePath)
-	if err != nil {
-		errMsg := fmt.Sprintf("Error reading history file %s: %v", fileName, err)
-		if outputFormat == "json" {
-			printJSONError(errMsg)
-		} else {
-			color.Red(errMsg)
-		}
-		return
-	}
-
-	var history ConversationHistory
-	err = json.Unmarshal(historyData, &history)
-	if err != nil {
-		errMsg := fmt.Sprintf("Error unmarshalling conversation history from %s: %v", fileName, err)
-		if outputFormat == "json" {
-			printJSONError(errMsg)
-		} else {
-			color.Red(errMsg)
-		}
-		return
-	}
-
-	// --- Output based on format ---
 	switch outputFormat {
 	case "json":
-		printHistoryJSON(historyData)
+		printHistoryJSON(history)
 	case "markdown":
 		printHistoryMarkdown(historyFilePath, history)
 	default: // "text"
@@ -488,39 +434,43 @@ func handleShowHistory(index int, outputFormat string) {
 	}
 }
 
-// handleShowOutput displays output from a specific history file.
-func handleShowOutput(index int, pretty bool) {
-	sortedFiles, _, err := getSortedHistoryFiles()
+func readHistoryFile(conversation string) (string, ConversationHistory, bool) {
+	cacheDir, err := setupCacheDir()
 	if err != nil {
 		if strings.Contains(err.Error(), "no history files found") || strings.Contains(err.Error(), "cache directory does not exist") {
 			color.Yellow(err.Error())
 		} else {
-			color.Red(err.Error())
+			printError(err.Error())
 		}
-		return
+		return "", ConversationHistory{}, false
 	}
 
-	if index <= 0 || index > len(sortedFiles) {
-		color.Red("Error: Invalid history number %d. Please choose a number between 1 and %d.", index, len(sortedFiles))
-		return
+	historyFilePath, err := findHistoryFile(cacheDir, conversation)
+	if err != nil {
+		printError(fmt.Sprintf("Error finding history file for %s", conversation))
+		return "", ConversationHistory{}, false
 	}
 
-	fileName := sortedFiles[index-1] // Adjust index to be 0-based
-
-	cacheDir, _ := setupCacheDir() // Error already checked in getSortedHistoryFiles
-	historyFilePath := filepath.Join(cacheDir, fileName)
-
-	// Load the conversation history data
 	historyData, err := os.ReadFile(historyFilePath)
 	if err != nil {
-		color.Red("Error reading history file %s: %v", fileName, err)
-		return
+		printError(fmt.Sprintf("Error reading history file for %s", conversation))
+		return "", ConversationHistory{}, false
 	}
 
 	var history ConversationHistory
 	err = json.Unmarshal(historyData, &history)
 	if err != nil {
-		color.Red("Error unmarshalling conversation history from %s: %v", fileName, err)
+		printError(fmt.Sprintf("Error loading history file for %s", conversation))
+		return "", ConversationHistory{}, false
+	}
+
+	return historyFilePath, history, true
+}
+
+// handleShowOutput displays output from a specific history file.
+func handleShowOutput(conversation string, pretty bool) {
+	_, history, ok := readHistoryFile(conversation)
+	if !ok {
 		return
 	}
 

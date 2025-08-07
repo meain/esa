@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -124,15 +125,29 @@ func setupCacheDirWithFallback() string {
 	return cacheDir
 }
 
-func createNewHistoryFile(cacheDir string, agentName string) string {
+func createNewHistoryFile(cacheDir string, agentName string, conversation string) string {
 	if agentName == "" {
 		agentName = "default"
 	}
 	timestamp := time.Now().Format(historyTimeFormat)
-	return filepath.Join(cacheDir, fmt.Sprintf("%s-%s.json", agentName, timestamp))
+
+	if _, ok := getConversationIndex(conversation); ok {
+		return filepath.Join(cacheDir, fmt.Sprintf("---%s-%s.json", agentName, timestamp))
+	}
+
+	return filepath.Join(cacheDir, fmt.Sprintf("%s---%s-%s.json", conversation, agentName, timestamp))
 }
 
-func findHistoryFile(cacheDir string, index int) (string, error) {
+func getConversationIndex(conversation string) (int, bool) {
+	val, err := strconv.Atoi(conversation)
+	if err != nil || val < 0 {
+		return 0, false
+	}
+
+	return val - 1, true
+}
+
+func findHistoryFile(cacheDir string, conversation string) (string, error) {
 	entries, err := os.ReadDir(cacheDir)
 	if err != nil {
 		return "", err
@@ -142,6 +157,8 @@ func findHistoryFile(cacheDir string, index int) (string, error) {
 		name    string
 		modTime time.Time
 	}
+
+	index, isIndex := getConversationIndex(conversation)
 
 	var files []fileEntry
 
@@ -162,29 +179,40 @@ func findHistoryFile(cacheDir string, index int) (string, error) {
 		return "", fmt.Errorf("no history files found")
 	}
 
-	sort.Slice(files, func(i, j int) bool {
-		return files[i].modTime.After(files[j].modTime)
-	})
+	if isIndex {
+		sort.Slice(files, func(i, j int) bool {
+			return files[i].modTime.After(files[j].modTime)
+		})
 
-	if index < 0 || index >= len(files) {
-		return "", fmt.Errorf("history file index %d out of range (0-%d)", index, len(files)-1)
+		if index < 0 || index >= len(files) {
+			return "", fmt.Errorf("history file index %d out of range (0-%d)", index, len(files)-1)
+		}
+
+		return filepath.Join(cacheDir, files[index].name), nil
+	} else {
+		// Read the conversation ID from the json file and return file with that id
+		for _, file := range files {
+			if strings.HasPrefix(file.name, conversation+"---") {
+				return filepath.Join(cacheDir, file.name), nil
+			}
+		}
+
+		return "", fmt.Errorf("no history file found for conversation %s", conversation)
 	}
-
-	return filepath.Join(cacheDir, files[index].name), nil
 }
 
 func getHistoryFilePath(cacheDir string, opts *CLIOptions) (string, bool) {
 	if !opts.ContinueChat && !opts.RetryChat {
 		cacheDir = setupCacheDirWithFallback()
-		return createNewHistoryFile(cacheDir, opts.AgentName), false
+		return createNewHistoryFile(cacheDir, opts.AgentName, opts.Conversation), false
 	}
 
-	if latestFile, err := findHistoryFile(cacheDir, opts.ConversationIndex-1); err == nil {
-		return latestFile, true
+	if filePath, err := findHistoryFile(cacheDir, opts.Conversation); err == nil {
+		return filePath, true
 	}
 
 	cacheDir = setupCacheDirWithFallback()
-	return createNewHistoryFile(cacheDir, opts.AgentName), false
+	return createNewHistoryFile(cacheDir, opts.AgentName, opts.Conversation), false
 }
 
 // Read stdin if exists. Used to detect if input is piped and read it if so

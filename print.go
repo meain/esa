@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -95,21 +94,12 @@ func printInfo(msg string) {
 	fmt.Printf("%s %s\n", infoStyle("[INFO]"), msg)
 }
 
-// printJSONError prints an error message in JSON format.
-func printJSONError(message string) {
-	errJSON, _ := json.Marshal(map[string]string{"error": message})
-	fmt.Println(string(errJSON))
-}
-
 // printHistoryJSON prints the raw history data as JSON.
-func printHistoryJSON(historyData []byte) {
-	// Pretty print the JSON
-	var prettyJSON bytes.Buffer
-	if err := json.Indent(&prettyJSON, historyData, "", "  "); err == nil {
-		fmt.Println(prettyJSON.String())
+func printHistoryJSON(history ConversationHistory) {
+	if out, err := json.MarshalIndent(history, "", "  "); err == nil {
+		fmt.Println(string(out))
 	} else {
-		// Fallback to raw data if indent fails
-		fmt.Println(string(historyData))
+		fmt.Println(history)
 	}
 }
 

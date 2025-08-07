@@ -136,13 +136,15 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 	)
 
 	// If conversation index is set without retry, also set continue chat
-	if opts.ConversationIndex > 0 && !opts.RetryChat {
-		opts.ContinueChat = true
+	if len(opts.Conversation) > 0 && !opts.RetryChat {
+		if _, err := findHistoryFile(cacheDir, opts.Conversation); err == nil {
+			opts.ContinueChat = true
+		}
 	}
 
 	if opts.ContinueChat || opts.RetryChat {
-		if opts.ConversationIndex < 1 {
-			opts.ConversationIndex = 1
+		if opts.Conversation == "" {
+			opts.Conversation = "1"
 		}
 	}
 
