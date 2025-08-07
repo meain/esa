@@ -126,16 +126,26 @@ git diff --staged | esa +commit
 # Continue the last conversation
 esa -c "and what about yesterday's weather"
 
+# Continue specific conversations using custom IDs
+esa -C my-project "continue our discussion about the design"
+esa -C debugging-session "what was the error we found?"
+
+# Continue conversations by index (1 = most recent)
+esa -C 1 "follow up question"
+esa -C 2 "continue the second most recent conversation"
+
 # Retry the last command with modifications
 esa -r make it more detailed
 
-# View conversation history
+# View conversation history (shows custom IDs when available)
 esa --list-history
 esa --show-history 3
+esa --show-history my-project        # View by custom ID
 esa --show-history 1 --output json
 
 # Show last output of a previous interaction
 esa --show-output 1
+esa --show-output my-project        # View output by custom ID
 
 # Display agent and model statistics
 esa --show-stats
@@ -311,6 +321,7 @@ See the [`examples/`](examples/) directory for more agent configurations.
 
 # Conversation management
 -c, --continue           # Continue last conversation
+-C, --conversation <id>  # Continue/retry specific conversation by ID or index
 -r, --retry              # Retry last command (optionally with new text)
 
 # Output and display
@@ -349,6 +360,8 @@ esa --show-output 1 --pretty   # Pretty print markdown output
 
 # Conversation flow
 esa --continue "tell me more about that"
+esa --conversation my-session "continue our previous discussion"
+esa --conversation 1 "follow up on the most recent conversation"
 esa --retry "make it shorter"
 
 # REPL mode
