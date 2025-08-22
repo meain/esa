@@ -11,6 +11,8 @@ Other notes:
 """
 ask = "unsafe"
 
+# NOTE: The tool for interacting with jira being used in all the
+# functions is https://github.com/ankitpokhrel/jira-cli
 [[functions]]
 name = "list_jira_issues"
 description = "Return a list of top level jira issues (does not include sub-tasks)"
