@@ -73,14 +73,28 @@ type confirmResponse struct {
 	message  string
 }
 
+// openTTY opens /dev/tty for interactive prompts, bypassing piped stdin
+func openTTY() (*os.File, error) {
+	return os.OpenFile("/dev/tty", os.O_RDWR, 0)
+}
+
 // confirm prompts the user for confirmation with yes/no/message options
 func confirm(prompt string) confirmResponse {
 	cyan := color.New(color.FgCyan).SprintFunc()
 	fmt.Fprintf(os.Stderr, "%s %s (m/y/N): ", cyan("[?]"), prompt)
 
-	oldState, _ := term.MakeRaw(int(os.Stdin.Fd()))
+	// Open /dev/tty for interactive input to bypass piped stdin
+	tty, err := openTTY()
+	if err != nil {
+		// Fallback to os.Stdin if /dev/tty is not available
+		tty = os.Stdin
+	} else {
+		defer tty.Close()
+	}
 
-	reader := bufio.NewReader(os.Stdin)
+	oldState, _ := term.MakeRaw(int(tty.Fd()))
+
+	reader := bufio.NewReader(tty)
 	char, err := reader.ReadByte()
 	if err != nil {
 		return confirmResponse{approved: false, message: ""}
@@ -89,11 +103,12 @@ func confirm(prompt string) confirmResponse {
 	response := strings.ToLower(string(char))
 	fmt.Fprintf(os.Stderr, "%s\n\r", response)
 
-	term.Restore(int(os.Stdin.Fd()), oldState)
+	term.Restore(int(tty.Fd()), oldState)
 
 	if response == "m" {
 		fmt.Fprintf(os.Stderr, "%s Enter message: ", cyan("[?]"))
-		message, _ := bufio.NewReader(os.Stdin).ReadString('\n')
+		reader := bufio.NewReader(tty)
+		message, _ := reader.ReadString('\n')
 		message = strings.TrimSuffix(message, "\n")
 		return confirmResponse{approved: false, message: message}
 	}
@@ -228,7 +243,17 @@ func readStdin() string {
 }
 
 func readUserInput(prompt string, multiline bool) (string, error) {
-	reader := bufio.NewReader(os.Stdin)
+	// Open /dev/tty for interactive input to bypass piped stdin
+	tty, err := openTTY()
+	var reader *bufio.Reader
+	if err != nil {
+		// Fallback to os.Stdin if /dev/tty is not available
+		reader = bufio.NewReader(os.Stdin)
+	} else {
+		defer tty.Close()
+		reader = bufio.NewReader(tty)
+	}
+
 	if prompt != "" {
 		color.New(color.FgBlue).Fprint(os.Stderr, prompt)
 		color.New(color.FgHiWhite, color.Italic).Fprint(os.Stderr, " (ctrl+d on empty line to complete)\n")
