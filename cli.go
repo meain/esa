@@ -36,17 +36,18 @@ type CLIOptions struct {
 	AgentName      string
 	Model          string
 	ConfigPath     string
-	OutputFormat   string // Output format for show-history (text, markdown, json)
-	ShowAgent      bool   // Flag for showing agent details
-	ListAgents     bool   // Flag for listing agents
-	ListUserAgents bool   // Flag for listing only user agents
-	ListHistory    bool   // Flag for listing history
-	ShowHistory    bool   // Flag for showing specific history
-	ShowOutput     bool   // Flag for showing just output from history
-	ShowStats      bool   // Flag for showing usage statistics
-	ShowAll        bool   // Flag for showing both stats and history
-	SystemPrompt   string // System prompt override from CLI
-	Pretty         bool   // Pretty print markdown output using glow
+	OutputFormat     string // Output format for show-history (text, markdown, json)
+	ShowAgent        bool   // Flag for showing agent details
+	ListAgents       bool   // Flag for listing agents
+	ListUserAgents   bool   // Flag for listing only user agents
+	ListHistory      bool   // Flag for listing history
+	ShowHistory      bool   // Flag for showing specific history
+	ShowOutput       bool   // Flag for showing just output from history
+	ShowStats        bool   // Flag for showing usage statistics
+	ShowAll          bool   // Flag for showing both stats and history
+	SystemPrompt     string // System prompt override from CLI
+	Pretty           bool   // Pretty print markdown output using glow
+	IgnoreToolCalls  bool   // Flag for ignoring tool calls in history display
 }
 
 func createRootCommand() *cobra.Command {
@@ -114,7 +115,7 @@ func createRootCommand() *cobra.Command {
 					return fmt.Errorf("history index must be provided as argument: esa --show-history <index>")
 				}
 
-				handleShowHistory(args[0], opts.OutputFormat)
+				handleShowHistory(args[0], opts.OutputFormat, opts.IgnoreToolCalls)
 				return nil
 			}
 
@@ -188,6 +189,7 @@ func createRootCommand() *cobra.Command {
 	rootCmd.Flags().BoolVar(&opts.ShowOutput, "show-output", false, "Show just the output from a history entry (requires history index as argument)")
 	rootCmd.Flags().BoolVar(&opts.ShowStats, "show-stats", false, "Show usage statistics based on conversation history")
 	rootCmd.Flags().BoolVar(&opts.ShowAll, "all", false, "Show all items when used with --list-history or --show-stats")
+	rootCmd.Flags().BoolVar(&opts.IgnoreToolCalls, "ignore-tool-calls", false, "Ignore tool calls when displaying history (only show system, user, and agent messages)")
 
 	// Make history-index required when show-history is used
 	rootCmd.PreRunE = func(cmd *cobra.Command, args []string) error {
@@ -418,10 +420,14 @@ func listHistory(showAll bool) {
 }
 
 // handleShowHistory displays the content of a specific history file in the specified format.
-func handleShowHistory(conversation string, outputFormat string) {
+func handleShowHistory(conversation string, outputFormat string, ignoreToolCalls bool) {
 	historyFilePath, history, ok := readHistoryFile(conversation)
 	if !ok {
 		return
+	}
+
+	if ignoreToolCalls {
+		history = filterToolCalls(history)
 	}
 
 	switch outputFormat {
@@ -432,6 +438,35 @@ func handleShowHistory(conversation string, outputFormat string) {
 	default: // "text"
 		printHistoryText(historyFilePath, history)
 	}
+}
+
+// filterToolCalls removes tool-related messages from history
+func filterToolCalls(history ConversationHistory) ConversationHistory {
+	filtered := ConversationHistory{
+		AgentPath: history.AgentPath,
+		Model:     history.Model,
+		Messages:  []openai.ChatCompletionMessage{},
+	}
+
+	for _, msg := range history.Messages {
+		// Skip tool messages
+		if msg.Role == openai.ChatMessageRoleTool {
+			continue
+		}
+		// For assistant messages, clear tool calls but keep the content
+		if msg.Role == openai.ChatMessageRoleAssistant && len(msg.ToolCalls) > 0 {
+			msgCopy := msg
+			msgCopy.ToolCalls = nil
+			if msgCopy.Content != "" {
+				filtered.Messages = append(filtered.Messages, msgCopy)
+			}
+			continue
+		}
+		// Include all other messages (system, user, assistant without tool calls)
+		filtered.Messages = append(filtered.Messages, msg)
+	}
+
+	return filtered
 }
 
 func readHistoryFile(conversation string) (string, ConversationHistory, bool) {

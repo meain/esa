@@ -119,6 +119,71 @@ func (app *Application) createChatCompletionWithRetry(tools []openai.Tool) (*ope
 	return nil, err // Should never reach here, but for safety
 }
 
+// prepareRetryMessages prepares messages for retry mode by keeping all messages
+// up to the last user message, optionally replacing its content.
+func prepareRetryMessages(allMessages []openai.ChatCompletionMessage, commandStr string) []openai.ChatCompletionMessage {
+	// Find the last user message in the history
+	lastUserIdx := -1
+	for i := len(allMessages) - 1; i >= 0; i-- {
+		if allMessages[i].Role == "user" {
+			lastUserIdx = i
+			break
+		}
+	}
+
+	if lastUserIdx < 0 {
+		// No user message found, just use the system message
+		return []openai.ChatCompletionMessage{allMessages[0]}
+	}
+
+	// Keep all messages up to and including the last user message
+	messages := allMessages[:lastUserIdx+1]
+	if commandStr != "" {
+		messages[lastUserIdx].Content = commandStr
+	}
+	return messages
+}
+
+// loadHistoryMessages loads and processes messages from conversation history.
+// Returns the messages, and updates opts with agent path and model from history.
+func loadHistoryMessages(opts *CLIOptions, historyFile string, debugPrint func(string, ...any)) ([]openai.ChatCompletionMessage, error) {
+	data, err := os.ReadFile(historyFile)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", errFailedToLoadHistory, err)
+	}
+
+	var history ConversationHistory
+	if err := json.Unmarshal(data, &history); err != nil {
+		return nil, fmt.Errorf("%s: %w", errFailedToUnmarshalHist, err)
+	}
+
+	var messages []openai.ChatCompletionMessage
+	if opts.RetryChat && len(history.Messages) > 1 {
+		messages = prepareRetryMessages(history.Messages, opts.CommandStr)
+		debugPrint("Retry Mode",
+			fmt.Sprintf("Keeping %d messages", len(messages)),
+			fmt.Sprintf("Agent: %s", history.AgentPath),
+			fmt.Sprintf("History file: %q", historyFile),
+		)
+	} else {
+		messages = history.Messages
+		debugPrint("History",
+			fmt.Sprintf("Loaded %d messages from history", len(messages)),
+			fmt.Sprintf("Agent: %s", history.AgentPath),
+			fmt.Sprintf("History file: %q", historyFile),
+		)
+	}
+
+	if history.AgentPath != "" && opts.AgentPath == "" {
+		opts.AgentPath = history.AgentPath
+	}
+	if history.Model != "" && opts.Model == "" {
+		opts.Model = history.Model
+	}
+
+	return messages, nil
+}
+
 func NewApplication(opts *CLIOptions) (*Application, error) {
 	// Load global config first
 	config, err := LoadConfig(opts.ConfigPath)
@@ -131,9 +196,7 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 		return nil, fmt.Errorf("%s: %w", errFailedToSetupCache, err)
 	}
 
-	var (
-		messages []openai.ChatCompletionMessage
-	)
+	var messages []openai.ChatCompletionMessage
 
 	// If conversation index is set without retry, also set continue chat
 	if len(opts.Conversation) > 0 && !opts.RetryChat {
@@ -150,81 +213,10 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 
 	historyFile, hasHistory := getHistoryFilePath(cacheDir, opts)
 	if hasHistory && (opts.ContinueChat || opts.RetryChat) {
-		var history ConversationHistory
-		data, err := os.ReadFile(historyFile)
+		debugPrint := createDebugPrinter(opts.DebugMode)
+		messages, err = loadHistoryMessages(opts, historyFile, debugPrint)
 		if err != nil {
-			return nil, fmt.Errorf("%s: %w", errFailedToLoadHistory, err)
-		}
-		err = json.Unmarshal(data, &history)
-		if err != nil {
-			return nil, fmt.Errorf("%s: %w", errFailedToUnmarshalHist, err)
-		}
-
-		allMessages := history.Messages
-		agentPath := history.AgentPath
-
-		app := &Application{debug: opts.DebugMode}
-		app.debugPrint = createDebugPrinter(app.debug)
-
-		if opts.RetryChat && len(allMessages) > 1 {
-			// In retry mode, keep all messages up until the last user message
-			var lastUserMessageIndex int = -1
-
-			// Find the last user message in the history
-			for i := len(allMessages) - 1; i >= 0; i-- {
-				if allMessages[i].Role == "user" {
-					lastUserMessageIndex = i
-					break
-				}
-			}
-
-			if lastUserMessageIndex >= 0 {
-				// Keep all messages up to and including the last user message
-				messages = allMessages[:lastUserMessageIndex+1]
-
-				// If a command string was provided with -r, replace the last user message content
-				if opts.CommandStr != "" {
-					messages[lastUserMessageIndex].Content = opts.CommandStr
-					app.debugPrint("Retry Mode",
-						fmt.Sprintf("Keeping %d messages", len(messages)),
-						fmt.Sprintf("Replacing last user message with: %q", opts.CommandStr),
-						fmt.Sprintf("Agent: %s", agentPath), // Note: Agent might be overridden later if specified in opts
-						fmt.Sprintf("History file: %q", historyFile),
-					)
-				} else {
-					app.debugPrint("Retry Mode",
-						fmt.Sprintf("Keeping %d messages", len(messages)),
-						fmt.Sprintf("Agent: %s", agentPath), // Note: Agent might be overridden later if specified in opts
-						fmt.Sprintf("History file: %q", historyFile),
-					)
-				}
-			} else {
-				// If we couldn't find a user message, just use the system message
-				messages = []openai.ChatCompletionMessage{allMessages[0]}
-
-				app.debugPrint("Retry Mode",
-					fmt.Sprintf("No user messages found"),
-					fmt.Sprintf("Agent: %s", agentPath),
-					fmt.Sprintf("History file: %q", historyFile),
-				)
-			}
-		} else {
-			// In continue mode, use all messages
-			messages = allMessages
-			app.debugPrint("History",
-				fmt.Sprintf("Loaded %d messages from history", len(messages)),
-				fmt.Sprintf("Agent: %s", agentPath),
-				fmt.Sprintf("History file: %q", historyFile),
-			)
-		}
-
-		if agentPath != "" && opts.AgentPath == "" {
-			opts.AgentPath = agentPath
-		}
-
-		// Use model from history if none specified in opts
-		if history.Model != "" && opts.Model == "" {
-			opts.Model = history.Model
+			return nil, err
 		}
 	}
 
@@ -294,22 +286,23 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 	return app, nil
 }
 
-func (app *Application) Run(opts CLIOptions) {
-	// Start MCP servers if configured
+// initializeRuntime starts MCP servers and sets up the system prompt.
+// Returns a cleanup function that should be deferred by the caller.
+func (app *Application) initializeRuntime() (cleanup func(), err error) {
+	cleanup = func() {}
+
 	if len(app.agent.MCPServers) > 0 {
 		ctx := context.Background()
 		if err := app.mcpManager.StartServers(ctx, app.agent.MCPServers); err != nil {
-			log.Fatalf("Failed to start MCP servers: %v", err)
+			return nil, fmt.Errorf("failed to start MCP servers: %w", err)
 		}
-		// Ensure MCP servers are stopped when the application exits
-		defer app.mcpManager.StopAllServers()
-
+		cleanup = app.mcpManager.StopAllServers
 		app.debugPrint("MCP Servers", fmt.Sprintf("Started %d MCP servers", len(app.agent.MCPServers)))
 	}
 
 	prompt, err := app.getSystemPrompt()
 	if err != nil {
-		log.Fatalf("Error processing system prompt: %v", err)
+		return cleanup, fmt.Errorf("error processing system prompt: %w", err)
 	}
 
 	if app.messages == nil {
@@ -319,8 +312,16 @@ func (app *Application) Run(opts CLIOptions) {
 		}}
 	}
 
-	// Debug prints before starting communication
 	app.debugPrint("System Message", app.messages[0].Content)
+	return cleanup, nil
+}
+
+func (app *Application) Run(opts CLIOptions) {
+	cleanup, err := app.initializeRuntime()
+	if err != nil {
+		log.Fatalf("%v", err)
+	}
+	defer cleanup()
 
 	input := readStdin()
 	app.debugPrint("Input State",
@@ -454,11 +455,7 @@ func (app *Application) handleStreamResponse(stream *openai.ChatCompletionStream
 				}
 			}
 		} else {
-			// Clear progress line before showing result
-			if app.showProgress && app.lastProgressLen > 0 {
-				fmt.Fprintf(os.Stderr, "\r%s\r", strings.Repeat(" ", app.lastProgressLen))
-				app.lastProgressLen = 0
-			}
+			app.clearProgress()
 
 			content := response.Choices[0].Delta.Content
 			if content != "" {
@@ -512,6 +509,59 @@ func (app *Application) generateProgressSummary(funcName string, args string) st
 	return fmt.Sprintf("Calling %s...", funcName)
 }
 
+// clearProgress clears the progress line from stderr if one is currently displayed
+func (app *Application) clearProgress() {
+	if app.showProgress && app.lastProgressLen > 0 {
+		fmt.Fprintf(os.Stderr, "\r%s\r", strings.Repeat(" ", app.lastProgressLen))
+		app.lastProgressLen = 0
+	}
+}
+
+// showToolProgress displays a progress indicator for a tool call being executed
+func (app *Application) showToolProgress(funcName string, args string) {
+	if !app.showProgress {
+		return
+	}
+	summary := app.generateProgressSummary(funcName, args)
+	if summary == "" {
+		return
+	}
+	// Clear previous line if exists
+	if app.lastProgressLen > 0 {
+		fmt.Fprintf(os.Stderr, "\r%s\r", strings.Repeat(" ", app.lastProgressLen))
+	}
+	msg := fmt.Sprintf("⋮ %s", summary)
+	color.New(color.FgBlue).Fprint(os.Stderr, msg)
+	app.lastProgressLen = len(msg)
+}
+
+// appendToolError appends an error message for a tool call to the conversation
+func (app *Application) appendToolError(toolCall openai.ToolCall, err error) {
+	app.clearProgress()
+	app.messages = append(app.messages, openai.ChatCompletionMessage{
+		Role:       "tool",
+		Name:       toolCall.Function.Name,
+		Content:    fmt.Sprintf("Error: %v", err),
+		ToolCallID: toolCall.ID,
+	})
+}
+
+// appendToolResult appends a tool result to the conversation and displays it if configured
+func (app *Application) appendToolResult(toolCall openai.ToolCall, content string, displayCommand string, displayOutput string) {
+	if app.showCommands || app.showToolCalls {
+		color.New(toolCallCommandColor).Fprintf(os.Stderr, "%s\n", displayCommand)
+	}
+	if app.showToolCalls && displayOutput != "" {
+		color.New(toolCallOutputColor).Fprintf(os.Stderr, "%s\n", displayOutput)
+	}
+	app.messages = append(app.messages, openai.ChatCompletionMessage{
+		Role:       "tool",
+		Name:       toolCall.Function.Name,
+		Content:    content,
+		ToolCallID: toolCall.ID,
+	})
+}
+
 func (app *Application) handleToolCalls(toolCalls []openai.ToolCall, opts CLIOptions) {
 	for _, toolCall := range toolCalls {
 		if toolCall.Type != "function" || toolCall.Function.Name == "" {
@@ -539,16 +589,8 @@ func (app *Application) handleToolCalls(toolCalls []openai.ToolCall, opts CLIOpt
 			log.Fatalf("No matching function found for: %s", toolCall.Function.Name)
 		}
 
-		if app.showProgress && len(matchedFunc.Output) == 0 {
-			if summary := app.generateProgressSummary(matchedFunc.Name, toolCall.Function.Arguments); summary != "" {
-				// Clear previous line if exists
-				if app.lastProgressLen > 0 {
-					fmt.Fprintf(os.Stderr, "\r%s\r", strings.Repeat(" ", app.lastProgressLen))
-				}
-				msg := fmt.Sprintf("⋮ %s", summary)
-				color.New(color.FgBlue).Fprint(os.Stderr, msg)
-				app.lastProgressLen = len(msg)
-			}
+		if len(matchedFunc.Output) == 0 {
+			app.showToolProgress(matchedFunc.Name, toolCall.Function.Arguments)
 		}
 
 		// Set the provider and model env so that nested esa calls
@@ -571,73 +613,25 @@ func (app *Application) handleToolCalls(toolCalls []openai.ToolCall, opts CLIOpt
 
 		if err != nil {
 			app.debugPrint("Function Error", err)
-			// Clear progress line before showing error
-			if app.showProgress && app.lastProgressLen > 0 {
-				fmt.Fprintf(os.Stderr, "\r%s\r", strings.Repeat(" ", app.lastProgressLen))
-				app.lastProgressLen = 0
-			}
-
-			app.messages = append(app.messages, openai.ChatCompletionMessage{
-				Role:       "tool",
-				Name:       toolCall.Function.Name,
-				Content:    fmt.Sprintf("Error: %v", err),
-				ToolCallID: toolCall.ID,
-			})
+			app.appendToolError(toolCall, err)
 			continue
 		}
 
 		content := fmt.Sprintf("Command: %s\n\nOutput: \n%s", command, result)
-
-		// Display command when --show-commands is enabled
-		if app.showCommands || app.showToolCalls {
-			color.New(toolCallCommandColor).Fprintf(os.Stderr, "$ %s\n", command)
-		}
-
-		// Display tool call output when --show-tool-calls is enabled
-		if app.showToolCalls {
-			color.New(toolCallOutputColor).Fprintf(os.Stderr, "%s\n", result)
-		}
-
-		app.messages = append(app.messages, openai.ChatCompletionMessage{
-			Role:       "tool",
-			Name:       toolCall.Function.Name,
-			Content:    content,
-			ToolCallID: toolCall.ID,
-		})
+		app.appendToolResult(toolCall, content, fmt.Sprintf("$ %s", command), result)
 	}
 }
 
 // handleMCPToolCall handles tool calls for MCP servers
 func (app *Application) handleMCPToolCall(toolCall openai.ToolCall, opts CLIOptions) {
-	if app.showProgress {
-		if summary := app.generateProgressSummary(toolCall.Function.Name, toolCall.Function.Arguments); summary != "" {
-			// Clear previous line if exists
-			if app.lastProgressLen > 0 {
-				fmt.Fprintf(os.Stderr, "\r%s\r", strings.Repeat(" ", app.lastProgressLen))
-			}
-			msg := fmt.Sprintf("⋮ %s", summary)
-			color.New(color.FgBlue).Fprint(os.Stderr, msg)
-			app.lastProgressLen = len(msg)
-		}
-	}
+	app.showToolProgress(toolCall.Function.Name, toolCall.Function.Arguments)
 
 	// Parse the arguments
 	var arguments any
 	if toolCall.Function.Arguments != "" {
 		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &arguments); err != nil {
 			app.debugPrint("MCP Tool Error", fmt.Sprintf("Failed to parse arguments: %v", err))
-			// Clear progress line before showing error
-			if app.showProgress && app.lastProgressLen > 0 {
-				fmt.Fprintf(os.Stderr, "\r%s\r", strings.Repeat(" ", app.lastProgressLen))
-				app.lastProgressLen = 0
-			}
-
-			app.messages = append(app.messages, openai.ChatCompletionMessage{
-				Role:       "tool",
-				Name:       toolCall.Function.Name,
-				Content:    fmt.Sprintf("Error: Failed to parse arguments: %v", err),
-				ToolCallID: toolCall.ID,
-			})
+			app.appendToolError(toolCall, fmt.Errorf("Failed to parse arguments: %v", err))
 			return
 		}
 	}
@@ -652,49 +646,25 @@ func (app *Application) handleMCPToolCall(toolCall openai.ToolCall, opts CLIOpti
 
 	if err != nil {
 		app.debugPrint("MCP Tool Error", err)
-		// Clear progress line before showing error
-		if app.showProgress && app.lastProgressLen > 0 {
-			fmt.Fprintf(os.Stderr, "\r%s\r", strings.Repeat(" ", app.lastProgressLen))
-			app.lastProgressLen = 0
-		}
-
-		app.messages = append(app.messages, openai.ChatCompletionMessage{
-			Role:       "tool",
-			Name:       toolCall.Function.Name,
-			Content:    fmt.Sprintf("Error: %v", err),
-			ToolCallID: toolCall.ID,
-		})
+		app.appendToolError(toolCall, err)
 		return
 	}
 
 	// Format arguments for display
-	var argsDisplay string
-	if arguments != nil {
-		if argsJSON, err := json.Marshal(arguments); err == nil {
-			argsDisplay = string(argsJSON)
-		} else {
-			argsDisplay = fmt.Sprintf("%v", arguments)
-		}
-	} else {
-		argsDisplay = "{}"
-	}
+	argsDisplay := formatArgsForDisplay(arguments)
+	displayCommand := fmt.Sprintf("# %s(%s)", toolCall.Function.Name, argsDisplay)
+	app.appendToolResult(toolCall, result, displayCommand, result)
+}
 
-	// Display command when --show-commands is enabled
-	if app.showCommands || app.showToolCalls {
-		color.New(toolCallCommandColor).Fprintf(os.Stderr, "# %s(%s)\n", toolCall.Function.Name, argsDisplay)
+// formatArgsForDisplay formats arguments as a JSON string for display purposes
+func formatArgsForDisplay(arguments any) string {
+	if arguments == nil {
+		return "{}"
 	}
-
-	// Display MCP tool call with output when --show-tool-calls is enabled
-	if app.showToolCalls {
-		color.New(toolCallOutputColor).Fprintf(os.Stderr, "%s\n", result)
+	if argsJSON, err := json.Marshal(arguments); err == nil {
+		return string(argsJSON)
 	}
-
-	app.messages = append(app.messages, openai.ChatCompletionMessage{
-		Role:       "tool",
-		Name:       toolCall.Function.Name,
-		Content:    result,
-		ToolCallID: toolCall.ID,
-	})
+	return fmt.Sprintf("%v", arguments)
 }
 
 func (app *Application) getSystemPrompt() (string, error) {

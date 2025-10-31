@@ -31,31 +31,11 @@ func runReplMode(opts *CLIOptions, args []string) error {
 		return fmt.Errorf("failed to initialize application: %v", err)
 	}
 
-	// Start MCP servers if configured
-	if len(app.agent.MCPServers) > 0 {
-		ctx := context.Background()
-		if err := app.mcpManager.StartServers(ctx, app.agent.MCPServers); err != nil {
-			return fmt.Errorf("failed to start MCP servers: %v", err)
-		}
-
-		defer app.mcpManager.StopAllServers()
-		app.debugPrint("MCP Servers", fmt.Sprintf("Started %d MCP servers", len(app.agent.MCPServers)))
-	}
-
-	prompt, err := app.getSystemPrompt()
+	cleanup, err := app.initializeRuntime()
 	if err != nil {
-		return fmt.Errorf("error processing system prompt: %v", err)
+		return err
 	}
-
-	if app.messages == nil {
-		app.messages = []openai.ChatCompletionMessage{{
-			Role:    "system",
-			Content: prompt,
-		}}
-	}
-
-	// Debug prints before starting communication
-	app.debugPrint("System Message", app.messages[0].Content)
+	defer cleanup()
 
 	cyan := color.New(color.FgCyan).SprintFunc()
 	green := color.New(color.FgGreen).SprintFunc()

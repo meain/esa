@@ -94,6 +94,24 @@ func printInfo(msg string) {
 	fmt.Printf("%s %s\n", infoStyle("[INFO]"), msg)
 }
 
+// tryPrettyJSON attempts to format a string as indented JSON.
+// Returns the formatted string and true if successful, or the original string and false.
+func tryPrettyJSON(s string, indent string) (string, bool) {
+	var m map[string]any
+	if err := json.Unmarshal([]byte(s), &m); err == nil {
+		if pretty, err := json.MarshalIndent(m, indent, "  "); err == nil {
+			return string(pretty), true
+		}
+	}
+	var sl []any
+	if err := json.Unmarshal([]byte(s), &sl); err == nil {
+		if pretty, err := json.MarshalIndent(sl, indent, "  "); err == nil {
+			return string(pretty), true
+		}
+	}
+	return s, false
+}
+
 // printHistoryJSON prints the raw history data as JSON.
 func printHistoryJSON(history ConversationHistory) {
 	if out, err := json.MarshalIndent(history, "", "  "); err == nil {
@@ -145,32 +163,18 @@ func printHistoryMarkdown(fileName string, history ConversationHistory) {
 
 		if msg.Role == openai.ChatMessageRoleTool {
 			fmt.Printf("**Tool Result** (for call `%s`, tool `%s`):\n\n", msg.ToolCallID, msg.Name)
-			// Check if content looks like JSON or code for formatting
 			isError := strings.HasPrefix(msg.Content, "Error:")
 			prefix := ""
 			if isError {
 				prefix = "**ERROR:** "
 			}
 
-			var contentMap map[string]any
-			var contentSlice []any
-			contentStr := msg.Content
-			if err := json.Unmarshal([]byte(contentStr), &contentMap); err == nil {
-				prettyJSON, _ := json.MarshalIndent(contentMap, "", "  ")
-				contentStr = string(prettyJSON)
-				fmt.Printf("```json\n%s%s\n```\n\n", prefix, contentStr)
-			} else if err := json.Unmarshal([]byte(contentStr), &contentSlice); err == nil {
-				prettyJSON, _ := json.MarshalIndent(contentSlice, "", "  ")
-				contentStr = string(prettyJSON)
-				fmt.Printf("```json\n%s%s\n```\n\n", prefix, contentStr)
+			if formatted, ok := tryPrettyJSON(msg.Content, ""); ok {
+				fmt.Printf("```json\n%s%s\n```\n\n", prefix, formatted)
+			} else if strings.Contains(msg.Content, "\n") {
+				fmt.Printf("```\n%s%s\n```\n\n", prefix, msg.Content)
 			} else {
-				// Treat as plain text or potentially other code
-				lang := ""                              // Auto-detect or leave blank
-				if strings.Contains(contentStr, "\n") { // Basic check for multi-line content
-					fmt.Printf("```%s\n%s%s\n```\n\n", lang, prefix, contentStr)
-				} else {
-					fmt.Printf("%s%s\n\n", prefix, contentStr)
-				}
+				fmt.Printf("%s%s\n\n", prefix, msg.Content)
 			}
 		}
 	}
@@ -234,7 +238,6 @@ func printHistoryText(fileName string, history ConversationHistory) {
 			}
 			fmt.Println() // Add newline after assistant message
 		case openai.ChatMessageRoleTool:
-			// Check if content indicates an error
 			isError := strings.HasPrefix(msg.Content, "Error:")
 			prefix := toolStyle(fmt.Sprintf("[TOOL: %s (%s)]", msg.Name, msg.ToolCallID))
 			contentStyle := toolDataStyle
@@ -243,18 +246,7 @@ func printHistoryText(fileName string, history ConversationHistory) {
 				contentStyle = errorStyle
 			}
 
-			// Try to pretty print JSON content if possible
-			var contentMap map[string]any
-			var contentSlice []any
-			contentStr := msg.Content
-			if err := json.Unmarshal([]byte(contentStr), &contentMap); err == nil {
-				prettyJSON, _ := json.MarshalIndent(contentMap, "  ", "  ")
-				contentStr = string(prettyJSON)
-			} else if err := json.Unmarshal([]byte(contentStr), &contentSlice); err == nil {
-				prettyJSON, _ := json.MarshalIndent(contentSlice, "  ", "  ")
-				contentStr = string(prettyJSON)
-			}
-			// Indent content for clarity
+			contentStr, _ := tryPrettyJSON(msg.Content, "  ")
 			indentedContent := strings.ReplaceAll(contentStr, "\n", "\n  ")
 			fmt.Printf("%s\n  %s\n\n", prefix, contentStyle(indentedContent))
 		default:
