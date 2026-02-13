@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>esa</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Sidebar -->
+        <aside id="sidebar">
+            <div class="sidebar-header">
+                <h1>esa</h1>
+                <button id="new-chat-btn" title="New chat">+</button>
+            </div>
+
+            <div class="sidebar-section">
+                <h2>Agents</h2>
+                <div id="agent-list" class="sidebar-list"></div>
+            </div>
+
+            <div class="sidebar-section">
+                <h2>History</h2>
+                <div id="history-list" class="sidebar-list"></div>
+            </div>
+        </aside>
+
+        <!-- Main Chat Area -->
+        <main id="chat-area">
+            <div id="chat-header">
+                <button id="sidebar-toggle" title="Toggle sidebar">&#9776;</button>
+                <span id="current-agent">+default</span>
+                <span id="connection-status" class="status-disconnected" title="Disconnected">&#9679;</span>
+            </div>
+
+            <div id="messages"></div>
+
+            <!-- Approval Modal -->
+            <div id="approval-modal" class="hidden">
+                <div class="approval-content">
+                    <div class="approval-header">Command Approval</div>
+                    <div id="approval-command" class="approval-command"></div>
+                    <div class="approval-actions">
+                        <button id="approve-btn" class="btn btn-approve">Approve</button>
+                        <button id="deny-btn" class="btn btn-deny">Deny</button>
+                    </div>
+                    <div class="approval-message-row">
+                        <input id="deny-message" type="text" placeholder="Optional message when denying..." />
+                    </div>
+                </div>
+            </div>
+
+            <div id="input-area">
+                <textarea id="user-input" placeholder="Type a message..." rows="1"></textarea>
+                <button id="send-btn" title="Send">&#10148;</button>
+            </div>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
