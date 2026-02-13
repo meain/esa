@@ -21,12 +21,15 @@
     var themeToggle = document.getElementById("theme-toggle");
     var agentSearch = document.getElementById("agent-search");
     var historySearch = document.getElementById("history-search");
+    var modelSelector = document.getElementById("model-selector");
 
     // -- State --
     var ws = null;
     var selectedAgent = "+default";
+    var selectedModel = "";
     var isStreaming = false;
     var currentStreamEl = null;
+    var currentStreamRaw = "";
     var pendingApprovalId = null;
     var currentConversationId = null;
     var cachedAgents = [];
@@ -97,6 +100,9 @@
         if (currentConversationId) {
             payload.id = currentConversationId;
         }
+        if (selectedModel) {
+            payload.model = selectedModel;
+        }
 
         ws.send(JSON.stringify(payload));
 
@@ -131,7 +137,7 @@
                 handleToolResult(msg);
                 break;
             case "done":
-                finishStream();
+                handleDone(msg);
                 break;
             case "error":
                 appendError(msg.content);
@@ -146,32 +152,45 @@
             var contentDiv = msgDiv.querySelector(".message-content");
             contentDiv.classList.add("streaming-cursor");
             currentStreamEl = contentDiv;
+            currentStreamRaw = "";
             messagesEl.appendChild(msgDiv);
         }
-        currentStreamEl.textContent += content;
+        currentStreamRaw += content;
+        currentStreamEl.textContent = currentStreamRaw;
         scrollToBottom();
+    }
+
+    function handleDone(msg) {
+        // Store conversation ID from server for thread continuity
+        if (msg.id) {
+            currentConversationId = msg.id;
+        }
+        finishStream();
     }
 
     function finishStream() {
         if (currentStreamEl) {
             currentStreamEl.classList.remove("streaming-cursor");
-            currentStreamEl.innerHTML = renderContent(currentStreamEl.textContent);
+            // Store raw text for copy, render as markdown
+            currentStreamEl.setAttribute("data-raw", currentStreamRaw);
+            currentStreamEl.innerHTML = renderMarkdown(currentStreamRaw);
             currentStreamEl = null;
+            currentStreamRaw = "";
         }
         isStreaming = false;
         sendBtn.disabled = false;
         inputEl.focus();
         scrollToBottom();
-        // Auto-refresh history after a chat completes
         loadHistory();
     }
 
     function handleToolCall(msg) {
-        // Finish any ongoing stream text first
         if (currentStreamEl) {
             currentStreamEl.classList.remove("streaming-cursor");
-            currentStreamEl.innerHTML = renderContent(currentStreamEl.textContent);
+            currentStreamEl.setAttribute("data-raw", currentStreamRaw);
+            currentStreamEl.innerHTML = renderMarkdown(currentStreamRaw);
             currentStreamEl = null;
+            currentStreamRaw = "";
         }
 
         var toolDiv = document.createElement("div");
@@ -185,14 +204,14 @@
             '    <span class="tool-icon">&#9881;</span>' +
             '    <span>' + escapeHtml(msg.name) + '</span>' +
             '    <span style="margin-left:auto;font-size:10px;color:var(--text-muted)">' + safeLabel + '</span>' +
+            '    <button class="copy-btn" title="Copy command" onclick="window._esaCopy(this,\'cmd\')">&#9776;</button>' +
             '  </div>' +
-            '  <div class="tool-call-command">$ ' + escapeHtml(msg.command) + '</div>' +
+            '  <div class="tool-call-command" data-raw="' + escapeAttr(msg.command) + '">$ ' + escapeHtml(msg.command) + '</div>' +
             '</div>';
 
         messagesEl.appendChild(toolDiv);
         scrollToBottom();
 
-        // Only show approval modal if not safe
         if (!msg.safe) {
             pendingApprovalId = msg.id;
             showApprovalModal(msg.command);
@@ -213,8 +232,17 @@
 
                 var outputDiv = document.createElement("div");
                 outputDiv.className = "tool-call-output";
+                outputDiv.setAttribute("data-raw", msg.output);
                 outputDiv.textContent = msg.output;
+
+                var copyBtn = document.createElement("button");
+                copyBtn.className = "copy-btn";
+                copyBtn.title = "Copy output";
+                copyBtn.innerHTML = "&#9776;";
+                copyBtn.onclick = function () { copyFromEl(copyBtn, outputDiv); };
+
                 card.appendChild(outputDiv);
+                card.querySelector(".tool-call-header").appendChild(copyBtn);
             }
         }
         scrollToBottom();
@@ -232,6 +260,36 @@
         approvalModal.classList.add("hidden");
     }
 
+    // -- Copy --
+    function copyText(text, btn) {
+        navigator.clipboard.writeText(text).then(function () {
+            btn.classList.add("copied");
+            var orig = btn.innerHTML;
+            btn.innerHTML = "&#10003;";
+            setTimeout(function () {
+                btn.classList.remove("copied");
+                btn.innerHTML = orig;
+            }, 1500);
+        });
+    }
+
+    function copyFromEl(btn, el) {
+        var raw = el.getAttribute("data-raw") || el.textContent;
+        copyText(raw, btn);
+    }
+
+    // Expose for inline onclick in tool calls
+    window._esaCopy = function (btn, type) {
+        var card = btn.closest(".tool-call-card") || btn.closest(".message");
+        if (type === "cmd") {
+            var cmdEl = card.querySelector(".tool-call-command");
+            copyText(cmdEl.getAttribute("data-raw") || cmdEl.textContent, btn);
+        } else if (type === "output") {
+            var outEl = card.querySelector(".tool-call-output");
+            if (outEl) copyText(outEl.getAttribute("data-raw") || outEl.textContent, btn);
+        }
+    };
+
     // -- DOM Helpers --
     function createMessageDiv(role) {
         var div = document.createElement("div");
@@ -239,10 +297,24 @@
 
         var roleDiv = document.createElement("div");
         roleDiv.className = "message-role " + role;
-        roleDiv.textContent = role === "user" ? "you" : "esa";
+
+        var roleLabel = document.createElement("span");
+        roleLabel.textContent = role === "user" ? "you" : "esa";
+
+        var copyBtn = document.createElement("button");
+        copyBtn.className = "copy-btn";
+        copyBtn.title = "Copy";
+        copyBtn.innerHTML = "&#9776;";
+
+        roleDiv.appendChild(roleLabel);
+        roleDiv.appendChild(copyBtn);
 
         var contentDiv = document.createElement("div");
         contentDiv.className = "message-content";
+
+        copyBtn.addEventListener("click", function () {
+            copyFromEl(copyBtn, contentDiv);
+        });
 
         div.appendChild(roleDiv);
         div.appendChild(contentDiv);
@@ -251,7 +323,9 @@
 
     function appendUserMessage(text) {
         var msgDiv = createMessageDiv("user");
-        msgDiv.querySelector(".message-content").textContent = text;
+        var content = msgDiv.querySelector(".message-content");
+        content.textContent = text;
+        content.setAttribute("data-raw", text);
         messagesEl.appendChild(msgDiv);
         scrollToBottom();
     }
@@ -275,36 +349,185 @@
         return div.innerHTML;
     }
 
-    // Simple markdown renderer
-    function renderContent(text) {
+    function escapeAttr(str) {
+        return str.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    // -- Markdown Renderer --
+    function renderMarkdown(text) {
         if (!text) return "";
 
-        var html = escapeHtml(text);
+        var lines = text.split("\n");
+        var html = [];
+        var i = 0;
+        var inList = false;
+        var listType = "";
 
-        // Code blocks
-        html = html.replace(/```(\w*)\n([\s\S]*?)```/g, function (_, lang, code) {
-            return '<pre><code>' + code + '</code></pre>';
-        });
+        while (i < lines.length) {
+            var line = lines[i];
 
-        // Inline code
-        html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+            // Fenced code blocks
+            if (line.match(/^```/)) {
+                if (inList) { html.push(listType === "ul" ? "</ul>" : "</ol>"); inList = false; }
+                var lang = line.replace(/^```/, "").trim();
+                var codeLines = [];
+                i++;
+                while (i < lines.length && !lines[i].match(/^```/)) {
+                    codeLines.push(lines[i]);
+                    i++;
+                }
+                i++; // skip closing ```
+                var codeText = escapeHtml(codeLines.join("\n"));
+                html.push('<div class="code-block-wrapper"><button class="copy-btn" title="Copy code" onclick="window._esaCopyCode(this)">&#9776;</button><pre><code>' + codeText + '</code></pre></div>');
+                continue;
+            }
+
+            // Headings
+            var headingMatch = line.match(/^(#{1,6})\s+(.+)/);
+            if (headingMatch) {
+                if (inList) { html.push(listType === "ul" ? "</ul>" : "</ol>"); inList = false; }
+                var level = headingMatch[1].length;
+                html.push("<h" + level + ">" + renderInline(headingMatch[2]) + "</h" + level + ">");
+                i++;
+                continue;
+            }
+
+            // Horizontal rule
+            if (line.match(/^(---|\*\*\*|___)\s*$/)) {
+                if (inList) { html.push(listType === "ul" ? "</ul>" : "</ol>"); inList = false; }
+                html.push("<hr>");
+                i++;
+                continue;
+            }
+
+            // Blockquote
+            if (line.match(/^>\s?/)) {
+                if (inList) { html.push(listType === "ul" ? "</ul>" : "</ol>"); inList = false; }
+                var quoteLines = [];
+                while (i < lines.length && lines[i].match(/^>\s?/)) {
+                    quoteLines.push(lines[i].replace(/^>\s?/, ""));
+                    i++;
+                }
+                html.push("<blockquote>" + renderInline(quoteLines.join("<br>")) + "</blockquote>");
+                continue;
+            }
+
+            // Table
+            if (line.match(/\|/) && i + 1 < lines.length && lines[i + 1].match(/^\s*\|?\s*[-:]+[-|:\s]+\s*\|?\s*$/)) {
+                if (inList) { html.push(listType === "ul" ? "</ul>" : "</ol>"); inList = false; }
+                var headerCells = parsePipeCells(line);
+                i++; // skip separator
+                i++;
+                var tableHtml = "<table><thead><tr>";
+                for (var h = 0; h < headerCells.length; h++) {
+                    tableHtml += "<th>" + renderInline(headerCells[h]) + "</th>";
+                }
+                tableHtml += "</tr></thead><tbody>";
+                while (i < lines.length && lines[i].match(/\|/)) {
+                    var cells = parsePipeCells(lines[i]);
+                    tableHtml += "<tr>";
+                    for (var c = 0; c < cells.length; c++) {
+                        tableHtml += "<td>" + renderInline(cells[c]) + "</td>";
+                    }
+                    tableHtml += "</tr>";
+                    i++;
+                }
+                tableHtml += "</tbody></table>";
+                html.push(tableHtml);
+                continue;
+            }
+
+            // Unordered list
+            var ulMatch = line.match(/^(\s*)[*\-+]\s+(.*)/);
+            if (ulMatch) {
+                if (!inList || listType !== "ul") {
+                    if (inList) html.push(listType === "ul" ? "</ul>" : "</ol>");
+                    html.push("<ul>");
+                    inList = true;
+                    listType = "ul";
+                }
+                html.push("<li>" + renderInline(ulMatch[2]) + "</li>");
+                i++;
+                continue;
+            }
+
+            // Ordered list
+            var olMatch = line.match(/^(\s*)\d+\.\s+(.*)/);
+            if (olMatch) {
+                if (!inList || listType !== "ol") {
+                    if (inList) html.push(listType === "ul" ? "</ul>" : "</ol>");
+                    html.push("<ol>");
+                    inList = true;
+                    listType = "ol";
+                }
+                html.push("<li>" + renderInline(olMatch[2]) + "</li>");
+                i++;
+                continue;
+            }
+
+            // Close list if we hit a non-list line
+            if (inList) {
+                html.push(listType === "ul" ? "</ul>" : "</ol>");
+                inList = false;
+            }
+
+            // Empty line
+            if (line.trim() === "") {
+                i++;
+                continue;
+            }
+
+            // Paragraph: collect consecutive non-empty lines
+            var paraLines = [];
+            while (i < lines.length && lines[i].trim() !== "" && !lines[i].match(/^```/) &&
+                   !lines[i].match(/^#{1,6}\s/) && !lines[i].match(/^[*\-+]\s/) &&
+                   !lines[i].match(/^\d+\.\s/) && !lines[i].match(/^>\s?/) &&
+                   !lines[i].match(/^(---|\*\*\*|___)\s*$/)) {
+                paraLines.push(lines[i]);
+                i++;
+            }
+            html.push("<p>" + renderInline(paraLines.join("<br>")) + "</p>");
+        }
+
+        if (inList) html.push(listType === "ul" ? "</ul>" : "</ol>");
+
+        return html.join("\n");
+    }
+
+    function renderInline(text) {
+        // Escape HTML entities but preserve <br> tags we inserted
+        text = text.replace(/<br>/g, "\x00BR\x00");
+        text = escapeHtml(text);
+        text = text.replace(/\x00BR\x00/g, "<br>");
+
+        // Inline code (before other formatting)
+        text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
 
         // Bold
-        html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+        text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
 
         // Italic
-        html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+        text = text.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '<em>$1</em>');
 
-        // Paragraphs
-        html = html
-            .split(/\n\n+/)
-            .map(function (para) {
-                return '<p>' + para.replace(/\n/g, '<br>') + '</p>';
-            })
-            .join('');
+        // Strikethrough
+        text = text.replace(/~~([^~]+)~~/g, '<del>$1</del>');
 
-        return html;
+        // Links [text](url)
+        text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+
+        return text;
     }
+
+    function parsePipeCells(line) {
+        return line.split("|").map(function (c) { return c.trim(); }).filter(function (c) { return c !== ""; });
+    }
+
+    // Copy code block helper
+    window._esaCopyCode = function (btn) {
+        var wrapper = btn.closest(".code-block-wrapper");
+        var code = wrapper.querySelector("code");
+        copyText(code.textContent, btn);
+    };
 
     // -- Agent Info Display --
     function showAgentInfo(agentName) {
@@ -334,7 +557,6 @@
                     var safeClass = fn.safe ? "fn-safe" : "fn-unsafe";
                     var safeLabel = fn.safe ? "safe" : "needs approval";
                     var desc = fn.description || "";
-                    // Truncate long descriptions (strip the command part)
                     var descParts = desc.split("\n");
                     var shortDesc = descParts[0];
                     if (shortDesc.length > 80) shortDesc = shortDesc.substring(0, 77) + "...";
@@ -359,7 +581,6 @@
             .then(function (agents) {
                 cachedAgents = agents || [];
                 renderAgents(cachedAgents);
-                // Show initial agent info
                 showAgentInfo(selectedAgent);
             })
             .catch(function () {
@@ -394,13 +615,32 @@
         currentAgentEl.textContent = agent;
         currentConversationId = null;
 
-        // Update active state
         agentListEl.querySelectorAll(".sidebar-item").forEach(function (el) {
             el.classList.toggle("active", el.getAttribute("data-agent") === agent.replace(/^\+/, ""));
         });
 
-        // Show agent info in main area (only when no chat in progress)
         showAgentInfo(agent);
+    }
+
+    // -- Model Selector --
+    function loadModels() {
+        fetch("/api/models")
+            .then(function (r) { return r.json(); })
+            .then(function (models) {
+                modelSelector.innerHTML = '<option value="">default model</option>';
+                if (!models || models.length === 0) return;
+                models.forEach(function (m) {
+                    var opt = document.createElement("option");
+                    opt.value = m.model;
+                    var label = m.alias !== "default" ? m.alias + " (" + m.model + ")" : m.model;
+                    if (m.default) label += " *";
+                    opt.textContent = label;
+                    modelSelector.appendChild(opt);
+                });
+            })
+            .catch(function () {
+                // silently ignore - model selector stays with default
+            });
     }
 
     // -- Sidebar: History --
@@ -422,7 +662,6 @@
             return;
         }
 
-        // Show up to 50 entries
         var max = Math.min(histories.length, 50);
         for (var i = 0; i < max; i++) {
             (function (h) {
@@ -452,7 +691,6 @@
 
     function formatTimestamp(ts) {
         if (!ts || ts === "unknown") return "";
-        // ts is like "20260213-143022"
         if (ts.length >= 15) {
             return ts.substring(0, 4) + "-" + ts.substring(4, 6) + "-" + ts.substring(6, 8) +
                 " " + ts.substring(9, 11) + ":" + ts.substring(11, 13);
@@ -466,7 +704,6 @@
         selectedAgent = "+" + h.agent;
         currentAgentEl.textContent = selectedAgent;
 
-        // Fetch the full conversation
         fetch("/api/history/" + encodeURIComponent(currentConversationId))
             .then(function (r) {
                 if (!r.ok) throw new Error("Not found");
@@ -478,7 +715,6 @@
                     history.messages.forEach(function (msg) {
                         if (msg.role === "system") return;
                         if (msg.role === "tool") {
-                            // Show as tool result
                             var toolDiv = document.createElement("div");
                             toolDiv.className = "tool-call";
                             var output = msg.content || "";
@@ -488,7 +724,7 @@
                                 '    <span class="tool-icon">&#9881;</span>' +
                                 '    <span>' + escapeHtml(msg.name || "tool") + '</span>' +
                                 '  </div>' +
-                                '  <div class="tool-call-output">' + escapeHtml(output) + '</div>' +
+                                '  <div class="tool-call-output" data-raw="' + escapeAttr(output) + '">' + escapeHtml(output) + '</div>' +
                                 '</div>';
                             messagesEl.appendChild(toolDiv);
                             return;
@@ -500,7 +736,9 @@
                         if (msg.role === "assistant") {
                             if (msg.content) {
                                 var msgDiv = createMessageDiv("assistant");
-                                msgDiv.querySelector(".message-content").innerHTML = renderContent(msg.content);
+                                var contentEl = msgDiv.querySelector(".message-content");
+                                contentEl.setAttribute("data-raw", msg.content);
+                                contentEl.innerHTML = renderMarkdown(msg.content);
                                 messagesEl.appendChild(msgDiv);
                             }
                             return;
@@ -538,6 +776,7 @@
     function newChat() {
         currentConversationId = null;
         currentStreamEl = null;
+        currentStreamRaw = "";
         isStreaming = false;
         sendBtn.disabled = false;
         showAgentInfo(selectedAgent);
@@ -597,10 +836,15 @@
         filterList(historySearch, historyListEl);
     });
 
+    modelSelector.addEventListener("change", function () {
+        selectedModel = modelSelector.value;
+    });
+
     // -- Init --
     initTheme();
     newChat();
     connect();
     loadAgents();
     loadHistory();
+    loadModels();
 })();

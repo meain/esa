@@ -1,12 +1,15 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -14,6 +17,12 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/sashabaranov/go-openai"
 )
+
+func generateConversationID() string {
+	b := make([]byte, 8)
+	rand.Read(b)
+	return hex.EncodeToString(b)
+}
 
 // WebSocket message types
 const (
@@ -110,6 +119,9 @@ func runServeMode(opts *CLIOptions) error {
 	mux.HandleFunc("/api/agents/", handleGetAgent)
 	mux.HandleFunc("/api/history", handleListHistory)
 	mux.HandleFunc("/api/history/", handleGetHistory)
+	mux.HandleFunc("/api/models", func(w http.ResponseWriter, r *http.Request) {
+		handleListModels(w, r, opts)
+	})
 
 	// Serve embedded static files
 	mux.Handle("/", http.FileServer(http.FS(webFS)))
@@ -273,6 +285,61 @@ func handleGetHistory(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(history)
 }
 
+// handleListModels returns the configured model aliases and default model
+func handleListModels(w http.ResponseWriter, r *http.Request, opts *CLIOptions) {
+	config, err := LoadConfig(opts.ConfigPath)
+	if err != nil {
+		config = &Config{
+			ModelAliases: make(map[string]string),
+		}
+	}
+
+	type ModelInfo struct {
+		Alias   string `json:"alias"`
+		Model   string `json:"model"`
+		Default bool   `json:"default,omitempty"`
+	}
+
+	var models []ModelInfo
+	defaultModel := config.Settings.DefaultModel
+	if opts.Model != "" {
+		defaultModel = opts.Model
+	}
+
+	// Add default model first if set
+	if defaultModel != "" {
+		models = append(models, ModelInfo{
+			Alias:   "default",
+			Model:   defaultModel,
+			Default: true,
+		})
+	}
+
+	// Add model aliases
+	for alias, model := range config.ModelAliases {
+		models = append(models, ModelInfo{
+			Alias: alias,
+			Model: model,
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(models)
+}
+
+// extractConversationID extracts the conversation ID from a history file path.
+// History files are named like: {conversationID}---{agent}-{timestamp}.json
+// or ---{agent}-{timestamp}.json (no conversation ID).
+func extractConversationID(historyFile string) string {
+	base := filepath.Base(historyFile)
+	base = strings.TrimSuffix(base, ".json")
+	parts := strings.SplitN(base, "---", 2)
+	if len(parts) == 2 && parts[0] != "" {
+		return parts[0]
+	}
+	return ""
+}
+
 // handleWebSocket handles a WebSocket connection for chat
 func handleWebSocket(w http.ResponseWriter, r *http.Request, baseOpts *CLIOptions) {
 	conn, err := upgrader.Upgrade(w, r, nil)
@@ -364,6 +431,9 @@ func (s *webSession) handleContinueChat(msg WSMessage, baseOpts *CLIOptions) {
 
 // handleChatMessage processes a new chat message from the web client
 func (s *webSession) handleChatMessage(msg WSMessage, baseOpts *CLIOptions) {
+	// Generate a conversation ID so the thread can be continued
+	convID := generateConversationID()
+
 	// Build CLI options for this session
 	opts := &CLIOptions{
 		AgentPath:    "",
@@ -371,6 +441,7 @@ func (s *webSession) handleChatMessage(msg WSMessage, baseOpts *CLIOptions) {
 		ConfigPath:   baseOpts.ConfigPath,
 		AskLevel:     "unsafe", // Web uses unsafe level, approval handled in UI
 		HideProgress: true,
+		Conversation: convID,
 	}
 
 	// Parse agent from message
@@ -429,7 +500,9 @@ func (s *webSession) runWebConversationLoop(app *Application, opts CLIOptions) {
 		app.saveConversationHistory()
 
 		if len(assistantMsg.ToolCalls) == 0 {
-			s.sendJSON(WSMessage{Type: wsMsgDone})
+			// Send back conversation ID so client can continue the thread
+			convID := extractConversationID(app.historyFile)
+			s.sendJSON(WSMessage{Type: wsMsgDone, ID: convID})
 			return
 		}
 
