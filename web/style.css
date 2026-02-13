@@ -4,7 +4,8 @@
     box-sizing: border-box;
 }
 
-:root {
+/* Dark theme (default) */
+:root, [data-theme="dark"] {
     --bg-primary: #1a1b26;
     --bg-secondary: #16161e;
     --bg-tertiary: #24283b;
@@ -19,6 +20,29 @@
     --orange: #ff9e64;
     --cyan: #7dcfff;
     --border: #292e42;
+    --shadow: rgba(0, 0, 0, 0.5);
+}
+
+/* Light theme */
+[data-theme="light"] {
+    --bg-primary: #f5f5f5;
+    --bg-secondary: #ffffff;
+    --bg-tertiary: #e8e8e8;
+    --bg-hover: #dcdcdc;
+    --text-primary: #1a1b26;
+    --text-secondary: #3b4261;
+    --text-muted: #8690a7;
+    --accent: #2e5cb8;
+    --accent-dim: #5a7fc9;
+    --green: #4d7a2a;
+    --red: #c0392b;
+    --orange: #d4740a;
+    --cyan: #1a6ea0;
+    --border: #d4d4d4;
+    --shadow: rgba(0, 0, 0, 0.12);
+}
+
+:root {
     --font-mono: 'SF Mono', 'Fira Code', 'Cascadia Code', 'JetBrains Mono', monospace;
     --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
     --radius: 8px;
@@ -40,8 +64,8 @@ html, body {
 
 /* -- Sidebar -- */
 #sidebar {
-    width: 260px;
-    min-width: 260px;
+    width: 280px;
+    min-width: 280px;
     background: var(--bg-secondary);
     border-right: 1px solid var(--border);
     display: flex;
@@ -51,7 +75,7 @@ html, body {
 }
 
 #sidebar.collapsed {
-    margin-left: -260px;
+    margin-left: -280px;
 }
 
 .sidebar-header {
@@ -69,27 +93,37 @@ html, body {
     font-family: var(--font-mono);
 }
 
-#new-chat-btn {
+.sidebar-header-actions {
+    display: flex;
+    gap: 6px;
+}
+
+#new-chat-btn, #theme-toggle {
     background: var(--bg-tertiary);
     color: var(--text-primary);
     border: 1px solid var(--border);
     border-radius: var(--radius);
     width: 32px;
     height: 32px;
-    font-size: 18px;
+    font-size: 16px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: background 0.15s;
 }
-#new-chat-btn:hover {
+#new-chat-btn:hover, #theme-toggle:hover {
     background: var(--bg-hover);
 }
 
 .sidebar-section {
     padding: 12px;
     overflow-y: auto;
+    min-height: 0;
+}
+
+.sidebar-section-history {
+    flex: 1;
 }
 
 .sidebar-section h2 {
@@ -99,6 +133,24 @@ html, body {
     letter-spacing: 0.08em;
     color: var(--text-muted);
     margin-bottom: 8px;
+}
+
+.sidebar-search {
+    width: 100%;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 12px;
+    color: var(--text-primary);
+    outline: none;
+    margin-bottom: 8px;
+}
+.sidebar-search:focus {
+    border-color: var(--accent-dim);
+}
+.sidebar-search::placeholder {
+    color: var(--text-muted);
 }
 
 .sidebar-list {
@@ -113,9 +165,6 @@ html, body {
     cursor: pointer;
     font-size: 13px;
     color: var(--text-secondary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
     transition: background 0.15s;
 }
 .sidebar-item:hover {
@@ -125,6 +174,9 @@ html, body {
 .sidebar-item.active {
     background: var(--bg-tertiary);
     color: var(--accent);
+}
+.sidebar-item.hidden {
+    display: none;
 }
 
 .sidebar-item .agent-badge {
@@ -139,6 +191,21 @@ html, body {
     font-size: 10px;
     color: var(--text-muted);
     margin-left: 4px;
+}
+
+.sidebar-item .history-query {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+
+.sidebar-item .history-time {
+    font-size: 10px;
+    color: var(--text-muted);
 }
 
 /* -- Chat Area -- */
@@ -215,6 +282,9 @@ html, body {
 }
 .message-role.assistant {
     color: var(--accent);
+}
+.message-role.system {
+    color: var(--text-muted);
 }
 
 .message-content {
@@ -301,7 +371,7 @@ html, body {
     border-top: 1px solid var(--border);
     color: var(--text-secondary);
     white-space: pre-wrap;
-    max-height: 200px;
+    max-height: 300px;
     overflow-y: auto;
     font-size: 12px;
 }
@@ -351,7 +421,7 @@ html, body {
     border: 1px solid var(--orange);
     border-radius: var(--radius);
     padding: 16px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 8px 32px var(--shadow);
 }
 
 .approval-header {
@@ -395,7 +465,7 @@ html, body {
 
 .btn-approve {
     background: var(--green);
-    color: var(--bg-primary);
+    color: #fff;
 }
 .btn-approve:hover {
     filter: brightness(1.1);
@@ -408,7 +478,7 @@ html, body {
 }
 .btn-deny:hover {
     background: var(--red);
-    color: var(--bg-primary);
+    color: #fff;
 }
 
 .approval-message-row input {
@@ -457,7 +527,7 @@ html, body {
 
 #send-btn {
     background: var(--accent);
-    color: var(--bg-primary);
+    color: #fff;
     border: none;
     border-radius: var(--radius);
     width: 40px;
@@ -503,16 +573,17 @@ html, body {
         height: 100%;
     }
     #sidebar.collapsed {
-        margin-left: -260px;
+        margin-left: -280px;
     }
 }
 
-/* Welcome message */
+/* Welcome / Agent info screen */
 .welcome {
     text-align: center;
     color: var(--text-muted);
     margin: auto;
     padding: 40px;
+    max-width: 600px;
 }
 .welcome h2 {
     font-family: var(--font-mono);
@@ -522,4 +593,59 @@ html, body {
 }
 .welcome p {
     font-size: 14px;
+    margin-bottom: 16px;
+}
+
+.agent-detail {
+    text-align: left;
+    margin-top: 16px;
+}
+
+.agent-detail h3 {
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    margin-top: 16px;
+}
+
+.agent-detail .fn-list {
+    list-style: none;
+    padding: 0;
+}
+
+.agent-detail .fn-list li {
+    padding: 6px 10px;
+    margin-bottom: 4px;
+    background: var(--bg-tertiary);
+    border-radius: 6px;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.agent-detail .fn-list li .fn-name {
+    font-family: var(--font-mono);
+    color: var(--cyan);
+    font-weight: 600;
+}
+
+.agent-detail .fn-list li .fn-desc {
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+.agent-detail .fn-list li .fn-safe {
+    margin-left: auto;
+    font-size: 10px;
+    color: var(--green);
+}
+
+.agent-detail .fn-list li .fn-unsafe {
+    margin-left: auto;
+    font-size: 10px;
+    color: var(--orange);
 }

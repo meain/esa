@@ -9,6 +9,7 @@
 ## ✨ Features
 
 - **Natural Language Interface**: Execute system commands using conversational language
+- **Web Interface**: Browser-based chat interface for easier interaction
 - **Multi-Provider LLM Support**: Works with OpenAI, Groq, Ollama, OpenRouter, GitHub Models, and custom providers
 - **Extensible Agent System**: Create specialized agents for different domains (DevOps, Git, coding, etc.)
 - **Function-Based Architecture**: Define custom commands via TOML configuration files
@@ -226,6 +227,40 @@ you> /exit
 [REPL] Goodbye!
 ```
 
+### Web Interface
+
+ESA includes a built-in web interface that provides a modern browser-based chat experience.
+
+#### Starting the Web Server
+
+```bash
+# Start web server on default port 8080
+esa --serve
+
+# Start on a custom port
+esa --serve --port 3000
+```
+
+The web interface will be available at `http://127.0.0.1:8080` (or your specified port).
+
+#### Web Interface Features
+
+- **Real-time Chat**: WebSocket-based streaming responses
+- **Agent Selection**: Browse and switch between available agents
+- **Conversation History**: View and continue previous conversations
+- **Tool Approval**: Interactive command approval with detailed command display
+- **Responsive Design**: Works on desktop and mobile devices
+
+#### Web Interface Benefits
+
+- **Easier Interaction**: Point-and-click interface with no terminal required
+- **Visual History**: Browse conversation history with timestamps and agent information
+- **Command Transparency**: See exactly what commands will be executed before approval
+- **Multi-session Support**: Multiple browser tabs can connect simultaneously
+- **Persistent Context**: Full conversation state is maintained across sessions
+
+The web interface uses the same agent configurations and safety controls as the CLI version, ensuring consistent behavior across both interfaces.
+
 ### Working with Different Models
 
 ```bash
@@ -318,6 +353,8 @@ See the [`examples/`](examples/) directory for more agent configurations.
 --debug                  # Enable debug output
 --ask <level>            # Confirmation level: none/unsafe/all
 --repl                   # Start interactive REPL mode
+--serve                  # Start web server mode
+--port <number>          # Port for web server (default: 8080)
 
 # Conversation management
 -c, --continue           # Continue last conversation
@@ -347,6 +384,10 @@ See the [`examples/`](examples/) directory for more agent configurations.
 esa "What is the weather like?"
 esa +coder "How do I write a function in Go?"
 esa --agent ~/.config/esa/agents/custom.toml "analyze this code"
+
+# Web interface
+esa --serve                     # Start web server on port 8080
+esa --serve --port 3000         # Start web server on port 3000
 
 # Agent and history management
 esa --list-agents

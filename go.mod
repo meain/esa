@@ -8,8 +8,10 @@ require (
 	github.com/BurntSushi/toml v1.4.0
 	github.com/charmbracelet/glamour v0.10.0
 	github.com/fatih/color v1.18.0
+	github.com/gorilla/websocket v1.5.3
 	github.com/sashabaranov/go-openai v1.37.0
 	github.com/spf13/cobra v1.9.1
+	golang.org/x/term v0.32.0
 )
 
 require (
@@ -25,7 +27,6 @@ require (
 	github.com/charmbracelet/x/term v0.2.1 // indirect
 	github.com/dlclark/regexp2 v1.11.0 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
-	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
@@ -42,6 +43,5 @@ require (
 	golang.org/x/exp v0.0.0-20240604190554-fc45aab8b7f8 // indirect
 	golang.org/x/net v0.40.0 // indirect
 	golang.org/x/sys v0.33.0 // indirect
-	golang.org/x/term v0.32.0 // indirect
 	golang.org/x/text v0.25.0 // indirect
 )

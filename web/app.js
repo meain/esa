@@ -3,32 +3,56 @@
     "use strict";
 
     // -- DOM Elements --
-    const messagesEl = document.getElementById("messages");
-    const inputEl = document.getElementById("user-input");
-    const sendBtn = document.getElementById("send-btn");
-    const agentListEl = document.getElementById("agent-list");
-    const historyListEl = document.getElementById("history-list");
-    const currentAgentEl = document.getElementById("current-agent");
-    const statusEl = document.getElementById("connection-status");
-    const approvalModal = document.getElementById("approval-modal");
-    const approvalCommand = document.getElementById("approval-command");
-    const approveBtn = document.getElementById("approve-btn");
-    const denyBtn = document.getElementById("deny-btn");
-    const denyMessageInput = document.getElementById("deny-message");
-    const newChatBtn = document.getElementById("new-chat-btn");
-    const sidebarToggle = document.getElementById("sidebar-toggle");
-    const sidebar = document.getElementById("sidebar");
+    var messagesEl = document.getElementById("messages");
+    var inputEl = document.getElementById("user-input");
+    var sendBtn = document.getElementById("send-btn");
+    var agentListEl = document.getElementById("agent-list");
+    var historyListEl = document.getElementById("history-list");
+    var currentAgentEl = document.getElementById("current-agent");
+    var statusEl = document.getElementById("connection-status");
+    var approvalModal = document.getElementById("approval-modal");
+    var approvalCommand = document.getElementById("approval-command");
+    var approveBtn = document.getElementById("approve-btn");
+    var denyBtn = document.getElementById("deny-btn");
+    var denyMessageInput = document.getElementById("deny-message");
+    var newChatBtn = document.getElementById("new-chat-btn");
+    var sidebarToggle = document.getElementById("sidebar-toggle");
+    var sidebar = document.getElementById("sidebar");
+    var themeToggle = document.getElementById("theme-toggle");
+    var agentSearch = document.getElementById("agent-search");
+    var historySearch = document.getElementById("history-search");
 
     // -- State --
-    let ws = null;
-    let selectedAgent = "+default";
-    let isStreaming = false;
-    let currentStreamEl = null;
-    let pendingApprovalId = null;
+    var ws = null;
+    var selectedAgent = "+default";
+    var isStreaming = false;
+    var currentStreamEl = null;
+    var pendingApprovalId = null;
+    var currentConversationId = null;
+    var cachedAgents = [];
+
+    // -- Theme --
+    function initTheme() {
+        var saved = localStorage.getItem("esa-theme") || "dark";
+        document.documentElement.setAttribute("data-theme", saved);
+        updateThemeIcon(saved);
+    }
+
+    function toggleTheme() {
+        var current = document.documentElement.getAttribute("data-theme");
+        var next = current === "dark" ? "light" : "dark";
+        document.documentElement.setAttribute("data-theme", next);
+        localStorage.setItem("esa-theme", next);
+        updateThemeIcon(next);
+    }
+
+    function updateThemeIcon(theme) {
+        themeToggle.textContent = theme === "dark" ? "\u263E" : "\u2600";
+    }
 
     // -- WebSocket --
     function connect() {
-        const proto = location.protocol === "https:" ? "wss:" : "ws:";
+        var proto = location.protocol === "https:" ? "wss:" : "ws:";
         ws = new WebSocket(proto + "//" + location.host + "/ws");
 
         ws.onopen = function () {
@@ -37,7 +61,6 @@
 
         ws.onclose = function () {
             setStatus("disconnected");
-            // Reconnect after 2s
             setTimeout(connect, 2000);
         };
 
@@ -46,7 +69,7 @@
         };
 
         ws.onmessage = function (evt) {
-            const msg = JSON.parse(evt.data);
+            var msg = JSON.parse(evt.data);
             handleMessage(msg);
         };
     }
@@ -60,12 +83,22 @@
         if (!ws || ws.readyState !== WebSocket.OPEN) return;
         if (!text.trim()) return;
 
+        // Clear welcome screen if present
+        var welcome = messagesEl.querySelector(".welcome");
+        if (welcome) welcome.remove();
+
         appendUserMessage(text);
-        ws.send(JSON.stringify({
-            type: "message",
+
+        var payload = {
+            type: currentConversationId ? "continue" : "message",
             content: text,
             agent: selectedAgent,
-        }));
+        };
+        if (currentConversationId) {
+            payload.id = currentConversationId;
+        }
+
+        ws.send(JSON.stringify(payload));
 
         isStreaming = true;
         sendBtn.disabled = true;
@@ -109,14 +142,12 @@
 
     function handleToken(content) {
         if (!currentStreamEl) {
-            // Start a new assistant message
-            const msgDiv = createMessageDiv("assistant");
-            const contentDiv = msgDiv.querySelector(".message-content");
+            var msgDiv = createMessageDiv("assistant");
+            var contentDiv = msgDiv.querySelector(".message-content");
             contentDiv.classList.add("streaming-cursor");
             currentStreamEl = contentDiv;
             messagesEl.appendChild(msgDiv);
         }
-        // Append text content
         currentStreamEl.textContent += content;
         scrollToBottom();
     }
@@ -124,7 +155,6 @@
     function finishStream() {
         if (currentStreamEl) {
             currentStreamEl.classList.remove("streaming-cursor");
-            // Render markdown-ish content
             currentStreamEl.innerHTML = renderContent(currentStreamEl.textContent);
             currentStreamEl = null;
         }
@@ -132,22 +162,23 @@
         sendBtn.disabled = false;
         inputEl.focus();
         scrollToBottom();
+        // Auto-refresh history after a chat completes
+        loadHistory();
     }
 
     function handleToolCall(msg) {
-        // Finish any ongoing stream first
+        // Finish any ongoing stream text first
         if (currentStreamEl) {
             currentStreamEl.classList.remove("streaming-cursor");
             currentStreamEl.innerHTML = renderContent(currentStreamEl.textContent);
             currentStreamEl = null;
         }
 
-        // Create a tool call card
-        const toolDiv = document.createElement("div");
+        var toolDiv = document.createElement("div");
         toolDiv.className = "tool-call";
         toolDiv.id = "tool-" + msg.id;
 
-        const safeLabel = msg.safe ? "auto-approved" : "needs approval";
+        var safeLabel = msg.safe ? "auto-approved" : "needs approval";
         toolDiv.innerHTML =
             '<div class="tool-call-card ' + (msg.safe ? "approved" : "pending") + '">' +
             '  <div class="tool-call-header">' +
@@ -161,7 +192,7 @@
         messagesEl.appendChild(toolDiv);
         scrollToBottom();
 
-        // If needs approval, show modal
+        // Only show approval modal if not safe
         if (!msg.safe) {
             pendingApprovalId = msg.id;
             showApprovalModal(msg.command);
@@ -169,19 +200,18 @@
     }
 
     function handleToolResult(msg) {
-        const toolDiv = document.getElementById("tool-" + msg.id);
+        var toolDiv = document.getElementById("tool-" + msg.id);
         if (toolDiv) {
-            const card = toolDiv.querySelector(".tool-call-card");
+            var card = toolDiv.querySelector(".tool-call-card");
             if (card) {
                 card.classList.remove("pending");
-                if (msg.output.startsWith("Error:") || msg.output.includes("cancelled by user")) {
+                if (msg.output && (msg.output.indexOf("Error:") === 0 || msg.output.indexOf("cancelled by user") !== -1)) {
                     card.classList.add("denied");
                 } else {
                     card.classList.add("approved");
                 }
 
-                // Add output
-                const outputDiv = document.createElement("div");
+                var outputDiv = document.createElement("div");
                 outputDiv.className = "tool-call-output";
                 outputDiv.textContent = msg.output;
                 card.appendChild(outputDiv);
@@ -204,14 +234,14 @@
 
     // -- DOM Helpers --
     function createMessageDiv(role) {
-        const div = document.createElement("div");
+        var div = document.createElement("div");
         div.className = "message";
 
-        const roleDiv = document.createElement("div");
+        var roleDiv = document.createElement("div");
         roleDiv.className = "message-role " + role;
         roleDiv.textContent = role === "user" ? "you" : "esa";
 
-        const contentDiv = document.createElement("div");
+        var contentDiv = document.createElement("div");
         contentDiv.className = "message-content";
 
         div.appendChild(roleDiv);
@@ -220,15 +250,15 @@
     }
 
     function appendUserMessage(text) {
-        const msgDiv = createMessageDiv("user");
+        var msgDiv = createMessageDiv("user");
         msgDiv.querySelector(".message-content").textContent = text;
         messagesEl.appendChild(msgDiv);
         scrollToBottom();
     }
 
     function appendError(text) {
-        const msgDiv = createMessageDiv("assistant");
-        const content = msgDiv.querySelector(".message-content");
+        var msgDiv = createMessageDiv("assistant");
+        var content = msgDiv.querySelector(".message-content");
         content.style.color = "var(--red)";
         content.textContent = "Error: " + text;
         messagesEl.appendChild(msgDiv);
@@ -240,19 +270,18 @@
     }
 
     function escapeHtml(str) {
-        const div = document.createElement("div");
+        var div = document.createElement("div");
         div.textContent = str;
         return div.innerHTML;
     }
 
-    // Simple markdown-ish renderer
+    // Simple markdown renderer
     function renderContent(text) {
         if (!text) return "";
 
-        // Escape HTML first
-        let html = escapeHtml(text);
+        var html = escapeHtml(text);
 
-        // Code blocks (``` ... ```)
+        // Code blocks
         html = html.replace(/```(\w*)\n([\s\S]*?)```/g, function (_, lang, code) {
             return '<pre><code>' + code + '</code></pre>';
         });
@@ -266,7 +295,7 @@
         // Italic
         html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
 
-        // Line breaks to paragraphs (double newline = paragraph, single = <br>)
+        // Paragraphs
         html = html
             .split(/\n\n+/)
             .map(function (para) {
@@ -277,46 +306,101 @@
         return html;
     }
 
+    // -- Agent Info Display --
+    function showAgentInfo(agentName) {
+        var agent = null;
+        for (var i = 0; i < cachedAgents.length; i++) {
+            if (cachedAgents[i].name === agentName.replace(/^\+/, "")) {
+                agent = cachedAgents[i];
+                break;
+            }
+        }
+
+        var html = '<div class="welcome">' +
+            '<h2>esa</h2>' +
+            '<p>' + escapeHtml(agentName) + '</p>';
+
+        if (agent) {
+            if (agent.description) {
+                html += '<p>' + escapeHtml(agent.description) + '</p>';
+            }
+
+            if (agent.functions && agent.functions.length > 0) {
+                html += '<div class="agent-detail">' +
+                    '<h3>Available Functions</h3>' +
+                    '<ul class="fn-list">';
+                for (var j = 0; j < agent.functions.length; j++) {
+                    var fn = agent.functions[j];
+                    var safeClass = fn.safe ? "fn-safe" : "fn-unsafe";
+                    var safeLabel = fn.safe ? "safe" : "needs approval";
+                    var desc = fn.description || "";
+                    // Truncate long descriptions (strip the command part)
+                    var descParts = desc.split("\n");
+                    var shortDesc = descParts[0];
+                    if (shortDesc.length > 80) shortDesc = shortDesc.substring(0, 77) + "...";
+                    html += '<li>' +
+                        '<span class="fn-name">' + escapeHtml(fn.name) + '</span>' +
+                        '<span class="fn-desc">' + escapeHtml(shortDesc) + '</span>' +
+                        '<span class="' + safeClass + '">' + safeLabel + '</span>' +
+                        '</li>';
+                }
+                html += '</ul></div>';
+            }
+        }
+
+        html += '</div>';
+        messagesEl.innerHTML = html;
+    }
+
     // -- Sidebar: Agents --
     function loadAgents() {
         fetch("/api/agents")
             .then(function (r) { return r.json(); })
             .then(function (agents) {
-                agentListEl.innerHTML = "";
-                if (!agents || agents.length === 0) {
-                    agentListEl.innerHTML = '<div class="sidebar-item" style="color:var(--text-muted)">No agents found</div>';
-                    return;
-                }
-
-                agents.forEach(function (agent) {
-                    const item = document.createElement("div");
-                    item.className = "sidebar-item" + (("+" + agent.name) === selectedAgent ? " active" : "");
-                    item.innerHTML =
-                        '<span class="agent-badge">+' + escapeHtml(agent.name) + '</span>' +
-                        (agent.is_builtin ? '<span class="builtin-tag">builtin</span>' : '') +
-                        (agent.description ? '<br><span style="font-size:11px;color:var(--text-muted)">' + escapeHtml(agent.description) + '</span>' : '');
-                    item.addEventListener("click", function () {
-                        selectAgent("+" + agent.name);
-                    });
-                    agentListEl.appendChild(item);
-                });
+                cachedAgents = agents || [];
+                renderAgents(cachedAgents);
+                // Show initial agent info
+                showAgentInfo(selectedAgent);
             })
             .catch(function () {
                 agentListEl.innerHTML = '<div class="sidebar-item" style="color:var(--red)">Failed to load agents</div>';
             });
     }
 
+    function renderAgents(agents) {
+        agentListEl.innerHTML = "";
+        if (!agents || agents.length === 0) {
+            agentListEl.innerHTML = '<div class="sidebar-item" style="color:var(--text-muted)">No agents found</div>';
+            return;
+        }
+
+        agents.forEach(function (agent) {
+            var item = document.createElement("div");
+            item.className = "sidebar-item" + (("+" + agent.name) === selectedAgent ? " active" : "");
+            item.setAttribute("data-agent", agent.name);
+            item.innerHTML =
+                '<span class="agent-badge">+' + escapeHtml(agent.name) + '</span>' +
+                (agent.is_builtin ? '<span class="builtin-tag">builtin</span>' : '') +
+                (agent.description ? '<br><span style="font-size:11px;color:var(--text-muted)">' + escapeHtml(agent.description) + '</span>' : '');
+            item.addEventListener("click", function () {
+                selectAgent("+" + agent.name);
+            });
+            agentListEl.appendChild(item);
+        });
+    }
+
     function selectAgent(agent) {
         selectedAgent = agent;
         currentAgentEl.textContent = agent;
+        currentConversationId = null;
+
         // Update active state
         agentListEl.querySelectorAll(".sidebar-item").forEach(function (el) {
-            el.classList.remove("active");
-            const badge = el.querySelector(".agent-badge");
-            if (badge && badge.textContent === agent) {
-                el.classList.add("active");
-            }
+            el.classList.toggle("active", el.getAttribute("data-agent") === agent.replace(/^\+/, ""));
         });
+
+        // Show agent info in main area (only when no chat in progress)
+        showAgentInfo(agent);
     }
 
     // -- Sidebar: History --
@@ -324,36 +408,139 @@
         fetch("/api/history")
             .then(function (r) { return r.json(); })
             .then(function (histories) {
-                historyListEl.innerHTML = "";
-                if (!histories || histories.length === 0) {
-                    historyListEl.innerHTML = '<div class="sidebar-item" style="color:var(--text-muted)">No history</div>';
-                    return;
-                }
-
-                // Show latest 15
-                histories.slice(0, 15).forEach(function (h) {
-                    const item = document.createElement("div");
-                    item.className = "sidebar-item";
-                    const label = h.query || "(no query)";
-                    item.innerHTML =
-                        '<span class="agent-badge">+' + escapeHtml(h.agent) + '</span>' +
-                        escapeHtml(label.length > 40 ? label.substring(0, 37) + '...' : label);
-                    item.title = h.timestamp + "\n" + h.query;
-                    historyListEl.appendChild(item);
-                });
+                renderHistory(histories);
             })
             .catch(function () {
                 historyListEl.innerHTML = '<div class="sidebar-item" style="color:var(--red)">Failed to load</div>';
             });
     }
 
+    function renderHistory(histories) {
+        historyListEl.innerHTML = "";
+        if (!histories || histories.length === 0) {
+            historyListEl.innerHTML = '<div class="sidebar-item" style="color:var(--text-muted)">No history</div>';
+            return;
+        }
+
+        // Show up to 50 entries
+        var max = Math.min(histories.length, 50);
+        for (var i = 0; i < max; i++) {
+            (function (h) {
+                var item = document.createElement("div");
+                item.className = "sidebar-item";
+                item.setAttribute("data-query", (h.query || "").toLowerCase());
+                item.setAttribute("data-agent-name", h.agent);
+                item.setAttribute("data-conversation", h.conversation_id || "");
+
+                var label = h.query || "(no query)";
+                var timeStr = formatTimestamp(h.timestamp);
+
+                item.innerHTML =
+                    '<span class="agent-badge">+' + escapeHtml(h.agent) + '</span>' +
+                    '<span class="history-time">' + escapeHtml(timeStr) + '</span>' +
+                    '<span class="history-query">' + escapeHtml(label) + '</span>';
+                item.title = h.query || "";
+
+                item.addEventListener("click", function () {
+                    openHistory(h);
+                });
+
+                historyListEl.appendChild(item);
+            })(histories[i]);
+        }
+    }
+
+    function formatTimestamp(ts) {
+        if (!ts || ts === "unknown") return "";
+        // ts is like "20260213-143022"
+        if (ts.length >= 15) {
+            return ts.substring(0, 4) + "-" + ts.substring(4, 6) + "-" + ts.substring(6, 8) +
+                " " + ts.substring(9, 11) + ":" + ts.substring(11, 13);
+        }
+        return ts;
+    }
+
+    // -- Open History --
+    function openHistory(h) {
+        currentConversationId = h.conversation_id || String(h.index);
+        selectedAgent = "+" + h.agent;
+        currentAgentEl.textContent = selectedAgent;
+
+        // Fetch the full conversation
+        fetch("/api/history/" + encodeURIComponent(currentConversationId))
+            .then(function (r) {
+                if (!r.ok) throw new Error("Not found");
+                return r.json();
+            })
+            .then(function (history) {
+                messagesEl.innerHTML = "";
+                if (history.messages) {
+                    history.messages.forEach(function (msg) {
+                        if (msg.role === "system") return;
+                        if (msg.role === "tool") {
+                            // Show as tool result
+                            var toolDiv = document.createElement("div");
+                            toolDiv.className = "tool-call";
+                            var output = msg.content || "";
+                            toolDiv.innerHTML =
+                                '<div class="tool-call-card approved">' +
+                                '  <div class="tool-call-header">' +
+                                '    <span class="tool-icon">&#9881;</span>' +
+                                '    <span>' + escapeHtml(msg.name || "tool") + '</span>' +
+                                '  </div>' +
+                                '  <div class="tool-call-output">' + escapeHtml(output) + '</div>' +
+                                '</div>';
+                            messagesEl.appendChild(toolDiv);
+                            return;
+                        }
+                        if (msg.role === "user") {
+                            appendUserMessage(msg.content);
+                            return;
+                        }
+                        if (msg.role === "assistant") {
+                            if (msg.content) {
+                                var msgDiv = createMessageDiv("assistant");
+                                msgDiv.querySelector(".message-content").innerHTML = renderContent(msg.content);
+                                messagesEl.appendChild(msgDiv);
+                            }
+                            return;
+                        }
+                    });
+                }
+                scrollToBottom();
+                isStreaming = false;
+                sendBtn.disabled = false;
+                inputEl.focus();
+            })
+            .catch(function () {
+                appendError("Failed to load conversation history.");
+            });
+    }
+
+    // -- Search Filtering --
+    function filterList(searchInput, listEl) {
+        var query = searchInput.value.toLowerCase().trim();
+        var items = listEl.querySelectorAll(".sidebar-item");
+        items.forEach(function (item) {
+            if (!query) {
+                item.classList.remove("hidden");
+                return;
+            }
+            var text = item.textContent.toLowerCase();
+            var dataQuery = item.getAttribute("data-query") || "";
+            var dataAgent = item.getAttribute("data-agent") || item.getAttribute("data-agent-name") || "";
+            var match = text.indexOf(query) !== -1 || dataQuery.indexOf(query) !== -1 || dataAgent.indexOf(query) !== -1;
+            item.classList.toggle("hidden", !match);
+        });
+    }
+
     // -- New Chat --
     function newChat() {
-        messagesEl.innerHTML =
-            '<div class="welcome"><h2>esa</h2><p>Select an agent and start chatting.</p></div>';
+        currentConversationId = null;
         currentStreamEl = null;
         isStreaming = false;
         sendBtn.disabled = false;
+        showAgentInfo(selectedAgent);
         inputEl.focus();
     }
 
@@ -369,7 +556,6 @@
         }
     });
 
-    // Auto-resize textarea
     inputEl.addEventListener("input", function () {
         this.style.height = "auto";
         this.style.height = Math.min(this.scrollHeight, 150) + "px";
@@ -383,7 +569,6 @@
         sendApproval(false, denyMessageInput.value);
     });
 
-    // Keyboard shortcut for approval
     document.addEventListener("keydown", function (e) {
         if (!approvalModal.classList.contains("hidden")) {
             if (e.key === "Enter" && !e.shiftKey) {
@@ -402,7 +587,18 @@
         sidebar.classList.toggle("collapsed");
     });
 
+    themeToggle.addEventListener("click", toggleTheme);
+
+    agentSearch.addEventListener("input", function () {
+        filterList(agentSearch, agentListEl);
+    });
+
+    historySearch.addEventListener("input", function () {
+        filterList(historySearch, historyListEl);
+    });
+
     // -- Init --
+    initTheme();
     newChat();
     connect();
     loadAgents();

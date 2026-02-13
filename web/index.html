@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,16 +12,21 @@
         <aside id="sidebar">
             <div class="sidebar-header">
                 <h1>esa</h1>
-                <button id="new-chat-btn" title="New chat">+</button>
+                <div class="sidebar-header-actions">
+                    <button id="theme-toggle" title="Toggle theme">&#9790;</button>
+                    <button id="new-chat-btn" title="New chat">+</button>
+                </div>
             </div>
 
             <div class="sidebar-section">
                 <h2>Agents</h2>
+                <input id="agent-search" type="text" class="sidebar-search" placeholder="Search agents..." />
                 <div id="agent-list" class="sidebar-list"></div>
             </div>
 
-            <div class="sidebar-section">
+            <div class="sidebar-section sidebar-section-history">
                 <h2>History</h2>
+                <input id="history-search" type="text" class="sidebar-search" placeholder="Search history..." />
                 <div id="history-list" class="sidebar-list"></div>
             </div>
         </aside>
@@ -42,8 +47,8 @@
                     <div class="approval-header">Command Approval</div>
                     <div id="approval-command" class="approval-command"></div>
                     <div class="approval-actions">
-                        <button id="approve-btn" class="btn btn-approve">Approve</button>
-                        <button id="deny-btn" class="btn btn-deny">Deny</button>
+                        <button id="approve-btn" class="btn btn-approve">Approve (Enter)</button>
+                        <button id="deny-btn" class="btn btn-deny">Deny (Esc)</button>
                     </div>
                     <div class="approval-message-row">
                         <input id="deny-message" type="text" placeholder="Optional message when denying..." />
