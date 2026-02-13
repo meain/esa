@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -108,6 +109,18 @@ func (s *webSession) sendJSON(msg WSMessage) error {
 
 // runServeMode starts the HTTP/WebSocket server
 func runServeMode(opts *CLIOptions) error {
+	// Change working directory if specified
+	if opts.ServeWorkDir != "" {
+		absDir, err := filepath.Abs(opts.ServeWorkDir)
+		if err != nil {
+			return fmt.Errorf("invalid work-dir %q: %w", opts.ServeWorkDir, err)
+		}
+		if err := os.Chdir(absDir); err != nil {
+			return fmt.Errorf("failed to change to work-dir %q: %w", absDir, err)
+		}
+		fmt.Fprintf(os.Stderr, "Working directory: %s\n", absDir)
+	}
+
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
@@ -127,7 +140,11 @@ func runServeMode(opts *CLIOptions) error {
 	mux.Handle("/", http.FileServer(http.FS(webFS)))
 
 	addr := fmt.Sprintf("127.0.0.1:%d", opts.ServePort)
-	fmt.Fprintf(os.Stderr, "esa web server listening on http://%s\n", addr)
+	url := fmt.Sprintf("http://%s", addr)
+	fmt.Fprintf(os.Stderr, "esa web server listening on %s\n", url)
+
+	// Open browser
+	go exec.Command("open", url).Start()
 
 	return http.ListenAndServe(addr, mux)
 }

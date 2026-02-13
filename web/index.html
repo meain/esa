@@ -19,14 +19,18 @@
             </div>
 
             <div class="sidebar-section">
-                <h2>Agents</h2>
-                <input id="agent-search" type="text" class="sidebar-search" placeholder="Search agents..." />
+                <div class="sidebar-sticky">
+                    <h2>Agents</h2>
+                    <input id="agent-search" type="text" class="sidebar-search" placeholder="Search agents..." />
+                </div>
                 <div id="agent-list" class="sidebar-list"></div>
             </div>
 
             <div class="sidebar-section sidebar-section-history">
-                <h2>History</h2>
-                <input id="history-search" type="text" class="sidebar-search" placeholder="Search history..." />
+                <div class="sidebar-sticky">
+                    <h2>History</h2>
+                    <input id="history-search" type="text" class="sidebar-search" placeholder="Search history..." />
+                </div>
                 <div id="history-list" class="sidebar-list"></div>
             </div>
         </aside>
@@ -36,9 +40,10 @@
             <div id="chat-header">
                 <button id="sidebar-toggle" title="Toggle sidebar">&#9776;</button>
                 <span id="current-agent">+default</span>
-                <select id="model-selector" title="Select model">
-                    <option value="">default model</option>
-                </select>
+                <div id="model-selector-wrapper">
+                    <input id="model-input" type="text" placeholder="default model" title="Select or type a model" autocomplete="off" />
+                    <div id="model-dropdown" class="hidden"></div>
+                </div>
                 <button id="export-btn" title="Export chat as HTML">&#8681;</button>
                 <span id="connection-status" class="status-disconnected" title="Disconnected">&#9679;</span>
             </div>

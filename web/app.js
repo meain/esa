@@ -21,7 +21,8 @@
     var themeToggle = document.getElementById("theme-toggle");
     var agentSearch = document.getElementById("agent-search");
     var historySearch = document.getElementById("history-search");
-    var modelSelector = document.getElementById("model-selector");
+    var modelInput = document.getElementById("model-input");
+    var modelDropdown = document.getElementById("model-dropdown");
     var exportBtn = document.getElementById("export-btn");
 
     // -- State --
@@ -36,10 +37,14 @@
     var cachedAgents = [];
     var streamRenderTimer = null;
     var lastStreamRender = 0;
+    var modelList = [];
 
     // -- Theme --
     function initTheme() {
-        var saved = localStorage.getItem("esa-theme") || "dark";
+        var saved = localStorage.getItem("esa-theme");
+        if (!saved) {
+            saved = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+        }
         document.documentElement.setAttribute("data-theme", saved);
         updateThemeIcon(saved);
     }
@@ -658,20 +663,43 @@
         fetch("/api/models")
             .then(function (r) { return r.json(); })
             .then(function (models) {
-                modelSelector.innerHTML = '<option value="">default model</option>';
-                if (!models || models.length === 0) return;
-                models.forEach(function (m) {
-                    var opt = document.createElement("option");
-                    opt.value = m.model;
-                    var label = m.alias !== "default" ? m.alias + " (" + m.model + ")" : m.model;
-                    if (m.default) label += " *";
-                    opt.textContent = label;
-                    modelSelector.appendChild(opt);
-                });
+                modelList = models || [];
             })
             .catch(function () {
-                // silently ignore - model selector stays with default
+                modelList = [];
             });
+    }
+
+    function showModelDropdown() {
+        var filter = modelInput.value.toLowerCase().trim();
+        var items = modelList.filter(function (m) {
+            if (!filter) return true;
+            return (m.alias && m.alias.toLowerCase().indexOf(filter) !== -1) ||
+                   (m.model && m.model.toLowerCase().indexOf(filter) !== -1);
+        });
+        if (items.length === 0) {
+            modelDropdown.classList.add("hidden");
+            return;
+        }
+        modelDropdown.innerHTML = "";
+        items.forEach(function (m) {
+            var div = document.createElement("div");
+            div.className = "model-option";
+            var alias = m.alias !== "default" ? m.alias : "";
+            var label = alias
+                ? '<span class="model-alias">' + escapeHtml(alias) + '</span><span class="model-name">' + escapeHtml(m.model) + '</span>'
+                : '<span>' + escapeHtml(m.model) + '</span>';
+            if (m.default) label += ' <span class="model-name">*</span>';
+            div.innerHTML = label;
+            div.addEventListener("mousedown", function (e) {
+                e.preventDefault();
+                modelInput.value = alias || m.model;
+                selectedModel = modelInput.value;
+                modelDropdown.classList.add("hidden");
+            });
+            modelDropdown.appendChild(div);
+        });
+        modelDropdown.classList.remove("hidden");
     }
 
     // -- Sidebar: History --
@@ -896,8 +924,14 @@
         filterList(historySearch, historyListEl);
     });
 
-    modelSelector.addEventListener("change", function () {
-        selectedModel = modelSelector.value;
+    modelInput.addEventListener("focus", showModelDropdown);
+    modelInput.addEventListener("input", function () {
+        selectedModel = modelInput.value.trim();
+        showModelDropdown();
+    });
+    modelInput.addEventListener("blur", function () {
+        selectedModel = modelInput.value.trim();
+        modelDropdown.classList.add("hidden");
     });
 
     exportBtn.addEventListener("click", exportChat);

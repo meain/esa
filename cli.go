@@ -50,6 +50,7 @@ type CLIOptions struct {
 	IgnoreToolCalls bool   // Flag for ignoring tool calls in history display
 	ServeMode       bool   // Flag for starting web server mode
 	ServePort       int    // Port for the web server
+	ServeWorkDir    string // Working directory for the web server
 }
 
 func createRootCommand() *cobra.Command {
@@ -199,6 +200,7 @@ func createRootCommand() *cobra.Command {
 	rootCmd.Flags().BoolVar(&opts.IgnoreToolCalls, "ignore-tool-calls", false, "Ignore tool calls when displaying history (only show system, user, and agent messages)")
 	rootCmd.Flags().BoolVar(&opts.ServeMode, "serve", false, "Start web server mode")
 	rootCmd.Flags().IntVar(&opts.ServePort, "port", 8080, "Port for the web server (used with --serve)")
+	rootCmd.Flags().StringVar(&opts.ServeWorkDir, "work-dir", "", "Working directory for the web server (used with --serve)")
 
 	// Make history-index required when show-history is used
 	rootCmd.PreRunE = func(cmd *cobra.Command, args []string) error {

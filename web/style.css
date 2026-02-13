@@ -136,25 +136,27 @@ html, body {
     color: var(--text-muted);
     margin: 0;
     padding-bottom: 8px;
+}
+
+.sidebar-sticky {
     position: sticky;
     top: 0;
-    background: var(--bg-secondary);
     z-index: 2;
+    background: var(--bg-secondary);
+    padding-bottom: 4px;
 }
 
 .sidebar-search {
     width: 100%;
-    background: var(--bg-primary);
+    box-sizing: border-box;
+    background: var(--bg-tertiary);
     border: 1px solid var(--border);
     border-radius: 6px;
     padding: 6px 10px;
     font-size: 12px;
     color: var(--text-primary);
     outline: none;
-    margin-bottom: 8px;
-    position: sticky;
-    top: 23px;
-    z-index: 1;
+    margin-bottom: 4px;
 }
 .sidebar-search:focus {
     border-color: var(--accent-dim);
@@ -269,7 +271,10 @@ html, body {
     background: var(--bg-hover);
 }
 
-#model-selector {
+#model-selector-wrapper {
+    position: relative;
+}
+#model-input {
     background: var(--bg-tertiary);
     color: var(--text-secondary);
     border: 1px solid var(--border);
@@ -277,16 +282,53 @@ html, body {
     padding: 4px 8px;
     font-size: 12px;
     font-family: var(--font-mono);
-    cursor: pointer;
     outline: none;
-    max-width: 220px;
+    width: 180px;
+    box-sizing: border-box;
 }
-#model-selector:focus {
+#model-input:focus {
     border-color: var(--accent-dim);
-}
-#model-selector option {
-    background: var(--bg-secondary);
     color: var(--text-primary);
+}
+#model-input::placeholder {
+    color: var(--text-muted);
+}
+#model-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-top: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 100;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+#model-dropdown.hidden {
+    display: none;
+}
+.model-option {
+    padding: 6px 10px;
+    font-size: 12px;
+    font-family: var(--font-mono);
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+.model-option:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+.model-option .model-alias {
+    color: var(--accent);
+    font-weight: 600;
+}
+.model-option .model-name {
+    color: var(--text-muted);
+    font-size: 11px;
+    margin-left: 4px;
 }
 
 #connection-status {
