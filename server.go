@@ -37,6 +37,8 @@ const (
 	wsMsgError       = "error"
 	wsMsgAgentList   = "agent_list"
 	wsMsgHistoryList = "history_list"
+	wsMsgAbort       = "abort"
+	wsMsgAborted     = "aborted"
 )
 
 // WSMessage represents a WebSocket message exchanged between client and server
@@ -99,12 +101,37 @@ type webSession struct {
 	app        *Application
 	mu         sync.Mutex
 	approvalCh chan confirmResponse
+	aborted    bool
+	abortMu    sync.RWMutex
 }
 
 func (s *webSession) sendJSON(msg WSMessage) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.conn.WriteJSON(msg)
+}
+
+func (s *webSession) isAborted() bool {
+	s.abortMu.RLock()
+	defer s.abortMu.RUnlock()
+	return s.aborted
+}
+
+func (s *webSession) setAborted() {
+	s.abortMu.Lock()
+	s.aborted = true
+	s.abortMu.Unlock()
+	// Unblock any pending approval wait
+	select {
+	case s.approvalCh <- confirmResponse{approved: false, message: "aborted"}:
+	default:
+	}
+}
+
+func (s *webSession) resetAbort() {
+	s.abortMu.Lock()
+	s.aborted = false
+	s.abortMu.Unlock()
 }
 
 // runServeMode starts the HTTP/WebSocket server
@@ -135,6 +162,7 @@ func runServeMode(opts *CLIOptions) error {
 	mux.HandleFunc("/api/models", func(w http.ResponseWriter, r *http.Request) {
 		handleListModels(w, r, opts)
 	})
+	mux.HandleFunc("/api/workdir", handleWorkDir)
 
 	// Serve embedded static files
 	mux.Handle("/", http.FileServer(http.FS(webFS)))
@@ -344,6 +372,39 @@ func handleListModels(w http.ResponseWriter, r *http.Request, opts *CLIOptions) 
 	json.NewEncoder(w).Encode(models)
 }
 
+// handleWorkDir gets or sets the current working directory
+func handleWorkDir(w http.ResponseWriter, r *http.Request) {
+	type WorkDirInfo struct {
+		Path string `json:"path"`
+	}
+
+	if r.Method == http.MethodPost {
+		var req WorkDirInfo
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		absDir, err := filepath.Abs(req.Path)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("invalid path: %v", err), http.StatusBadRequest)
+			return
+		}
+		if err := os.Chdir(absDir); err != nil {
+			http.Error(w, fmt.Sprintf("failed to change directory: %v", err), http.StatusBadRequest)
+			return
+		}
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		http.Error(w, "failed to get working directory", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(WorkDirInfo{Path: cwd})
+}
+
 // extractConversationID extracts the conversation ID from a history file path.
 // History files are named like: {conversationID}---{agent}-{timestamp}.json
 // or ---{agent}-{timestamp}.json (no conversation ID).
@@ -382,14 +443,18 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, baseOpts *CLIOption
 
 		switch msg.Type {
 		case wsMsgMessage:
+			session.resetAbort()
 			go session.handleChatMessage(msg, baseOpts)
 		case wsMsgContinue:
+			session.resetAbort()
 			go session.handleContinueChat(msg, baseOpts)
 		case wsMsgApproval:
 			session.approvalCh <- confirmResponse{
 				approved: msg.Approved,
 				message:  msg.Message,
 			}
+		case wsMsgAbort:
+			session.setAborted()
 		}
 	}
 }
@@ -506,6 +571,12 @@ func (s *webSession) runWebConversationLoop(app *Application, opts CLIOptions) {
 	openAITools = append(openAITools, mcpTools...)
 
 	for {
+		if s.isAborted() {
+			app.saveConversationHistory()
+			s.sendJSON(WSMessage{Type: wsMsgAborted})
+			return
+		}
+
 		stream, err := app.createChatCompletionWithRetry(openAITools)
 		if err != nil {
 			s.sendJSON(WSMessage{Type: wsMsgError, Content: fmt.Sprintf("LLM error: %v", err)})
@@ -513,6 +584,14 @@ func (s *webSession) runWebConversationLoop(app *Application, opts CLIOptions) {
 		}
 
 		assistantMsg := s.handleWebStreamResponse(stream)
+
+		if s.isAborted() {
+			app.messages = append(app.messages, assistantMsg)
+			app.saveConversationHistory()
+			s.sendJSON(WSMessage{Type: wsMsgAborted})
+			return
+		}
+
 		app.messages = append(app.messages, assistantMsg)
 		app.saveConversationHistory()
 
@@ -524,6 +603,12 @@ func (s *webSession) runWebConversationLoop(app *Application, opts CLIOptions) {
 		}
 
 		s.handleWebToolCalls(app, assistantMsg.ToolCalls, opts)
+
+		if s.isAborted() {
+			app.saveConversationHistory()
+			s.sendJSON(WSMessage{Type: wsMsgAborted})
+			return
+		}
 	}
 }
 
@@ -535,6 +620,10 @@ func (s *webSession) handleWebStreamResponse(stream *openai.ChatCompletionStream
 	var fullContent strings.Builder
 
 	for {
+		if s.isAborted() {
+			break
+		}
+
 		response, err := stream.Recv()
 		if err == io.EOF {
 			break
@@ -575,6 +664,10 @@ func (s *webSession) handleWebStreamResponse(stream *openai.ChatCompletionStream
 // handleWebToolCalls processes tool calls, sending approval requests over WebSocket
 func (s *webSession) handleWebToolCalls(app *Application, toolCalls []openai.ToolCall, opts CLIOptions) {
 	for _, toolCall := range toolCalls {
+		if s.isAborted() {
+			return
+		}
+
 		if toolCall.Type != "function" || toolCall.Function.Name == "" {
 			continue
 		}

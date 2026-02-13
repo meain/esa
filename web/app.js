@@ -24,6 +24,7 @@
     var modelInput = document.getElementById("model-input");
     var modelDropdown = document.getElementById("model-dropdown");
     var exportBtn = document.getElementById("export-btn");
+    var workdirEl = document.getElementById("workdir");
 
     // -- State --
     var ws = null;
@@ -115,9 +116,28 @@
         ws.send(JSON.stringify(payload));
 
         isStreaming = true;
-        sendBtn.disabled = true;
+        updateSendButton();
         inputEl.value = "";
         inputEl.style.height = "auto";
+    }
+
+    function sendAbort() {
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        ws.send(JSON.stringify({ type: "abort" }));
+    }
+
+    function updateSendButton() {
+        if (isStreaming) {
+            sendBtn.innerHTML = "&#9632;"; // ■ stop icon
+            sendBtn.title = "Stop";
+            sendBtn.classList.add("abort-mode");
+            sendBtn.disabled = false;
+        } else {
+            sendBtn.innerHTML = "&#10148;"; // ➤ send icon
+            sendBtn.title = "Send";
+            sendBtn.classList.remove("abort-mode");
+            sendBtn.disabled = false;
+        }
     }
 
     function sendApproval(approved, message) {
@@ -146,6 +166,9 @@
                 break;
             case "done":
                 handleDone(msg);
+                break;
+            case "aborted":
+                handleAborted();
                 break;
             case "error":
                 appendError(msg.content);
@@ -197,6 +220,34 @@
         finishStream();
     }
 
+    function handleAborted() {
+        if (currentStreamEl) {
+            currentStreamEl.classList.remove("streaming-cursor");
+            if (currentStreamRaw) {
+                currentStreamEl.setAttribute("data-raw", currentStreamRaw);
+                currentStreamEl.innerHTML = renderMarkdown(currentStreamRaw);
+            }
+        }
+        // Append an aborted indicator
+        var abortDiv = document.createElement("div");
+        abortDiv.className = "message-aborted";
+        abortDiv.textContent = "⏹ Aborted";
+        messagesEl.appendChild(abortDiv);
+
+        currentStreamEl = null;
+        currentStreamRaw = "";
+        if (streamRenderTimer) {
+            clearTimeout(streamRenderTimer);
+            streamRenderTimer = null;
+        }
+        isStreaming = false;
+        updateSendButton();
+        hideApprovalModal();
+        inputEl.focus();
+        scrollToBottom();
+        loadHistory();
+    }
+
     function finishStream() {
         if (streamRenderTimer) {
             clearTimeout(streamRenderTimer);
@@ -210,7 +261,7 @@
             currentStreamRaw = "";
         }
         isStreaming = false;
-        sendBtn.disabled = false;
+        updateSendButton();
         inputEl.focus();
         scrollToBottom();
         loadHistory();
@@ -611,6 +662,41 @@
     }
 
     // -- Sidebar: Agents --
+
+    function loadWorkDir() {
+        fetch("/api/workdir")
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data.path) {
+                    workdirEl.textContent = data.path;
+                    workdirEl.title = data.path + " (click to change)";
+                }
+            })
+            .catch(function () {});
+    }
+
+    workdirEl.addEventListener("click", function () {
+        var newDir = prompt("Working directory:", workdirEl.textContent || "");
+        if (newDir !== null && newDir.trim() !== "") {
+            fetch("/api/workdir", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ path: newDir.trim() })
+            })
+                .then(function (r) {
+                    if (!r.ok) return r.json().then(function (d) { throw new Error(d.error || "Failed"); });
+                    return r.json();
+                })
+                .then(function (data) {
+                    workdirEl.textContent = data.path;
+                    workdirEl.title = data.path + " (click to change)";
+                })
+                .catch(function (err) {
+                    alert("Failed to change directory: " + err.message);
+                });
+        }
+    });
+
     function loadAgents() {
         fetch("/api/agents")
             .then(function (r) { return r.json(); })
@@ -806,7 +892,7 @@
                 }
                 scrollToBottom();
                 isStreaming = false;
-                sendBtn.disabled = false;
+                updateSendButton();
                 inputEl.focus();
             })
             .catch(function () {
@@ -837,7 +923,7 @@
         currentStreamEl = null;
         currentStreamRaw = "";
         isStreaming = false;
-        sendBtn.disabled = false;
+        updateSendButton();
         showAgentInfo(selectedAgent);
         inputEl.focus();
     }
@@ -873,7 +959,11 @@
 
     // -- Event Listeners --
     sendBtn.addEventListener("click", function () {
-        sendMessage(inputEl.value);
+        if (isStreaming) {
+            sendAbort();
+        } else {
+            sendMessage(inputEl.value);
+        }
     });
 
     inputEl.addEventListener("keydown", function (e) {
@@ -943,4 +1033,5 @@
     loadAgents();
     loadHistory();
     loadModels();
+    loadWorkDir();
 })();

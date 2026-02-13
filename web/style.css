@@ -256,6 +256,26 @@ html, body {
     font-weight: 600;
 }
 
+#workdir {
+    color: var(--text-muted);
+    font-size: 12px;
+    font-family: var(--font-mono);
+    cursor: pointer;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-left: auto;
+    padding: 3px 8px;
+    border-radius: 4px;
+    border: 1px solid transparent;
+}
+#workdir:hover {
+    color: var(--text-primary);
+    border-color: var(--border);
+    background: var(--bg-tertiary);
+}
+
 #export-btn {
     background: none;
     border: 1px solid var(--border);
@@ -264,7 +284,6 @@ html, body {
     cursor: pointer;
     padding: 2px 8px;
     border-radius: 4px;
-    margin-left: auto;
 }
 #export-btn:hover {
     color: var(--text-primary);
@@ -736,6 +755,22 @@ html, body {
 #send-btn:disabled {
     opacity: 0.4;
     cursor: not-allowed;
+}
+
+#send-btn.abort-mode {
+    background: var(--red);
+    font-size: 14px;
+}
+#send-btn.abort-mode:hover {
+    filter: brightness(1.2);
+}
+
+.message-aborted {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 12px;
+    padding: 8px;
+    font-style: italic;
 }
 
 /* -- Scrollbar -- */
