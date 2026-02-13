@@ -22,6 +22,7 @@
     var agentSearch = document.getElementById("agent-search");
     var historySearch = document.getElementById("history-search");
     var modelSelector = document.getElementById("model-selector");
+    var exportBtn = document.getElementById("export-btn");
 
     // -- State --
     var ws = null;
@@ -33,6 +34,8 @@
     var pendingApprovalId = null;
     var currentConversationId = null;
     var cachedAgents = [];
+    var streamRenderTimer = null;
+    var lastStreamRender = 0;
 
     // -- Theme --
     function initTheme() {
@@ -156,8 +159,29 @@
             messagesEl.appendChild(msgDiv);
         }
         currentStreamRaw += content;
-        currentStreamEl.textContent = currentStreamRaw;
+        renderStreamThrottled();
         scrollToBottom();
+    }
+
+    function renderStreamThrottled() {
+        var now = Date.now();
+        if (now - lastStreamRender > 50) {
+            renderStreamNow();
+        } else if (!streamRenderTimer) {
+            streamRenderTimer = setTimeout(renderStreamNow, 50);
+        }
+    }
+
+    function renderStreamNow() {
+        if (streamRenderTimer) {
+            clearTimeout(streamRenderTimer);
+            streamRenderTimer = null;
+        }
+        lastStreamRender = Date.now();
+        if (currentStreamEl) {
+            currentStreamEl.innerHTML = renderMarkdown(currentStreamRaw);
+            currentStreamEl.setAttribute("data-raw", currentStreamRaw);
+        }
     }
 
     function handleDone(msg) {
@@ -169,9 +193,12 @@
     }
 
     function finishStream() {
+        if (streamRenderTimer) {
+            clearTimeout(streamRenderTimer);
+            streamRenderTimer = null;
+        }
         if (currentStreamEl) {
             currentStreamEl.classList.remove("streaming-cursor");
-            // Store raw text for copy, render as markdown
             currentStreamEl.setAttribute("data-raw", currentStreamRaw);
             currentStreamEl.innerHTML = renderMarkdown(currentStreamRaw);
             currentStreamEl = null;
@@ -185,6 +212,10 @@
     }
 
     function handleToolCall(msg) {
+        if (streamRenderTimer) {
+            clearTimeout(streamRenderTimer);
+            streamRenderTimer = null;
+        }
         if (currentStreamEl) {
             currentStreamEl.classList.remove("streaming-cursor");
             currentStreamEl.setAttribute("data-raw", currentStreamRaw);
@@ -783,6 +814,35 @@
         inputEl.focus();
     }
 
+    // -- Export Chat as HTML --
+    function exportChat() {
+        var content = messagesEl.innerHTML;
+        if (!content.trim() || messagesEl.querySelector(".welcome")) return;
+
+        var theme = document.documentElement.getAttribute("data-theme") || "dark";
+        fetch("/style.css")
+            .then(function (r) { return r.text(); })
+            .then(function (css) {
+                var html = '<!DOCTYPE html>\n<html lang="en" data-theme="' + theme + '">\n<head>\n' +
+                    '<meta charset="UTF-8">\n<title>esa chat export</title>\n' +
+                    '<style>\n' + css + '\n' +
+                    'body { background: var(--bg-primary); color: var(--text-primary); padding: 20px; }\n' +
+                    '#messages { max-width: 800px; margin: 0 auto; }\n' +
+                    '.copy-btn { display: none; }\n' +
+                    '</style>\n</head>\n<body>\n' +
+                    '<div id="messages">' + content + '</div>\n' +
+                    '</body>\n</html>';
+
+                var blob = new Blob([html], { type: "text/html" });
+                var url = URL.createObjectURL(blob);
+                var a = document.createElement("a");
+                a.href = url;
+                a.download = "esa-chat-" + new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-") + ".html";
+                a.click();
+                URL.revokeObjectURL(url);
+            });
+    }
+
     // -- Event Listeners --
     sendBtn.addEventListener("click", function () {
         sendMessage(inputEl.value);
@@ -839,6 +899,8 @@
     modelSelector.addEventListener("change", function () {
         selectedModel = modelSelector.value;
     });
+
+    exportBtn.addEventListener("click", exportChat);
 
     // -- Init --
     initTheme();

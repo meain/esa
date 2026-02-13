@@ -134,7 +134,12 @@ html, body {
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: var(--text-muted);
-    margin-bottom: 8px;
+    margin: 0;
+    padding-bottom: 8px;
+    position: sticky;
+    top: 0;
+    background: var(--bg-secondary);
+    z-index: 2;
 }
 
 .sidebar-search {
@@ -147,6 +152,9 @@ html, body {
     color: var(--text-primary);
     outline: none;
     margin-bottom: 8px;
+    position: sticky;
+    top: 23px;
+    z-index: 1;
 }
 .sidebar-search:focus {
     border-color: var(--accent-dim);
@@ -246,6 +254,21 @@ html, body {
     font-weight: 600;
 }
 
+#export-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-left: auto;
+}
+#export-btn:hover {
+    color: var(--text-primary);
+    background: var(--bg-hover);
+}
+
 #model-selector {
     background: var(--bg-tertiary);
     color: var(--text-secondary);
@@ -267,7 +290,6 @@ html, body {
 }
 
 #connection-status {
-    margin-left: auto;
     font-size: 10px;
 }
 .status-connected { color: var(--green); }
