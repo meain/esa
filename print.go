@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"html"
 	"path/filepath"
 	"strings"
 	"time"
@@ -123,59 +124,63 @@ func printHistoryJSON(history ConversationHistory) {
 
 // printHistoryMarkdown prints the history in Markdown format.
 func printHistoryMarkdown(fileName string, history ConversationHistory) {
-	fmt.Printf("# History: %s\n\n", fileName)
+	agentName := ""
 	if history.AgentPath != "" {
-		agentName := strings.TrimSuffix(filepath.Base(history.AgentPath), ".toml")
+		agentName = strings.TrimSuffix(filepath.Base(history.AgentPath), ".toml")
 		agentName = strings.TrimPrefix(agentName, "builtin:")
-		fmt.Printf("**Agent:** +%s (`%s`)\n\n", agentName, history.AgentPath)
 	}
-	fmt.Println("---")
+
+	fmt.Printf("# Conversation: %s\n\n", filepath.Base(fileName))
+	if agentName != "" {
+		fmt.Printf("**Agent:** +%s  \n", agentName)
+	}
+	if history.Model != "" {
+		fmt.Printf("**Model:** %s  \n", history.Model)
+	}
+	fmt.Print("\n---\n\n")
 
 	for _, msg := range history.Messages {
-		role := strings.ToUpper(msg.Role)
-		fmt.Printf("## %s\n\n", role)
+		switch msg.Role {
+		case openai.ChatMessageRoleSystem:
+			fmt.Printf("### 🔧 System\n\n")
+			fmt.Printf("<details>\n<summary>System prompt</summary>\n\n%s\n\n</details>\n\n", msg.Content)
 
-		if msg.Content != "" && msg.Role != openai.ChatMessageRoleTool {
-			fmt.Printf("%s\n\n", msg.Content)
-		}
+		case openai.ChatMessageRoleUser:
+			fmt.Printf("### 👤 User\n\n%s\n\n", msg.Content)
 
-		if len(msg.ToolCalls) > 0 {
-			fmt.Println("**Tool Calls**")
-			for _, tc := range msg.ToolCalls {
-				fmt.Printf("\n\nTool: `%s` (ID: `%s`)\n", tc.Function.Name, tc.ID)
-				var argsMap map[string]string
-				argsStr := tc.Function.Arguments
-				if err := json.Unmarshal([]byte(argsStr), &argsMap); err == nil {
-					for key, value := range argsMap {
-						fmt.Printf("\n**`%s`**", key)
-						if len(value) > 100 || strings.Contains(value, "\n") {
-							fmt.Printf("\n```\n%s\n```\n\n", value)
-						} else {
-							fmt.Printf(": %s\n\n", value)
-						}
+		case openai.ChatMessageRoleAssistant:
+			fmt.Printf("### 🤖 Assistant\n\n")
+			if msg.Content != "" {
+				fmt.Printf("%s\n\n", msg.Content)
+			}
+			if len(msg.ToolCalls) > 0 {
+				for _, tc := range msg.ToolCalls {
+					fmt.Printf("**⚙ Tool Call:** `%s`\n\n", tc.Function.Name)
+					argsStr := tc.Function.Arguments
+					if prettyArgs, ok := tryPrettyJSON(argsStr, ""); ok {
+						argsStr = prettyArgs
 					}
-				} else {
-					fmt.Printf("```json\n%s\n```\n", argsStr)
+					fmt.Printf("```json\n%s\n```\n\n", argsStr)
 				}
 			}
-			fmt.Println()
-		}
 
-		if msg.Role == openai.ChatMessageRoleTool {
-			fmt.Printf("**Tool Result** (for call `%s`, tool `%s`):\n\n", msg.ToolCallID, msg.Name)
+		case openai.ChatMessageRoleTool:
 			isError := strings.HasPrefix(msg.Content, "Error:")
-			prefix := ""
+			label := fmt.Sprintf("📎 Result: `%s`", msg.Name)
 			if isError {
-				prefix = "**ERROR:** "
+				label = fmt.Sprintf("❌ Error: `%s`", msg.Name)
+			}
+			fmt.Printf("**%s**\n\n", label)
+			if formatted, ok := tryPrettyJSON(msg.Content, ""); ok {
+				fmt.Printf("```json\n%s\n```\n\n", formatted)
+			} else if len(msg.Content) > 200 || strings.Contains(msg.Content, "\n") {
+				fmt.Printf("```\n%s\n```\n\n", msg.Content)
+			} else {
+				fmt.Printf("`%s`\n\n", msg.Content)
 			}
 
-			if formatted, ok := tryPrettyJSON(msg.Content, ""); ok {
-				fmt.Printf("```json\n%s%s\n```\n\n", prefix, formatted)
-			} else if strings.Contains(msg.Content, "\n") {
-				fmt.Printf("```\n%s%s\n```\n\n", prefix, msg.Content)
-			} else {
-				fmt.Printf("%s%s\n\n", prefix, msg.Content)
-			}
+		default:
+			fmt.Printf("### %s\n\n%s\n\n", strings.ToUpper(msg.Role), msg.Content)
 		}
 	}
 }
@@ -186,73 +191,301 @@ func printHistoryText(fileName string, history ConversationHistory) {
 	agentPath := history.AgentPath
 	model := history.Model
 
-	// --- Define Styles (copied from original implementation) ---
 	systemStyle := color.New(color.FgMagenta, color.Italic).SprintFunc()
-	userStyle := color.New(color.FgGreen).SprintFunc()
-	assistantStyle := color.New(color.FgBlue).SprintFunc()
+	userStyle := color.New(color.FgGreen, color.Bold).SprintFunc()
+	assistantStyle := color.New(color.FgBlue, color.Bold).SprintFunc()
 	toolStyle := color.New(color.FgYellow).SprintFunc()
 	toolDataStyle := color.New(color.FgHiBlack).SprintFunc()
 	errorStyle := color.New(color.FgRed).SprintFunc()
-	labelStyle := color.New(color.Bold).SprintFunc()
+	labelStyle := color.New(color.FgHiCyan, color.Bold).SprintFunc()
+	dimStyle := color.New(color.FgHiBlack).SprintFunc()
 
 	// --- Print Header ---
-	fmt.Printf("%s %s\n", labelStyle("History File:"), fileName)
+	fmt.Printf("%s %s\n", labelStyle("File:"), filepath.Base(fileName))
 	if agentPath != "" {
-		// Try to extract agent name from path for display
 		agentName := strings.TrimSuffix(filepath.Base(agentPath), ".toml")
 		agentName = strings.TrimPrefix(agentName, "builtin:")
-		fmt.Printf("%s +%s (%s)\n", labelStyle("Agent:"), agentName, agentPath)
+		fmt.Printf("%s +%s\n", labelStyle("Agent:"), agentName)
 	}
 	if model != "" {
 		fmt.Printf("%s %s\n", labelStyle("Model:"), model)
 	}
 
-	fmt.Println(strings.Repeat("-", 40)) // Separator
+	fmt.Println(dimStyle(strings.Repeat("─", 60)))
 
-	// --- Print Messages (copied from original implementation) ---
 	for _, msg := range messages {
 		switch msg.Role {
 		case openai.ChatMessageRoleSystem:
-			fmt.Printf("%s\n%s\n\n", systemStyle("[SYSTEM]"), msg.Content)
+			fmt.Printf("\n%s\n", systemStyle("── system ──"))
+			// Truncate long system prompts
+			content := msg.Content
+			lines := strings.Split(content, "\n")
+			if len(lines) > 5 {
+				for _, l := range lines[:5] {
+					fmt.Printf("  %s\n", dimStyle(l))
+				}
+				fmt.Printf("  %s\n", dimStyle(fmt.Sprintf("... (%d more lines)", len(lines)-5)))
+			} else {
+				for _, l := range lines {
+					fmt.Printf("  %s\n", dimStyle(l))
+				}
+			}
+
 		case openai.ChatMessageRoleUser:
-			fmt.Printf("%s\n%s\n\n", userStyle("[USER]"), msg.Content)
+			fmt.Printf("\n%s\n%s\n", userStyle("── you ──"), msg.Content)
+
 		case openai.ChatMessageRoleAssistant:
-			fmt.Printf("%s\n", assistantStyle("[ASSISTANT]"))
+			fmt.Printf("\n%s\n", assistantStyle("── esa ──"))
 			if msg.Content != "" {
 				fmt.Printf("%s\n", msg.Content)
 			}
 			if len(msg.ToolCalls) > 0 {
-				fmt.Printf("%s\n", toolStyle("Tool Calls:"))
 				for _, tc := range msg.ToolCalls {
-					// Pretty print arguments JSON
-					var argsMap map[string]any
+					fmt.Printf("\n  %s %s\n", toolStyle("⚙"), toolStyle(tc.Function.Name))
 					argsStr := tc.Function.Arguments
-					if err := json.Unmarshal([]byte(argsStr), &argsMap); err == nil {
-						prettyJSON, _ := json.MarshalIndent(argsMap, "  ", "  ")
-						argsStr = string(prettyJSON)
+					if prettyArgs, ok := tryPrettyJSON(argsStr, "    "); ok {
+						argsStr = prettyArgs
 					}
-					// Indent arguments slightly more for clarity
-					indentedArgs := strings.ReplaceAll(argsStr, "\n", "\n    ")
-					fmt.Printf("  - %s (%s):\n    %s\n", toolStyle(tc.Function.Name), tc.ID, toolDataStyle(indentedArgs))
+					for _, line := range strings.Split(argsStr, "\n") {
+						fmt.Printf("    %s\n", toolDataStyle(line))
+					}
 				}
 			}
-			fmt.Println() // Add newline after assistant message
+
 		case openai.ChatMessageRoleTool:
 			isError := strings.HasPrefix(msg.Content, "Error:")
-			prefix := toolStyle(fmt.Sprintf("[TOOL: %s (%s)]", msg.Name, msg.ToolCallID))
-			contentStyle := toolDataStyle
 			if isError {
-				prefix = errorStyle(fmt.Sprintf("[TOOL ERROR: %s (%s)]", msg.Name, msg.ToolCallID))
-				contentStyle = errorStyle
+				fmt.Printf("  %s %s\n", errorStyle("✗"), errorStyle(msg.Name))
+			} else {
+				fmt.Printf("  %s %s\n", toolStyle("↳"), toolStyle(msg.Name))
+			}
+			contentStr, _ := tryPrettyJSON(msg.Content, "    ")
+			lines := strings.Split(contentStr, "\n")
+			maxLines := 20
+			for i, line := range lines {
+				if i >= maxLines {
+					fmt.Printf("    %s\n", dimStyle(fmt.Sprintf("... (%d more lines)", len(lines)-maxLines)))
+					break
+				}
+				if isError {
+					fmt.Printf("    %s\n", errorStyle(line))
+				} else {
+					fmt.Printf("    %s\n", toolDataStyle(line))
+				}
 			}
 
-			contentStr, _ := tryPrettyJSON(msg.Content, "  ")
-			indentedContent := strings.ReplaceAll(contentStr, "\n", "\n  ")
-			fmt.Printf("%s\n  %s\n\n", prefix, contentStyle(indentedContent))
 		default:
-			fmt.Printf("[%s]\n%s\n\n", strings.ToUpper(msg.Role), msg.Content)
+			fmt.Printf("\n[%s]\n%s\n", strings.ToUpper(msg.Role), msg.Content)
 		}
 	}
+	fmt.Println()
+}
+
+// printHistoryHTML prints the history as a self-contained HTML document.
+func printHistoryHTML(fileName string, history ConversationHistory) {
+	agentName := ""
+	if history.AgentPath != "" {
+		agentName = strings.TrimSuffix(filepath.Base(history.AgentPath), ".toml")
+		agentName = strings.TrimPrefix(agentName, "builtin:")
+	}
+
+	var b strings.Builder
+	b.WriteString(`<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>esa - `)
+	b.WriteString(html.EscapeString(filepath.Base(fileName)))
+	b.WriteString(`</title>
+<style>
+:root, [data-theme="dark"] {
+    --bg-primary: #1a1b26;
+    --bg-secondary: #16161e;
+    --bg-tertiary: #24283b;
+    --text-primary: #c0caf5;
+    --text-secondary: #a9b1d6;
+    --text-muted: #565f89;
+    --accent: #7aa2f7;
+    --green: #9ece6a;
+    --red: #f7768e;
+    --orange: #ff9e64;
+    --cyan: #7dcfff;
+    --border: #292e42;
+}
+@media (prefers-color-scheme: light) {
+    :root {
+        --bg-primary: #f5f5f5;
+        --bg-secondary: #ffffff;
+        --bg-tertiary: #e8e8e8;
+        --text-primary: #1a1b26;
+        --text-secondary: #3b4261;
+        --text-muted: #8690a7;
+        --accent: #2e5cb8;
+        --green: #4d7a2a;
+        --red: #c0392b;
+        --orange: #d4740a;
+        --cyan: #1a6ea0;
+        --border: #d4d4d4;
+    }
+}
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    line-height: 1.6;
+    padding: 24px;
+}
+.container { max-width: 800px; margin: 0 auto; }
+.header {
+    padding: 16px 0;
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+}
+.header h1 { font-size: 18px; color: var(--accent); margin-bottom: 4px; }
+.header .meta { font-size: 13px; color: var(--text-muted); }
+.message { margin-bottom: 20px; }
+.message-role {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 6px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    display: inline-block;
+}
+.role-system { color: var(--text-muted); background: var(--bg-tertiary); }
+.role-user { color: var(--green); background: var(--bg-tertiary); }
+.role-assistant { color: var(--accent); background: var(--bg-tertiary); }
+.role-tool { color: var(--orange); background: var(--bg-tertiary); }
+.role-error { color: var(--red); background: var(--bg-tertiary); }
+.message-content {
+    padding: 12px 16px;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    font-size: 14px;
+}
+.tool-call {
+    margin: 8px 0;
+    padding: 10px 14px;
+    background: var(--bg-tertiary);
+    border-radius: 6px;
+    border-left: 3px solid var(--orange);
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 13px;
+}
+.tool-call .tool-name { color: var(--orange); font-weight: 600; }
+.tool-call pre {
+    margin-top: 6px;
+    color: var(--text-muted);
+    white-space: pre-wrap;
+    font-size: 12px;
+}
+.tool-result {
+    margin: 8px 0;
+    padding: 10px 14px;
+    background: var(--bg-tertiary);
+    border-radius: 6px;
+    border-left: 3px solid var(--green);
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 12px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    color: var(--text-secondary);
+    max-height: 400px;
+    overflow-y: auto;
+}
+.tool-result.error { border-left-color: var(--red); color: var(--red); }
+.system-content {
+    color: var(--text-muted);
+    font-size: 13px;
+    max-height: 120px;
+    overflow-y: auto;
+}
+</style>
+</head>
+<body>
+<div class="container">
+`)
+
+	// Header
+	b.WriteString(`<div class="header">`)
+	b.WriteString(fmt.Sprintf(`<h1>esa conversation</h1>`))
+	b.WriteString(`<div class="meta">`)
+	if agentName != "" {
+		b.WriteString(fmt.Sprintf(`Agent: +%s`, html.EscapeString(agentName)))
+	}
+	if history.Model != "" {
+		if agentName != "" {
+			b.WriteString(` &middot; `)
+		}
+		b.WriteString(fmt.Sprintf(`Model: %s`, html.EscapeString(history.Model)))
+	}
+	b.WriteString(`</div></div>`)
+
+	// Messages
+	for _, msg := range history.Messages {
+		b.WriteString(`<div class="message">`)
+
+		switch msg.Role {
+		case openai.ChatMessageRoleSystem:
+			b.WriteString(`<div class="message-role role-system">system</div>`)
+			b.WriteString(`<div class="message-content system-content">`)
+			b.WriteString(html.EscapeString(msg.Content))
+			b.WriteString(`</div>`)
+
+		case openai.ChatMessageRoleUser:
+			b.WriteString(`<div class="message-role role-user">you</div>`)
+			b.WriteString(`<div class="message-content">`)
+			b.WriteString(html.EscapeString(msg.Content))
+			b.WriteString(`</div>`)
+
+		case openai.ChatMessageRoleAssistant:
+			b.WriteString(`<div class="message-role role-assistant">esa</div>`)
+			if msg.Content != "" {
+				b.WriteString(`<div class="message-content">`)
+				b.WriteString(html.EscapeString(msg.Content))
+				b.WriteString(`</div>`)
+			}
+			for _, tc := range msg.ToolCalls {
+				b.WriteString(`<div class="tool-call">`)
+				b.WriteString(fmt.Sprintf(`<span class="tool-name">⚙ %s</span>`, html.EscapeString(tc.Function.Name)))
+				argsStr := tc.Function.Arguments
+				if prettyArgs, ok := tryPrettyJSON(argsStr, ""); ok {
+					argsStr = prettyArgs
+				}
+				b.WriteString(fmt.Sprintf(`<pre>%s</pre>`, html.EscapeString(argsStr)))
+				b.WriteString(`</div>`)
+			}
+
+		case openai.ChatMessageRoleTool:
+			isError := strings.HasPrefix(msg.Content, "Error:")
+			cls := "tool-result"
+			if isError {
+				cls = "tool-result error"
+			}
+			contentStr, _ := tryPrettyJSON(msg.Content, "")
+			b.WriteString(fmt.Sprintf(`<div class="%s">`, cls))
+			b.WriteString(html.EscapeString(contentStr))
+			b.WriteString(`</div>`)
+
+		default:
+			b.WriteString(fmt.Sprintf(`<div class="message-role">%s</div>`, html.EscapeString(strings.ToUpper(msg.Role))))
+			b.WriteString(`<div class="message-content">`)
+			b.WriteString(html.EscapeString(msg.Content))
+			b.WriteString(`</div>`)
+		}
+
+		b.WriteString("</div>\n")
+	}
+
+	b.WriteString("</div>\n</body>\n</html>\n")
+	fmt.Print(b.String())
 }
 
 // printOutput prints last output of a history file

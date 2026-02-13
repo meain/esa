@@ -36,7 +36,7 @@ type CLIOptions struct {
 	AgentName       string
 	Model           string
 	ConfigPath      string
-	OutputFormat    string // Output format for show-history (text, markdown, json)
+	OutputFormat    string // Output format for show-history (text, markdown, json, html)
 	ShowAgent       bool   // Flag for showing agent details
 	ListAgents      bool   // Flag for listing agents
 	ListUserAgents  bool   // Flag for listing only user agents
@@ -94,9 +94,9 @@ func createRootCommand() *cobra.Command {
 			}
 
 			if opts.OutputFormat == "" &&
-				!slices.Contains([]string{"text", "markdown", "json"}, opts.OutputFormat) {
+				!slices.Contains([]string{"text", "markdown", "json", "html"}, opts.OutputFormat) {
 				return fmt.Errorf(
-					"invalid output format: %s. Must be one of: text, markdown, json",
+					"invalid output format: %s. Must be one of: text, markdown, json, html",
 					opts.OutputFormat,
 				)
 			}
@@ -184,7 +184,7 @@ func createRootCommand() *cobra.Command {
 	rootCmd.Flags().BoolVar(&opts.ShowCommands, "show-commands", false, "Show executed commands during run")
 	rootCmd.Flags().BoolVar(&opts.ShowToolCalls, "show-tool-calls", false, "Show executed commands and their outputs during run")
 	rootCmd.Flags().BoolVar(&opts.HideProgress, "hide-progress", false, "Disable progress info for each function")
-	rootCmd.Flags().StringVar(&opts.OutputFormat, "output", "text", "Output format for --show-history (text, markdown, json)")
+	rootCmd.Flags().StringVar(&opts.OutputFormat, "output", "text", "Output format for --show-history (text, markdown, json, html)")
 	rootCmd.Flags().BoolVarP(&opts.Pretty, "pretty", "p", false, "Pretty print markdown output (disables streaming)")
 	rootCmd.Flags().StringVar(&opts.SystemPrompt, "system-prompt", "", "Override the system prompt for the agent")
 
@@ -205,9 +205,9 @@ func createRootCommand() *cobra.Command {
 	// Make history-index required when show-history is used
 	rootCmd.PreRunE = func(cmd *cobra.Command, args []string) error {
 		// Validate output format
-		validFormats := map[string]bool{"text": true, "markdown": true, "json": true}
+		validFormats := map[string]bool{"text": true, "markdown": true, "json": true, "html": true}
 		if !validFormats[opts.OutputFormat] {
-			return fmt.Errorf("invalid output format %q. Must be one of: text, markdown, json", opts.OutputFormat)
+			return fmt.Errorf("invalid output format %q. Must be one of: text, markdown, json, html", opts.OutputFormat)
 		}
 
 		return nil
@@ -446,6 +446,8 @@ func handleShowHistory(conversation string, outputFormat string, ignoreToolCalls
 		printHistoryJSON(history)
 	case "markdown":
 		printHistoryMarkdown(historyFilePath, history)
+	case "html":
+		printHistoryHTML(historyFilePath, history)
 	default: // "text"
 		printHistoryText(historyFilePath, history)
 	}
