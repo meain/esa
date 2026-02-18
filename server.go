@@ -264,7 +264,7 @@ func handleListHistory(w http.ResponseWriter, r *http.Request) {
 	var histories []HistoryInfo
 	cacheDir, _ := setupCacheDir()
 
-	for i, fileName := range sortedFiles {
+	for i, fileName := range sortedFiles[:50] { // List a maximum of 50 recent histories
 		parts := strings.SplitN(strings.TrimSuffix(fileName, ".json"), "-", 5)
 		agentName := "unknown"
 		timestampStr := "unknown"
