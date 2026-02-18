@@ -39,6 +39,7 @@
     var streamRenderTimer = null;
     var lastStreamRender = 0;
     var modelList = [];
+    var shouldAutoScroll = true;
 
     // -- Theme --
     function initTheme() {
@@ -426,8 +427,15 @@
         scrollToBottom();
     }
 
+    function isNearBottom() {
+        var distanceFromBottom = messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight;
+        return distanceFromBottom < 100;
+    }
+
     function scrollToBottom() {
-        messagesEl.scrollTop = messagesEl.scrollHeight;
+        if (shouldAutoScroll) {
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+        }
     }
 
     function escapeHtml(str) {
@@ -1025,6 +1033,10 @@
     });
 
     exportBtn.addEventListener("click", exportChat);
+
+    messagesEl.addEventListener("scroll", function () {
+        shouldAutoScroll = isNearBottom();
+    });
 
     // -- Init --
     initTheme();
