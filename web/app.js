@@ -25,6 +25,8 @@
     var modelDropdown = document.getElementById("model-dropdown");
     var exportBtn = document.getElementById("export-btn");
     var workdirEl = document.getElementById("workdir");
+    var minimapEl = document.getElementById("chat-minimap");
+    var minimapViewportEl = document.getElementById("minimap-viewport");
 
     // -- State --
     var ws = null;
@@ -40,6 +42,7 @@
     var lastStreamRender = 0;
     var modelList = [];
     var shouldAutoScroll = true;
+    var minimapRebuildTimer = null;
 
     // -- Theme --
     function initTheme() {
@@ -186,6 +189,7 @@
             currentStreamEl = contentDiv;
             currentStreamRaw = "";
             messagesEl.appendChild(msgDiv);
+            scheduleMinimap();
         }
         currentStreamRaw += content;
         renderStreamThrottled();
@@ -246,6 +250,7 @@
         hideApprovalModal();
         inputEl.focus();
         scrollToBottom();
+        scheduleMinimap();
         loadHistory();
     }
 
@@ -265,6 +270,7 @@
         updateSendButton();
         inputEl.focus();
         scrollToBottom();
+        scheduleMinimap();
         loadHistory();
     }
 
@@ -299,6 +305,7 @@
 
         messagesEl.appendChild(toolDiv);
         scrollToBottom();
+        scheduleMinimap();
 
         if (!msg.safe) {
             pendingApprovalId = msg.id;
@@ -416,6 +423,7 @@
         content.setAttribute("data-raw", text);
         messagesEl.appendChild(msgDiv);
         scrollToBottom();
+        scheduleMinimap();
     }
 
     function appendError(text) {
@@ -425,6 +433,97 @@
         content.textContent = "Error: " + text;
         messagesEl.appendChild(msgDiv);
         scrollToBottom();
+        scheduleMinimap();
+    }
+
+    // -- Minimap --
+    function rebuildMinimap() {
+        if (!minimapEl) return;
+        // Remove existing blocks
+        var oldBlocks = minimapEl.querySelectorAll(".minimap-block");
+        for (var b = 0; b < oldBlocks.length; b++) { oldBlocks[b].remove(); }
+
+        var children = messagesEl.children;
+        var totalHeight = messagesEl.scrollHeight;
+        if (totalHeight === 0 || children.length === 0) {
+            updateMinimapViewport();
+            return;
+        }
+        var minimapHeight = minimapEl.clientHeight;
+
+        for (var i = 0; i < children.length; i++) {
+            var child = children[i];
+            var childTop = child.offsetTop;
+            var childHeight = child.offsetHeight;
+
+            var blockTop = (childTop / totalHeight) * minimapHeight;
+            var blockHeight = Math.max(2, (childHeight / totalHeight) * minimapHeight);
+
+            var block = document.createElement("div");
+            block.className = "minimap-block";
+            block.style.top = blockTop + "px";
+            block.style.height = blockHeight + "px";
+
+            if (child.classList.contains("message")) {
+                if (child.querySelector(".message-role.user")) {
+                    block.classList.add("minimap-user");
+                } else {
+                    block.classList.add("minimap-assistant");
+                }
+            } else if (child.classList.contains("tool-call")) {
+                block.classList.add("minimap-tool");
+            } else {
+                continue;
+            }
+
+            (function (idx) {
+                block.addEventListener("click", function (e) {
+                    e.stopPropagation();
+                    children[idx].scrollIntoView({ behavior: "smooth", block: "start" });
+                });
+            })(i);
+
+            minimapEl.appendChild(block);
+        }
+
+        updateMinimapViewport();
+    }
+
+    function updateMinimapViewport() {
+        if (!minimapEl || !minimapViewportEl) return;
+        var totalHeight = messagesEl.scrollHeight;
+        if (totalHeight === 0) return;
+        var minimapHeight = minimapEl.clientHeight;
+        var vpHeight = Math.max(8, (messagesEl.clientHeight / totalHeight) * minimapHeight);
+        var vpTop = (messagesEl.scrollTop / totalHeight) * minimapHeight;
+        minimapViewportEl.style.height = vpHeight + "px";
+        minimapViewportEl.style.top = vpTop + "px";
+    }
+
+    function scheduleMinimap() {
+        if (minimapRebuildTimer) clearTimeout(minimapRebuildTimer);
+        minimapRebuildTimer = setTimeout(rebuildMinimap, 120);
+    }
+
+    // Click on minimap background to jump
+    function initMinimapInteraction() {
+        if (!minimapEl) return;
+        function jumpToFraction(clientY) {
+            var rect = minimapEl.getBoundingClientRect();
+            var fraction = (clientY - rect.top) / rect.height;
+            fraction = Math.max(0, Math.min(1, fraction));
+            messagesEl.scrollTop = fraction * messagesEl.scrollHeight;
+        }
+        var dragging = false;
+        minimapEl.addEventListener("mousedown", function (e) {
+            dragging = true;
+            jumpToFraction(e.clientY);
+            e.preventDefault();
+        });
+        document.addEventListener("mousemove", function (e) {
+            if (dragging) jumpToFraction(e.clientY);
+        });
+        document.addEventListener("mouseup", function () { dragging = false; });
     }
 
     function isNearBottom() {
@@ -436,6 +535,7 @@
         if (shouldAutoScroll) {
             messagesEl.scrollTop = messagesEl.scrollHeight;
         }
+        updateMinimapViewport();
     }
 
     function escapeHtml(str) {
@@ -899,6 +999,7 @@
                     });
                 }
                 scrollToBottom();
+                scheduleMinimap();
                 isStreaming = false;
                 updateSendButton();
                 inputEl.focus();
@@ -1036,10 +1137,12 @@
 
     messagesEl.addEventListener("scroll", function () {
         shouldAutoScroll = isNearBottom();
+        updateMinimapViewport();
     });
 
     // -- Init --
     initTheme();
+    initMinimapInteraction();
     newChat();
     connect();
     loadAgents();

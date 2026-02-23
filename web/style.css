@@ -358,6 +358,13 @@ html, body {
 .status-connecting { color: var(--orange); }
 
 /* -- Messages -- */
+#messages-wrapper {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+    position: relative;
+}
+
 #messages {
     flex: 1;
     overflow-y: auto;
@@ -365,6 +372,56 @@ html, body {
     display: flex;
     flex-direction: column;
     gap: 16px;
+}
+
+#chat-minimap {
+    width: 14px;
+    background: var(--bg-secondary);
+    border-left: 1px solid var(--border);
+    position: relative;
+    overflow: hidden;
+    flex-shrink: 0;
+    cursor: pointer;
+    user-select: none;
+}
+
+.minimap-block {
+    position: absolute;
+    left: 2px;
+    right: 2px;
+    border-radius: 2px;
+    min-height: 2px;
+    opacity: 0.65;
+    transition: opacity 0.1s;
+    cursor: pointer;
+}
+
+.minimap-block:hover {
+    opacity: 1;
+}
+
+.minimap-user {
+    background: var(--green);
+}
+
+.minimap-assistant {
+    background: var(--accent);
+}
+
+.minimap-tool {
+    background: var(--cyan);
+    opacity: 0.45;
+}
+
+#minimap-viewport {
+    position: absolute;
+    left: 0;
+    right: 0;
+    background: var(--text-muted);
+    opacity: 0.18;
+    border-radius: 2px;
+    pointer-events: none;
+    z-index: 1;
 }
 
 .message {
