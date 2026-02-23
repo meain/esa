@@ -486,15 +486,18 @@ func (app *Application) handleStreamResponse(stream *openai.ChatCompletionStream
 type ConversationHistory struct {
 	AgentPath string                         `json:"agent_path"`
 	Model     string                         `json:"model"`
+	WorkDir   string                         `json:"work_dir,omitempty"`
 	Messages  []openai.ChatCompletionMessage `json:"messages"`
 }
 
 func (app *Application) saveConversationHistory() {
 	provider, model, _ := app.parseModel()
 	modelString := fmt.Sprintf("%s/%s", provider, model)
+	workDir, _ := os.Getwd()
 	history := ConversationHistory{
 		AgentPath: app.agentPath,
 		Model:     modelString,
+		WorkDir:   workDir,
 		Messages:  app.messages,
 	}
 

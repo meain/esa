@@ -24,7 +24,8 @@
     var modelInput = document.getElementById("model-input");
     var modelDropdown = document.getElementById("model-dropdown");
     var exportBtn = document.getElementById("export-btn");
-    var workdirEl = document.getElementById("workdir");
+    var workdirInput = document.getElementById("workdir-input");
+    var workdirDropdown = document.getElementById("workdir-dropdown");
     var minimapEl = document.getElementById("chat-minimap");
     var minimapViewportEl = document.getElementById("minimap-viewport");
 
@@ -43,6 +44,7 @@
     var modelList = [];
     var shouldAutoScroll = true;
     var minimapRebuildTimer = null;
+    var commonWorkDirs = [];
 
     // -- Theme --
     function initTheme() {
@@ -776,32 +778,123 @@
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 if (data.path) {
-                    workdirEl.textContent = data.path;
-                    workdirEl.title = data.path + " (click to change)";
+                    workdirInput.value = data.path;
+                    workdirInput.title = data.path;
+                    workdirInput.setAttribute("data-current", data.path);
                 }
             })
             .catch(function () {});
     }
 
-    workdirEl.addEventListener("click", function () {
-        var newDir = prompt("Working directory:", workdirEl.textContent || "");
-        if (newDir !== null && newDir.trim() !== "") {
-            fetch("/api/workdir", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ path: newDir.trim() })
+    function loadCommonWorkDirs() {
+        fetch("/api/workdirs")
+            .then(function (r) { return r.json(); })
+            .then(function (dirs) {
+                commonWorkDirs = dirs || [];
             })
-                .then(function (r) {
-                    if (!r.ok) return r.json().then(function (d) { throw new Error(d.error || "Failed"); });
-                    return r.json();
-                })
-                .then(function (data) {
-                    workdirEl.textContent = data.path;
-                    workdirEl.title = data.path + " (click to change)";
-                })
-                .catch(function (err) {
-                    alert("Failed to change directory: " + err.message);
+            .catch(function () {
+                commonWorkDirs = [];
+            });
+    }
+
+    function changeWorkDir(newDir) {
+        if (!newDir || newDir.trim() === "") return;
+
+        fetch("/api/workdir", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ path: newDir.trim() })
+        })
+            .then(function (r) {
+                if (!r.ok) return r.json().then(function (d) { throw new Error(d.error || "Failed"); });
+                return r.json();
+            })
+            .then(function (data) {
+                workdirInput.value = data.path;
+                workdirInput.title = data.path;
+                workdirInput.setAttribute("data-current", data.path);
+                workdirDropdown.classList.add("hidden");
+                workdirInput.blur();
+            })
+            .catch(function (err) {
+                alert("Failed to change directory: " + err.message);
+                workdirInput.value = workdirInput.getAttribute("data-current") || "";
+            });
+    }
+
+    function showWorkdirDropdown() {
+        var filter = workdirInput.value.toLowerCase().trim();
+        var currentDir = workdirInput.getAttribute("data-current") || "";
+
+        var filtered = commonWorkDirs.filter(function (dir) {
+            if (!filter) return true;
+            return dir.toLowerCase().indexOf(filter) !== -1;
+        });
+
+        if (filtered.length === 0 && !filter) {
+            workdirDropdown.classList.add("hidden");
+            return;
+        }
+
+        workdirDropdown.innerHTML = "";
+
+        if (filtered.length > 0) {
+            filtered.forEach(function (dir) {
+                var div = document.createElement("div");
+                div.className = "model-option";
+                div.textContent = dir;
+                div.addEventListener("mousedown", function (e) {
+                    e.preventDefault();
+                    changeWorkDir(dir);
                 });
+                workdirDropdown.appendChild(div);
+            });
+        }
+
+        // If user has typed something different from current dir, show custom option
+        if (filter && filter !== currentDir.toLowerCase()) {
+            var customDiv = document.createElement("div");
+            customDiv.className = "model-option";
+            customDiv.innerHTML = '<em>Use: ' + escapeHtml(workdirInput.value) + '</em>';
+            customDiv.addEventListener("mousedown", function (e) {
+                e.preventDefault();
+                changeWorkDir(workdirInput.value);
+            });
+            workdirDropdown.appendChild(customDiv);
+        }
+
+        workdirDropdown.classList.remove("hidden");
+    }
+
+    workdirInput.addEventListener("click", showWorkdirDropdown);
+    workdirInput.addEventListener("focus", function () {
+        // Store current value for comparison
+        workdirInput.setAttribute("data-current", workdirInput.value);
+        showWorkdirDropdown();
+    });
+    workdirInput.addEventListener("input", showWorkdirDropdown);
+    workdirInput.addEventListener("blur", function () {
+        setTimeout(function () {
+            workdirDropdown.classList.add("hidden");
+            // Restore original value if not changed
+            var current = workdirInput.getAttribute("data-current");
+            if (current && workdirInput.value !== current) {
+                workdirInput.value = current;
+            }
+        }, 200);
+    });
+    workdirInput.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") {
+            e.preventDefault();
+            var newDir = workdirInput.value.trim();
+            if (newDir) {
+                changeWorkDir(newDir);
+            }
+        } else if (e.key === "Escape") {
+            e.preventDefault();
+            workdirDropdown.classList.add("hidden");
+            workdirInput.value = workdirInput.getAttribute("data-current") || "";
+            workdirInput.blur();
         }
     });
 
@@ -902,6 +995,7 @@
             .then(function (r) { return r.json(); })
             .then(function (histories) {
                 renderHistory(histories);
+                loadCommonWorkDirs();
             })
             .catch(function () {
                 historyListEl.innerHTML = '<div class="sidebar-item" style="color:var(--red)">Failed to load</div>';
@@ -1149,4 +1243,5 @@
     loadHistory();
     loadModels();
     loadWorkDir();
+    loadCommonWorkDirs();
 })();

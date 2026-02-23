@@ -163,6 +163,7 @@ func runServeMode(opts *CLIOptions) error {
 		handleListModels(w, r, opts)
 	})
 	mux.HandleFunc("/api/workdir", handleWorkDir)
+	mux.HandleFunc("/api/workdirs", handleListWorkDirs)
 
 	// Serve embedded static files
 	mux.Handle("/", http.FileServer(http.FS(webFS)))
@@ -405,6 +406,73 @@ func handleWorkDir(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(WorkDirInfo{Path: cwd})
+}
+
+// handleListWorkDirs returns common working directories from history
+func handleListWorkDirs(w http.ResponseWriter, r *http.Request) {
+	sortedFiles, _, err := getSortedHistoryFiles()
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]string{})
+		return
+	}
+
+	cacheDir, _ := setupCacheDir()
+	dirCount := make(map[string]int)
+
+	// Count directory occurrences from history files
+	for _, fileName := range sortedFiles {
+		historyFilePath := fmt.Sprintf("%s/%s", cacheDir, fileName)
+		historyData, err := os.ReadFile(historyFilePath)
+		if err != nil {
+			continue
+		}
+
+		var history ConversationHistory
+		if err := json.Unmarshal(historyData, &history); err != nil {
+			continue
+		}
+
+		if history.WorkDir != "" {
+			dirCount[history.WorkDir]++
+		}
+	}
+
+	// Sort directories by frequency
+	type dirFreq struct {
+		path  string
+		count int
+	}
+	var dirs []dirFreq
+	for path, count := range dirCount {
+		dirs = append(dirs, dirFreq{path, count})
+	}
+
+	// Sort by count (descending), then by path (alphabetical)
+	for i := 0; i < len(dirs); i++ {
+		for j := i + 1; j < len(dirs); j++ {
+			if dirs[j].count > dirs[i].count ||
+				(dirs[j].count == dirs[i].count && dirs[j].path < dirs[i].path) {
+				dirs[i], dirs[j] = dirs[j], dirs[i]
+			}
+		}
+	}
+
+	// Return top 10 most common directories
+	result := []string{}
+	for i := 0; i < len(dirs) && i < 10; i++ {
+		result = append(result, dirs[i].path)
+	}
+
+	// If no directories found in history, add current working directory
+	if len(result) == 0 {
+		if cwd, err := os.Getwd(); err == nil {
+			result = append(result, cwd)
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
 }
 
 // extractConversationID extracts the conversation ID from a history file path.

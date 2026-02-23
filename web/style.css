@@ -350,6 +350,48 @@ html, body {
     margin-left: 4px;
 }
 
+/* Working Directory Selector */
+#workdir-selector-wrapper {
+    position: relative;
+}
+#workdir-input {
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 12px;
+    font-family: var(--font-mono);
+    outline: none;
+    width: 250px;
+    box-sizing: border-box;
+    cursor: pointer;
+}
+#workdir-input:focus {
+    border-color: var(--accent-dim);
+    color: var(--text-primary);
+}
+#workdir-input::placeholder {
+    color: var(--text-muted);
+}
+#workdir-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-top: 4px;
+    max-height: 300px;
+    overflow-y: auto;
+    z-index: 100;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+#workdir-dropdown.hidden {
+    display: none;
+}
+
 #connection-status {
     font-size: 10px;
 }
