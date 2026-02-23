@@ -419,7 +419,7 @@
     function appendUserMessage(text) {
         var msgDiv = createMessageDiv("user");
         var content = msgDiv.querySelector(".message-content");
-        content.textContent = text;
+        content.innerHTML = renderMarkdown(text);
         content.setAttribute("data-raw", text);
         messagesEl.appendChild(msgDiv);
         scrollToBottom();
