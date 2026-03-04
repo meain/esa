@@ -10,8 +10,11 @@ import (
 	"github.com/sashabaranov/go-openai"
 )
 
-func setupOpenAIClient(modelStr string, agent Agent, config *Config) (*openai.Client, error) {
-	_, _, info := parseModel(modelStr, agent, config)
+// setupLLMClient creates the appropriate LLMClient for the given model/provider.
+// For the "anthropic" provider it returns a native Anthropic client;
+// for all other providers it returns an OpenAI-compatible client.
+func setupLLMClient(modelStr string, agent Agent, config *Config) (LLMClient, error) {
+	provider, _, info := parseModel(modelStr, agent, config)
 
 	configuredAPIKey := os.Getenv(info.apiKeyEnvar)
 	// Key name can be empty if we don't need any keys
@@ -19,7 +22,25 @@ func setupOpenAIClient(modelStr string, agent Agent, config *Config) (*openai.Cl
 		return nil, fmt.Errorf(info.apiKeyEnvar + " env not found")
 	}
 
-	llmConfig := openai.DefaultConfig(configuredAPIKey)
+	if provider == "anthropic" {
+		var httpClient *http.Client
+		if len(info.additionalHeaders) != 0 {
+			httpClient = &http.Client{
+				Transport: &transportWithCustomHeaders{
+					headers: info.additionalHeaders,
+					base:    http.DefaultTransport,
+				},
+			}
+		}
+		return newAnthropicLLMClient(configuredAPIKey, info.baseURL, httpClient), nil
+	}
+
+	// Default: OpenAI-compatible provider
+	return setupOpenAIClient(configuredAPIKey, info)
+}
+
+func setupOpenAIClient(apiKey string, info providerInfo) (LLMClient, error) {
+	llmConfig := openai.DefaultConfig(apiKey)
 	llmConfig.BaseURL = info.baseURL
 
 	if len(info.additionalHeaders) != 0 {
@@ -35,7 +56,7 @@ func setupOpenAIClient(modelStr string, agent Agent, config *Config) (*openai.Cl
 
 	client := openai.NewClientWithConfig(llmConfig)
 
-	return client, nil
+	return newOpenAILLMClient(client), nil
 }
 
 type transportWithCustomHeaders struct {

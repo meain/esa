@@ -171,6 +171,36 @@ func TestParseModel(t *testing.T) {
 				apiKeyEnvar: "OLLAMA_API_KEY",
 			},
 		},
+		{
+			name:         "Anthropic default provider",
+			modelFlag:    "anthropic/claude-sonnet-4-20250514",
+			config:       nil,
+			agent:        Agent{},
+			wantProvider: "anthropic",
+			wantModel:    "claude-sonnet-4-20250514",
+			wantInfo: providerInfo{
+				baseURL:     "https://api.anthropic.com",
+				apiKeyEnvar: "ANTHROPIC_API_KEY",
+			},
+		},
+		{
+			name:      "Anthropic provider with config override",
+			modelFlag: "anthropic/claude-sonnet-4-20250514",
+			config: &Config{
+				Providers: map[string]ProviderConfig{
+					"anthropic": {
+						BaseURL: "https://custom-anthropic.api",
+					},
+				},
+			},
+			agent:        Agent{},
+			wantProvider: "anthropic",
+			wantModel:    "claude-sonnet-4-20250514",
+			wantInfo: providerInfo{
+				baseURL:     "https://custom-anthropic.api",
+				apiKeyEnvar: "ANTHROPIC_API_KEY",
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -303,6 +333,7 @@ func TestOllamaHostFromEnvironment(t *testing.T) {
 func TestEmptyApiKeyAcceptance(t *testing.T) {
 	t.Setenv("OLLAMA_API_KEY", "")
 	t.Setenv("OPENAI_API_KEY", "")
+	t.Setenv("ANTHROPIC_API_KEY", "")
 
 	tests := []struct {
 		name             string
@@ -322,11 +353,17 @@ func TestEmptyApiKeyAcceptance(t *testing.T) {
 			expectError:      true,
 			errorDescription: "OPENAI_API_KEY env not found",
 		},
+		{
+			name:             "Anthropic requires API key",
+			modelStr:         "anthropic/claude-sonnet-4-20250514",
+			expectError:      true,
+			errorDescription: "ANTHROPIC_API_KEY env not found",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := setupOpenAIClient(tt.modelStr, Agent{}, &Config{})
+			_, err := setupLLMClient(tt.modelStr, Agent{}, &Config{})
 
 			if (err != nil) != tt.expectError {
 				t.Errorf("Expected error: %v, got: %v", tt.expectError, err)
@@ -334,6 +371,59 @@ func TestEmptyApiKeyAcceptance(t *testing.T) {
 
 			if tt.expectError && err != nil && err.Error() != tt.errorDescription {
 				t.Errorf("Expected error message %q, got %q", tt.errorDescription, err.Error())
+			}
+		})
+	}
+}
+
+func TestSetupLLMClientReturnsCorrectType(t *testing.T) {
+	tests := []struct {
+		name     string
+		modelStr string
+		envKey   string
+		envValue string
+		wantType string
+	}{
+		{
+			name:     "Anthropic provider returns anthropic client",
+			modelStr: "anthropic/claude-sonnet-4-20250514",
+			envKey:   "ANTHROPIC_API_KEY",
+			envValue: "test-key",
+			wantType: "anthropic",
+		},
+		{
+			name:     "OpenAI provider returns openai client",
+			modelStr: "openai/gpt-4",
+			envKey:   "OPENAI_API_KEY",
+			envValue: "test-key",
+			wantType: "openai",
+		},
+		{
+			name:     "Ollama provider returns openai client",
+			modelStr: "ollama/llama2",
+			envKey:   "OLLAMA_API_KEY",
+			envValue: "",
+			wantType: "openai",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv(tt.envKey, tt.envValue)
+			client, err := setupLLMClient(tt.modelStr, Agent{}, &Config{})
+			if err != nil {
+				t.Fatalf("setupLLMClient() error = %v", err)
+			}
+
+			switch tt.wantType {
+			case "anthropic":
+				if _, ok := client.(*anthropicLLMClient); !ok {
+					t.Errorf("expected *anthropicLLMClient, got %T", client)
+				}
+			case "openai":
+				if _, ok := client.(*openAILLMClient); !ok {
+					t.Errorf("expected *openAILLMClient, got %T", client)
+				}
 			}
 		})
 	}

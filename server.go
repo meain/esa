@@ -683,7 +683,7 @@ func (s *webSession) runWebConversationLoop(app *Application, opts CLIOptions) {
 }
 
 // handleWebStreamResponse streams LLM tokens over WebSocket
-func (s *webSession) handleWebStreamResponse(stream *openai.ChatCompletionStream) openai.ChatCompletionMessage {
+func (s *webSession) handleWebStreamResponse(stream LLMStream) openai.ChatCompletionMessage {
 	defer stream.Close()
 
 	var assistantMsg openai.ChatCompletionMessage
@@ -694,7 +694,7 @@ func (s *webSession) handleWebStreamResponse(stream *openai.ChatCompletionStream
 			break
 		}
 
-		response, err := stream.Recv()
+		delta, err := stream.Recv()
 		if err == io.EOF {
 			break
 		}
@@ -703,12 +703,8 @@ func (s *webSession) handleWebStreamResponse(stream *openai.ChatCompletionStream
 			break
 		}
 
-		if len(response.Choices) == 0 {
-			continue
-		}
-
-		if response.Choices[0].Delta.ToolCalls != nil {
-			for _, toolCall := range response.Choices[0].Delta.ToolCalls {
+		if len(delta.ToolCalls) > 0 {
+			for _, toolCall := range delta.ToolCalls {
 				if toolCall.ID != "" {
 					assistantMsg.ToolCalls = append(assistantMsg.ToolCalls, toolCall)
 				} else {
@@ -718,10 +714,9 @@ func (s *webSession) handleWebStreamResponse(stream *openai.ChatCompletionStream
 				}
 			}
 		} else {
-			content := response.Choices[0].Delta.Content
-			if content != "" {
-				fullContent.WriteString(content)
-				s.sendJSON(WSMessage{Type: wsMsgToken, Content: content})
+			if delta.Content != "" {
+				fullContent.WriteString(delta.Content)
+				s.sendJSON(WSMessage{Type: wsMsgToken, Content: delta.Content})
 			}
 		}
 	}

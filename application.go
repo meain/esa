@@ -37,7 +37,7 @@ const (
 type Application struct {
 	agent           Agent
 	agentPath       string
-	client          *openai.Client
+	client          LLMClient
 	debug           bool
 	historyFile     string
 	messages        []openai.ChatCompletionMessage
@@ -80,19 +80,17 @@ func isRateLimitError(err error) bool {
 }
 
 // createChatCompletionWithRetry creates a chat completion stream with retry logic for rate limiting
-func (app *Application) createChatCompletionWithRetry(tools []openai.Tool) (*openai.ChatCompletionStream, error) {
-	var stream *openai.ChatCompletionStream
+func (app *Application) createChatCompletionWithRetry(tools []openai.Tool) (LLMStream, error) {
+	var stream LLMStream
 	var err error
 
 	// Retry logic for rate limiting
 	for attempt := 0; attempt <= maxRetryCount; attempt++ {
 		stream, err = app.client.CreateChatCompletionStream(
-			context.Background(),
-			openai.ChatCompletionRequest{
-				Model:    app.getModel(),
-				Messages: app.messages,
-				Tools:    tools,
-			})
+			app.getModel(),
+			app.messages,
+			tools,
+		)
 
 		if err == nil {
 			return stream, nil // Success
@@ -238,7 +236,7 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 		agent.SystemPrompt = opts.SystemPrompt
 	}
 
-	client, err := setupOpenAIClient(opts.Model, agent, config)
+	client, err := setupLLMClient(opts.Model, agent, config)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", errFailedToSetupClient, err)
 	}
@@ -424,7 +422,7 @@ func (app *Application) getEffectiveAskLevel() string {
 	return effectiveLevel
 }
 
-func (app *Application) handleStreamResponse(stream *openai.ChatCompletionStream) openai.ChatCompletionMessage {
+func (app *Application) handleStreamResponse(stream LLMStream) openai.ChatCompletionMessage {
 	defer stream.Close()
 
 	var assistantMsg openai.ChatCompletionMessage
@@ -432,7 +430,7 @@ func (app *Application) handleStreamResponse(stream *openai.ChatCompletionStream
 	hasContent := false
 
 	for {
-		response, err := stream.Recv()
+		delta, err := stream.Recv()
 		if err == io.EOF {
 			break
 		}
@@ -440,12 +438,8 @@ func (app *Application) handleStreamResponse(stream *openai.ChatCompletionStream
 			log.Fatalf("Stream error: %v", err)
 		}
 
-		if len(response.Choices) == 0 {
-			continue
-		}
-
-		if response.Choices[0].Delta.ToolCalls != nil {
-			for _, toolCall := range response.Choices[0].Delta.ToolCalls {
+		if len(delta.ToolCalls) > 0 {
+			for _, toolCall := range delta.ToolCalls {
 				if toolCall.ID != "" {
 					assistantMsg.ToolCalls = append(assistantMsg.ToolCalls, toolCall)
 				} else {
@@ -457,13 +451,12 @@ func (app *Application) handleStreamResponse(stream *openai.ChatCompletionStream
 		} else {
 			app.clearProgress()
 
-			content := response.Choices[0].Delta.Content
-			if content != "" {
+			if delta.Content != "" {
 				hasContent = true
 				if !app.prettyOutput {
-					fmt.Print(content)
+					fmt.Print(delta.Content)
 				}
-				fullContent.WriteString(content)
+				fullContent.WriteString(delta.Content)
 			}
 		}
 	}

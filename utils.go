@@ -375,6 +375,10 @@ var defaultProviders = map[string]providerInfo{
 			"Copilot-Integration-Id": "vscode-chat",
 		},
 	},
+	"anthropic": {
+		baseURL:     "https://api.anthropic.com",
+		apiKeyEnvar: "ANTHROPIC_API_KEY",
+	},
 }
 
 // resolveOllamaHost returns the Ollama providerInfo with proper host URL normalization.
