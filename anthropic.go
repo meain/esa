@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 
@@ -52,13 +53,14 @@ type anthropicMessage struct {
 }
 
 type anthropicContentBlock struct {
-	Type      string `json:"type"`
-	Text      string `json:"text,omitempty"`
-	ID        string `json:"id,omitempty"`
-	Name      string `json:"name,omitempty"`
-	Input     any    `json:"input,omitempty"`
-	ToolUseID string `json:"tool_use_id,omitempty"`
-	Content   string `json:"content,omitempty"` // for tool_result text content
+	Type      string  `json:"type"`
+	Text      string  `json:"text,omitempty"`
+	ID        string  `json:"id,omitempty"`
+	Name      string  `json:"name,omitempty"`
+	Input     any     `json:"input,omitempty"`
+	ToolUseID string  `json:"tool_use_id,omitempty"`
+	Content   *string `json:"content,omitempty"` // for tool_result text content (pointer to distinguish empty from absent)
+	IsError   bool    `json:"is_error,omitempty"`
 }
 
 type anthropicTool struct {
@@ -84,7 +86,7 @@ type anthropicContentBlockPartial struct {
 	ID    string `json:"id,omitempty"`
 	Name  string `json:"name,omitempty"`
 	Text  string `json:"text,omitempty"`
-	Input string `json:"input,omitempty"`
+	Input any    `json:"input,omitempty"`
 }
 
 type anthropicContentBlockDelta struct {
@@ -135,7 +137,9 @@ func convertOpenAIMessagesToAnthropic(messages []openai.ChatCompletionMessage) (
 				for _, tc := range msg.ToolCalls {
 					var input any
 					if tc.Function.Arguments != "" {
-						json.Unmarshal([]byte(tc.Function.Arguments), &input)
+						if err := json.Unmarshal([]byte(tc.Function.Arguments), &input); err != nil {
+							log.Printf("warning: failed to parse tool call arguments for %s: %v", tc.Function.Name, err)
+						}
 					}
 					if input == nil {
 						input = map[string]any{}
@@ -160,10 +164,12 @@ func convertOpenAIMessagesToAnthropic(messages []openai.ChatCompletionMessage) (
 		case "tool":
 			// Anthropic expects tool results in a user message with tool_result content blocks.
 			// Merge consecutive tool messages into a single user message.
+			content := msg.Content
 			block := anthropicContentBlock{
 				Type:      "tool_result",
 				ToolUseID: msg.ToolCallID,
-				Content:   msg.Content,
+				Content:   &content,
+				IsError:   strings.HasPrefix(msg.Content, "Error: "),
 			}
 			// Check if the last message is already a user message with tool_result blocks
 			if len(anthropicMsgs) > 0 {
@@ -295,6 +301,7 @@ func (s *anthropicLLMStream) Recv() (LLMStreamDelta, error) {
 		case "content_block_start":
 			var event anthropicContentBlockStart
 			if err := json.Unmarshal([]byte(data), &event); err != nil {
+				log.Printf("warning: failed to parse content_block_start: %v", err)
 				continue
 			}
 			if event.ContentBlock.Type == "tool_use" {
@@ -319,6 +326,7 @@ func (s *anthropicLLMStream) Recv() (LLMStreamDelta, error) {
 		case "content_block_delta":
 			var event anthropicContentBlockDelta
 			if err := json.Unmarshal([]byte(data), &event); err != nil {
+				log.Printf("warning: failed to parse content_block_delta: %v", err)
 				continue
 			}
 			switch event.Delta.Type {

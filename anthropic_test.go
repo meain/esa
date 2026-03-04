@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
+	"io"
+	"strings"
 	"testing"
 
 	"github.com/sashabaranov/go-openai"
@@ -233,4 +236,289 @@ func TestConvertAssistantToolCallMessage(t *testing.T) {
 	if string(inputJSON) != `{"key":"value"}` {
 		t.Errorf("block Input = %s, want %s", string(inputJSON), `{"key":"value"}`)
 	}
+}
+
+func TestStreamParseToolUseContentBlockStart(t *testing.T) {
+	// Simulate the SSE events Anthropic sends for a tool_use response.
+	// The key issue was that content_block_start sends "input": {} (an object),
+	// which failed to parse when Input was typed as string.
+	sseData := strings.Join([]string{
+		"event: message_start",
+		`data: {"type":"message_start","message":{"id":"msg_01","type":"message","role":"assistant","content":[],"model":"claude-sonnet-4-20250514","stop_reason":null}}`,
+		"",
+		"event: content_block_start",
+		`data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}`,
+		"",
+		"event: content_block_delta",
+		`data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"I'll calculate that."}}`,
+		"",
+		"event: content_block_stop",
+		`data: {"type":"content_block_stop","index":0}`,
+		"",
+		"event: content_block_start",
+		`data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_01A","name":"calculate","input":{}}}`,
+		"",
+		"event: content_block_delta",
+		`data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\"express"}}`,
+		"",
+		"event: content_block_delta",
+		`data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"ion\": \"2+2\"}"}}`,
+		"",
+		"event: content_block_stop",
+		`data: {"type":"content_block_stop","index":1}`,
+		"",
+		"event: message_delta",
+		`data: {"type":"message_delta","delta":{"stop_reason":"tool_use"}}`,
+		"",
+		"event: message_stop",
+		`data: {"type":"message_stop"}`,
+		"",
+	}, "\n")
+
+	stream := &anthropicLLMStream{
+		reader: newBufioReader(sseData),
+		body:   io.NopCloser(strings.NewReader("")),
+	}
+
+	var textContent string
+	var toolCalls []openai.ToolCall
+
+	for {
+		delta, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatalf("unexpected stream error: %v", err)
+		}
+
+		if delta.Content != "" {
+			textContent += delta.Content
+		}
+
+		for _, tc := range delta.ToolCalls {
+			if tc.ID != "" {
+				// New tool call
+				toolCalls = append(toolCalls, tc)
+			} else {
+				// Argument continuation
+				if len(toolCalls) == 0 {
+					t.Fatal("got argument delta before any tool call started")
+				}
+				toolCalls[len(toolCalls)-1].Function.Arguments += tc.Function.Arguments
+			}
+		}
+	}
+
+	if textContent != "I'll calculate that." {
+		t.Errorf("text content = %q, want %q", textContent, "I'll calculate that.")
+	}
+
+	if len(toolCalls) != 1 {
+		t.Fatalf("tool call count = %d, want 1", len(toolCalls))
+	}
+
+	tc := toolCalls[0]
+	if tc.ID != "toolu_01A" {
+		t.Errorf("tool call ID = %q, want %q", tc.ID, "toolu_01A")
+	}
+	if tc.Function.Name != "calculate" {
+		t.Errorf("tool call name = %q, want %q", tc.Function.Name, "calculate")
+	}
+	if tc.Function.Arguments != `{"expression": "2+2"}` {
+		t.Errorf("tool call arguments = %q, want %q", tc.Function.Arguments, `{"expression": "2+2"}`)
+	}
+}
+
+func TestToolResultSerialization(t *testing.T) {
+	tests := []struct {
+		name           string
+		messages       []openai.ChatCompletionMessage
+		wantContentKey bool // whether the tool_result should have a "content" key
+		wantIsError    bool
+	}{
+		{
+			name: "tool result with content",
+			messages: []openai.ChatCompletionMessage{
+				{Role: "user", Content: "do something"},
+				{
+					Role: "assistant",
+					ToolCalls: []openai.ToolCall{
+						{ID: "tc_1", Type: "function", Function: openai.FunctionCall{Name: "cmd", Arguments: "{}"}},
+					},
+				},
+				{Role: "tool", Content: "output text", ToolCallID: "tc_1"},
+			},
+			wantContentKey: true,
+			wantIsError:    false,
+		},
+		{
+			name: "tool result with empty content still serialized",
+			messages: []openai.ChatCompletionMessage{
+				{Role: "user", Content: "do something"},
+				{
+					Role: "assistant",
+					ToolCalls: []openai.ToolCall{
+						{ID: "tc_1", Type: "function", Function: openai.FunctionCall{Name: "cmd", Arguments: "{}"}},
+					},
+				},
+				{Role: "tool", Content: "", ToolCallID: "tc_1"},
+			},
+			wantContentKey: true,
+			wantIsError:    false,
+		},
+		{
+			name: "tool result with error sets is_error",
+			messages: []openai.ChatCompletionMessage{
+				{Role: "user", Content: "do something"},
+				{
+					Role: "assistant",
+					ToolCalls: []openai.ToolCall{
+						{ID: "tc_1", Type: "function", Function: openai.FunctionCall{Name: "cmd", Arguments: "{}"}},
+					},
+				},
+				{Role: "tool", Content: "Error: command failed", ToolCallID: "tc_1"},
+			},
+			wantContentKey: true,
+			wantIsError:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, msgs := convertOpenAIMessagesToAnthropic(tt.messages)
+
+			// The last message should be a user message with tool_result blocks
+			lastMsg := msgs[len(msgs)-1]
+			if lastMsg.Role != "user" {
+				t.Fatalf("last message role = %q, want %q", lastMsg.Role, "user")
+			}
+
+			blocks, ok := lastMsg.Content.([]anthropicContentBlock)
+			if !ok {
+				t.Fatalf("expected []anthropicContentBlock, got %T", lastMsg.Content)
+			}
+
+			if len(blocks) != 1 {
+				t.Fatalf("expected 1 block, got %d", len(blocks))
+			}
+
+			block := blocks[0]
+			if block.Type != "tool_result" {
+				t.Errorf("block type = %q, want %q", block.Type, "tool_result")
+			}
+
+			// Serialize to JSON and check the content key presence
+			jsonData, err := json.Marshal(block)
+			if err != nil {
+				t.Fatalf("failed to marshal block: %v", err)
+			}
+
+			var raw map[string]any
+			json.Unmarshal(jsonData, &raw)
+
+			_, hasContent := raw["content"]
+			if hasContent != tt.wantContentKey {
+				t.Errorf("content key present = %v, want %v (json: %s)", hasContent, tt.wantContentKey, string(jsonData))
+			}
+
+			if tt.wantIsError {
+				isError, hasIsError := raw["is_error"]
+				if !hasIsError || isError != true {
+					t.Errorf("expected is_error=true in json, got %s", string(jsonData))
+				}
+			} else {
+				if _, hasIsError := raw["is_error"]; hasIsError {
+					t.Errorf("expected no is_error in json, got %s", string(jsonData))
+				}
+			}
+		})
+	}
+}
+
+func TestStreamParseMultipleToolCalls(t *testing.T) {
+	// Test that multiple tool_use blocks in a single response are parsed correctly
+	sseData := strings.Join([]string{
+		"event: message_start",
+		`data: {"type":"message_start","message":{"id":"msg_01","type":"message","role":"assistant","content":[]}}`,
+		"",
+		"event: content_block_start",
+		`data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_01","name":"cmd1","input":{}}}`,
+		"",
+		"event: content_block_delta",
+		`data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"a\":\"1\"}"}}`,
+		"",
+		"event: content_block_stop",
+		`data: {"type":"content_block_stop","index":0}`,
+		"",
+		"event: content_block_start",
+		`data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_02","name":"cmd2","input":{}}}`,
+		"",
+		"event: content_block_delta",
+		`data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\"b\":\"2\"}"}}`,
+		"",
+		"event: content_block_stop",
+		`data: {"type":"content_block_stop","index":1}`,
+		"",
+		"event: message_delta",
+		`data: {"type":"message_delta","delta":{"stop_reason":"tool_use"}}`,
+		"",
+		"event: message_stop",
+		`data: {"type":"message_stop"}`,
+		"",
+	}, "\n")
+
+	stream := &anthropicLLMStream{
+		reader: newBufioReader(sseData),
+		body:   io.NopCloser(strings.NewReader("")),
+	}
+
+	var toolCalls []openai.ToolCall
+
+	for {
+		delta, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatalf("unexpected stream error: %v", err)
+		}
+
+		for _, tc := range delta.ToolCalls {
+			if tc.ID != "" {
+				toolCalls = append(toolCalls, tc)
+			} else {
+				toolCalls[len(toolCalls)-1].Function.Arguments += tc.Function.Arguments
+			}
+		}
+	}
+
+	if len(toolCalls) != 2 {
+		t.Fatalf("tool call count = %d, want 2", len(toolCalls))
+	}
+
+	if toolCalls[0].ID != "toolu_01" {
+		t.Errorf("first tool call ID = %q, want %q", toolCalls[0].ID, "toolu_01")
+	}
+	if toolCalls[0].Function.Name != "cmd1" {
+		t.Errorf("first tool call name = %q, want %q", toolCalls[0].Function.Name, "cmd1")
+	}
+	if toolCalls[0].Function.Arguments != `{"a":"1"}` {
+		t.Errorf("first tool call args = %q, want %q", toolCalls[0].Function.Arguments, `{"a":"1"}`)
+	}
+
+	if toolCalls[1].ID != "toolu_02" {
+		t.Errorf("second tool call ID = %q, want %q", toolCalls[1].ID, "toolu_02")
+	}
+	if toolCalls[1].Function.Name != "cmd2" {
+		t.Errorf("second tool call name = %q, want %q", toolCalls[1].Function.Name, "cmd2")
+	}
+	if toolCalls[1].Function.Arguments != `{"b":"2"}` {
+		t.Errorf("second tool call args = %q, want %q", toolCalls[1].Function.Arguments, `{"b":"2"}`)
+	}
+}
+
+// newBufioReader creates a bufio.Reader from a string for testing
+func newBufioReader(s string) *bufio.Reader {
+	return bufio.NewReader(strings.NewReader(s))
 }
