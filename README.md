@@ -10,7 +10,7 @@
 
 - **Natural Language Interface**: Execute system commands using conversational language
 - **Web Interface**: Browser-based chat interface for easier interaction
-- **Multi-Provider LLM Support**: Works with OpenAI, Groq, Ollama, OpenRouter, GitHub Models, and custom providers
+- **Multi-Provider LLM Support**: Works with OpenAI, Anthropic, Groq, Ollama, OpenRouter, GitHub Models, and custom providers
 - **Extensible Agent System**: Create specialized agents for different domains (DevOps, Git, coding, etc.)
 - **Function-Based Architecture**: Define custom commands via TOML configuration files
 - **MCP Server Integration**: Connect with Model Context Protocol servers for enhanced capabilities
@@ -55,6 +55,7 @@ ESA works with multiple LLM providers. Set up at least one:
 export OPENAI_API_KEY="your-openai-key"
 
 # Or use other providers
+export ANTHROPIC_API_KEY="your-anthropic-key"
 export GROQ_API_KEY="your-groq-key"
 export OLLAMA_API_KEY=""  # Leave empty for local Ollama
 ```
@@ -266,6 +267,7 @@ The web interface uses the same agent configurations and safety controls as the 
 ```bash
 # Use a specific model
 esa --model "openai/o3" "complex reasoning task"
+esa --model "anthropic/claude-sonnet-4-5" "analyze this code"
 esa --model "groq/llama3-70b" "quick question"
 
 # Use model aliases (defined in config)
@@ -287,6 +289,7 @@ default_model = "openai/gpt-4o-mini"    # Default model
 # Create shortcuts for frequently used models
 4o = "openai/gpt-4o"
 mini = "openai/gpt-4o-mini"
+sonnet = "anthropic/claude-sonnet-4-5"
 groq = "groq/llama3-70b-8192"
 local = "ollama/llama3.2"
 
@@ -451,6 +454,7 @@ safe = false             # File deletion requires confirmation
 | Provider       | Models                 | API Key Environment         |
 | -------------- | ---------------------- | --------------------------- |
 | **OpenAI**     | GPT-4, GPT-3.5, etc.   | `OPENAI_API_KEY`            |
+| **Anthropic**  | Claude models          | `ANTHROPIC_API_KEY`         |
 | **Groq**       | Llama, Mixtral models  | `GROQ_API_KEY`              |
 | **OpenRouter** | Various models         | `OPENROUTER_API_KEY`        |
 | **GitHub**     | Azure-hosted models    | `GITHUB_MODELS_API_KEY`     |
@@ -567,7 +571,6 @@ I have quite a few personal agents. The ones that I can make public are availabl
 1. The easiest way to get the Copilot token is to sign in to Copilot from any JetBrains IDE (PyCharm, GoLand, etc).
 
 2. After authentication, locate the configuration file:
-
    - Linux/macOS: `~/.config/github-copilot/apps.json`
    - Windows: `~\AppData\Local\github-copilot\apps.json`
 
