@@ -1,6 +1,9 @@
 package main
 
 import (
+	"io"
+	"os"
+	"strings"
 	"testing"
 )
 
@@ -450,5 +453,100 @@ func TestSystemPromptOverrideFromCLI(t *testing.T) {
 	}
 	if prompt != "CLI system prompt override" {
 		t.Errorf("Expected system prompt to be overridden by CLI, got: %q", prompt)
+	}
+}
+
+// captureStderr redirects os.Stderr to a pipe, calls fn, then returns everything written.
+func captureStderr(t *testing.T, fn func()) string {
+	t.Helper()
+	orig := os.Stderr
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe: %v", err)
+	}
+	os.Stderr = w
+	fn()
+	w.Close()
+	os.Stderr = orig
+	out, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("io.ReadAll: %v", err)
+	}
+	return string(out)
+}
+
+func TestShowToolProgressReplModeNewline(t *testing.T) {
+	// In REPL mode the very first progress indicator must be preceded by a newline
+	// so it appears below the "esa> " prompt rather than overwriting it.
+	app := &Application{
+		showProgress: true,
+		replMode:     true,
+	}
+
+	out := captureStderr(t, func() {
+		app.showToolProgress("my_tool", `{"key":"val"}`)
+	})
+
+	if !strings.HasPrefix(out, "\n") {
+		t.Errorf("expected output to start with newline in REPL mode, got %q", out)
+	}
+	if !strings.Contains(out, "my_tool") {
+		t.Errorf("expected progress message to mention tool name, got %q", out)
+	}
+}
+
+func TestShowToolProgressNormalModeNoLeadingNewline(t *testing.T) {
+	// In normal (non-REPL) mode the first progress indicator must NOT emit a leading
+	// newline – the \r-overwrite technique assumes the cursor is at column 0.
+	app := &Application{
+		showProgress: false, // progress off so clearProgress is a no-op
+		replMode:     false,
+	}
+	app.showProgress = true
+
+	out := captureStderr(t, func() {
+		app.showToolProgress("other_tool", "{}")
+	})
+
+	if strings.HasPrefix(out, "\n") {
+		t.Errorf("expected no leading newline in normal mode, got %q", out)
+	}
+	if !strings.Contains(out, "other_tool") {
+		t.Errorf("expected progress message to mention tool name, got %q", out)
+	}
+}
+
+func TestShowToolProgressReplModeSubsequentCallsNoExtraNewline(t *testing.T) {
+	// After the first progress indicator in REPL mode subsequent calls overwrite in
+	// place (\r) and must NOT emit another leading newline.
+	app := &Application{
+		showProgress:    true,
+		replMode:        true,
+		lastProgressLen: 10, // simulate that a previous progress line is shown
+	}
+
+	out := captureStderr(t, func() {
+		app.showToolProgress("second_tool", "{}")
+	})
+
+	if strings.HasPrefix(out, "\n") {
+		t.Errorf("expected no extra leading newline on subsequent progress in REPL mode, got %q", out)
+	}
+	// Should start with \r to clear the previous line.
+	if !strings.HasPrefix(out, "\r") {
+		t.Errorf("expected output to start with \\r to overwrite previous progress, got %q", out)
+	}
+}
+
+func TestClearProgressResetsLen(t *testing.T) {
+	app := &Application{
+		showProgress:    true,
+		lastProgressLen: 5,
+	}
+	captureStderr(t, func() {
+		app.clearProgress()
+	})
+	if app.lastProgressLen != 0 {
+		t.Errorf("expected lastProgressLen to be 0 after clearProgress, got %d", app.lastProgressLen)
 	}
 }
