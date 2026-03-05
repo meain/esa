@@ -155,7 +155,7 @@ MCP tools are automatically prefixed with `mcp_<server_name>_` to avoid conflict
 Use debug mode to see MCP server activity:
 
 ```bash
-go run ./... --agent examples/filesystem.toml --debug "list files in current directory"
+esa --agent examples/mcp.toml --debug "list files in current directory"
 ```
 
 This shows:

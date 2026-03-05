@@ -187,15 +187,23 @@ you> /config
 you> /model                    # Show current model
 you> /model openai/gpt-4o     # Switch to a different model
 you> /model mini              # Use a model alias
+
+# View or change the active agent
+you> /agent                   # Show current agent
+you> /agent +k8s              # Switch to a different agent
+you> /agent myagent           # Switch to a named agent
+
+# Open default editor for multi-line input
+you> /editor
 ```
 
 #### REPL Features
 
 - **Persistent Context**: The conversation continues across multiple inputs
-- **Agent Selection**: Use `+agent` syntax in your initial query or when starting REPL
+- **Agent Selection**: Use `+agent` syntax in your initial query or switch mid-session with `/agent`
 - **Model Switching**: Change models mid-conversation with `/model`
 - **Configuration Display**: View current settings with `/config`
-- **Multi-line Input**: Press enter twice to send your message
+- **Multi-line Input**: Use `/editor` to open your default editor for composing longer messages, or press enter twice to send
 - **History Preservation**: All REPL conversations are saved and can be viewed later
 
 #### Example REPL Session
@@ -267,7 +275,7 @@ The web interface uses the same agent configurations and safety controls as the 
 ```bash
 # Use a specific model
 esa --model "openai/o3" "complex reasoning task"
-esa --model "anthropic/claude-sonnet-4-5" "analyze this code"
+esa --model "anthropic/claude-sonnet-4-6" "analyze this code"
 esa --model "groq/llama3-70b" "quick question"
 
 # Use model aliases (defined in config)
@@ -289,7 +297,7 @@ default_model = "openai/gpt-4o-mini"    # Default model
 # Create shortcuts for frequently used models
 4o = "openai/gpt-4o"
 mini = "openai/gpt-4o-mini"
-sonnet = "anthropic/claude-sonnet-4-5"
+sonnet = "anthropic/claude-sonnet-4-6"
 groq = "groq/llama3-70b-8192"
 local = "ollama/llama3.2"
 

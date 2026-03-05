@@ -254,7 +254,7 @@ safe = true
 | `stdin`       | string  | No       | -       | Input to pass to command's stdin     |
 | `output`      | string  | No       | -       | Show output to user during execution |
 | `pwd`         | string  | No       | -       | Working directory for command        |
-| `timeout`     | integer | No       | 30      | Command timeout in seconds           |
+| `timeout`     | integer | No       | 60      | Command timeout in seconds           |
 
 ### Command Templates
 
@@ -605,7 +605,7 @@ command = "gh issue create --title '{{title}}' --body '{{#Enter issue descriptio
 The `output` field documents expected output and can be used for user communication:
 
 ```toml
-[[function]]
+[[functions]]
 name = "ask_user_question"
 description = "Ask a question to the user. Use this instead of directly asking the user a question."
 output = "{{query}}"
@@ -911,10 +911,10 @@ Check your agent configuration:
 
 ```bash
 # View agent details
-esa show-agent +myagent
+esa --show-agent +myagent
 
 # List all agents
-esa list-agents
+esa --list-agents
 ```
 
 ### 4. Testing Functions
