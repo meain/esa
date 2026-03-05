@@ -46,6 +46,7 @@ type Application struct {
 	showToolCalls   bool
 	showProgress    bool
 	lastProgressLen int
+	replMode        bool
 	modelFlag       string
 	config          *Config
 	mcpManager      *MCPManager
@@ -525,6 +526,9 @@ func (app *Application) showToolProgress(funcName string, args string) {
 	// Clear previous line if exists
 	if app.lastProgressLen > 0 {
 		fmt.Fprintf(os.Stderr, "\r%s\r", strings.Repeat(" ", app.lastProgressLen))
+	} else if app.replMode {
+		// In REPL mode the cursor is after the "esa> " prompt; start progress on a new line
+		fmt.Fprintf(os.Stderr, "\n")
 	}
 	msg := fmt.Sprintf("⋮ %s", summary)
 	color.New(color.FgBlue).Fprint(os.Stderr, msg)

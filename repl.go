@@ -14,8 +14,8 @@ import (
 
 // runReplMode starts the REPL (Read-Eval-Print Loop) mode
 func runReplMode(opts *CLIOptions, args []string) error {
-	// TODO: Make progress work in REPL (will have to newline)
-	opts.HideProgress = true // Hide progress in REPL mode
+	// Progress is enabled in REPL mode; the first progress line is prefixed with a
+	// newline because the cursor sits after the "esa> " prompt on the same line.
 
 	// Handle agent selection with + prefix in the initial query
 	initialQuery := strings.Join(args, " ")
@@ -30,6 +30,7 @@ func runReplMode(opts *CLIOptions, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to initialize application: %v", err)
 	}
+	app.replMode = true
 
 	cleanup, err := app.initializeRuntime()
 	if err != nil {
