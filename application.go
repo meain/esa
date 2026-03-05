@@ -502,7 +502,23 @@ func (app *Application) saveConversationHistory() {
 }
 
 func (app *Application) generateProgressSummary(funcName string, args string) string {
-	return fmt.Sprintf("Calling %s...", funcName)
+	if args == "" || args == "{}" {
+		return fmt.Sprintf("%s()", funcName)
+	}
+	var m map[string]any
+	if err := json.Unmarshal([]byte(args), &m); err != nil || len(m) == 0 {
+		return fmt.Sprintf("%s()", funcName)
+	}
+	// json.Marshal sorts map keys for consistent output
+	compact, err := json.Marshal(m)
+	if err != nil {
+		return fmt.Sprintf("%s()", funcName)
+	}
+	argsStr := string(compact)
+	if len(argsStr) > 50 {
+		argsStr = argsStr[:47] + "..."
+	}
+	return fmt.Sprintf("%s %s", funcName, argsStr)
 }
 
 // clearProgress clears the progress line from stderr if one is currently displayed
@@ -620,7 +636,8 @@ func (app *Application) handleToolCalls(toolCalls []openai.ToolCall, opts CLIOpt
 
 // handleMCPToolCall handles tool calls for MCP servers
 func (app *Application) handleMCPToolCall(toolCall openai.ToolCall, opts CLIOptions) {
-	app.showToolProgress(toolCall.Function.Name, toolCall.Function.Arguments)
+	displayName := app.mcpManager.GetToolDisplayName(toolCall.Function.Name)
+	app.showToolProgress(displayName, toolCall.Function.Arguments)
 
 	// Parse the arguments
 	var arguments any
@@ -648,7 +665,7 @@ func (app *Application) handleMCPToolCall(toolCall openai.ToolCall, opts CLIOpti
 
 	// Format arguments for display
 	argsDisplay := formatArgsForDisplay(arguments)
-	displayCommand := fmt.Sprintf("# %s(%s)", toolCall.Function.Name, argsDisplay)
+	displayCommand := fmt.Sprintf("# %s(%s)", displayName, argsDisplay)
 	app.appendToolResult(toolCall, result, displayCommand, result)
 }
 
