@@ -515,8 +515,9 @@ func (app *Application) generateProgressSummary(funcName string, args string) st
 		return fmt.Sprintf("%s()", funcName)
 	}
 	argsStr := string(compact)
-	if len(argsStr) > 50 {
-		argsStr = argsStr[:47] + "..."
+	runes := []rune(argsStr)
+	if len(runes) > 50 {
+		argsStr = string(runes[:47]) + "..."
 	}
 	return fmt.Sprintf("%s %s", funcName, argsStr)
 }
