@@ -514,6 +514,20 @@ func (m *MCPManager) GetAllTools() []openai.Tool {
 	return allTools
 }
 
+// GetToolDisplayName returns a human-friendly display name for an MCP tool,
+// stripping the internal "mcp_<server>_" prefix and using "server:tool" format.
+func (m *MCPManager) GetToolDisplayName(toolName string) string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	for serverName := range m.clients {
+		prefix := fmt.Sprintf("mcp_%s_", serverName)
+		if strings.HasPrefix(toolName, prefix) {
+			return fmt.Sprintf("%s:%s", serverName, strings.TrimPrefix(toolName, prefix))
+		}
+	}
+	return toolName
+}
+
 // CallTool calls a tool on the appropriate MCP server
 func (m *MCPManager) CallTool(toolName string, arguments interface{}, askLevel string) (string, error) {
 	m.mu.RLock()
