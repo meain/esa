@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/charmbracelet/glamour"
 	"github.com/fatih/color"
 	"github.com/sashabaranov/go-openai"
+	"golang.org/x/term"
 )
 
 func printFunctionInfo(fn FunctionConfig) {
@@ -542,9 +544,13 @@ func printMCPServerInfo(name string, server MCPServerConfig) {
 }
 
 func printPrettyOutput(content string) {
+	width := 80
+	if w, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil && w > 0 {
+		width = w
+	}
 	renderer, err := glamour.NewTermRenderer(
 		glamour.WithAutoStyle(),
-		glamour.WithWordWrap(80),
+		glamour.WithWordWrap(width),
 	)
 	if err != nil {
 		fmt.Println(content)
