@@ -136,17 +136,17 @@ func (s *webSession) resetAbort() {
 
 // runServeMode starts the HTTP/WebSocket server
 func runServeMode(opts *CLIOptions) error {
-	// Change working directory if specified
-	if opts.ServeWorkDir != "" {
-		absDir, err := filepath.Abs(opts.ServeWorkDir)
+	// Initialize server-level working directory
+	initialDir := opts.ServeWorkDir
+	if initialDir != "" {
+		absDir, err := filepath.Abs(initialDir)
 		if err != nil {
-			return fmt.Errorf("invalid work-dir %q: %w", opts.ServeWorkDir, err)
+			return fmt.Errorf("invalid work-dir %q: %w", initialDir, err)
 		}
-		if err := os.Chdir(absDir); err != nil {
-			return fmt.Errorf("failed to change to work-dir %q: %w", absDir, err)
-		}
+		initialDir = absDir
 		fmt.Fprintf(os.Stderr, "Working directory: %s\n", absDir)
 	}
+	swd := newServerWorkDir(initialDir)
 
 	mux := http.NewServeMux()
 
@@ -162,7 +162,9 @@ func runServeMode(opts *CLIOptions) error {
 	mux.HandleFunc("/api/models", func(w http.ResponseWriter, r *http.Request) {
 		handleListModels(w, r, opts)
 	})
-	mux.HandleFunc("/api/workdir", handleWorkDir)
+	mux.HandleFunc("/api/workdir", func(w http.ResponseWriter, r *http.Request) {
+		handleWorkDir(w, r, swd)
+	})
 	mux.HandleFunc("/api/workdirs", handleListWorkDirs)
 
 	// Serve embedded static files
@@ -268,13 +270,7 @@ func handleListHistory(w http.ResponseWriter, r *http.Request) {
 	// List a maximum of 50 recent histories. The API was pretty slow
 	// and we will anyways only show the top 50 in the UI.
 	for i, fileName := range sortedFiles[:50] {
-		parts := strings.SplitN(strings.TrimSuffix(fileName, ".json"), "-", 5)
-		agentName := "unknown"
-		timestampStr := "unknown"
-		if len(parts) == 5 {
-			agentName = parts[3]
-			timestampStr = parts[4]
-		}
+		conversationID, agentName, timestampStr := parseHistoryFilename(fileName)
 
 		// Get first user query
 		var query string
@@ -294,11 +290,6 @@ func handleListHistory(w http.ResponseWriter, r *http.Request) {
 					prevMessage = msg.Content
 				}
 			}
-		}
-
-		conversationID := ""
-		if len(parts) == 5 {
-			conversationID = parts[0]
 		}
 
 		histories = append(histories, HistoryInfo{
@@ -375,8 +366,34 @@ func handleListModels(w http.ResponseWriter, r *http.Request, opts *CLIOptions) 
 	json.NewEncoder(w).Encode(models)
 }
 
-// handleWorkDir gets or sets the current working directory
-func handleWorkDir(w http.ResponseWriter, r *http.Request) {
+// serverWorkDir holds the server-level working directory state
+// so we don't call os.Chdir which affects the entire process.
+type serverWorkDir struct {
+	mu  sync.RWMutex
+	dir string
+}
+
+func newServerWorkDir(initial string) *serverWorkDir {
+	if initial == "" {
+		initial, _ = os.Getwd()
+	}
+	return &serverWorkDir{dir: initial}
+}
+
+func (s *serverWorkDir) get() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.dir
+}
+
+func (s *serverWorkDir) set(dir string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.dir = dir
+}
+
+// handleWorkDir gets or sets the server-level working directory
+func handleWorkDir(w http.ResponseWriter, r *http.Request, swd *serverWorkDir) {
 	type WorkDirInfo struct {
 		Path string `json:"path"`
 	}
@@ -392,20 +409,16 @@ func handleWorkDir(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, fmt.Sprintf("invalid path: %v", err), http.StatusBadRequest)
 			return
 		}
-		if err := os.Chdir(absDir); err != nil {
-			http.Error(w, fmt.Sprintf("failed to change directory: %v", err), http.StatusBadRequest)
+		// Verify the directory exists
+		if info, err := os.Stat(absDir); err != nil || !info.IsDir() {
+			http.Error(w, fmt.Sprintf("not a valid directory: %s", absDir), http.StatusBadRequest)
 			return
 		}
-	}
-
-	cwd, err := os.Getwd()
-	if err != nil {
-		http.Error(w, "failed to get working directory", http.StatusInternalServerError)
-		return
+		swd.set(absDir)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(WorkDirInfo{Path: cwd})
+	json.NewEncoder(w).Encode(WorkDirInfo{Path: swd.get()})
 }
 
 // handleListWorkDirs returns common working directories from history

@@ -302,6 +302,42 @@ func readUserInput(prompt string, multiline bool) (string, error) {
 	return result.String(), nil
 }
 
+// parseHistoryFilename extracts conversation ID, agent name, and timestamp
+// from a history filename. Filenames follow the format:
+//
+//	{conversation}---{agent}-{YYYYMMDD}-{HHMMSS}.json
+//	---{agent}-{YYYYMMDD}-{HHMMSS}.json (no conversation ID)
+func parseHistoryFilename(fileName string) (conversation, agentName, timestampStr string) {
+	base := strings.TrimSuffix(fileName, ".json")
+
+	// Split on "---" to separate conversation from the rest
+	parts := strings.SplitN(base, "---", 2)
+	if len(parts) != 2 {
+		return "", "unknown", "unknown"
+	}
+
+	conversation = parts[0]
+	rest := parts[1] // e.g. "agent-20060102-150405"
+
+	// The rest is "{agent}-{YYYYMMDD}-{HHMMSS}"
+	// Split from the right: find last two dash-separated segments for the timestamp
+	segments := strings.Split(rest, "-")
+	if len(segments) >= 3 {
+		// Last two segments are date and time
+		timestampStr = segments[len(segments)-2] + "-" + segments[len(segments)-1]
+		agentName = strings.Join(segments[:len(segments)-2], "-")
+	} else {
+		agentName = rest
+		timestampStr = "unknown"
+	}
+
+	if agentName == "" {
+		agentName = "unknown"
+	}
+
+	return conversation, agentName, timestampStr
+}
+
 // getSortedHistoryFiles retrieves and sorts history files by modification time.
 func getSortedHistoryFiles() ([]string, map[string]os.FileInfo, error) {
 	cacheDir, err := setupCacheDir()

@@ -2,6 +2,8 @@ package main
 
 import (
 	"testing"
+
+	"github.com/sashabaranov/go-openai"
 )
 
 func TestParseModel(t *testing.T) {
@@ -426,6 +428,18 @@ func TestSetupLLMClientReturnsCorrectType(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestPrepareRetryMessages_Empty(t *testing.T) {
+	result := prepareRetryMessages(nil, "hello")
+	if result != nil {
+		t.Errorf("Expected nil for empty messages, got %v", result)
+	}
+
+	result = prepareRetryMessages([]openai.ChatCompletionMessage{}, "hello")
+	if result != nil {
+		t.Errorf("Expected nil for empty slice, got %v", result)
 	}
 }
 

@@ -326,3 +326,57 @@ func findSubstring(s, substr string) bool {
 	}
 	return false
 }
+
+func TestParseHistoryFilename(t *testing.T) {
+	tests := []struct {
+		name          string
+		fileName      string
+		wantConv      string
+		wantAgent     string
+		wantTimestamp string
+	}{
+		{
+			name:          "standard format",
+			fileName:      "myconv---default-20260321-140500.json",
+			wantConv:      "myconv",
+			wantAgent:     "default",
+			wantTimestamp: "20260321-140500",
+		},
+		{
+			name:          "no conversation ID",
+			fileName:      "---default-20260321-140500.json",
+			wantConv:      "",
+			wantAgent:     "default",
+			wantTimestamp: "20260321-140500",
+		},
+		{
+			name:          "agent with dashes",
+			fileName:      "conv123---my-cool-agent-20260321-140500.json",
+			wantConv:      "conv123",
+			wantAgent:     "my-cool-agent",
+			wantTimestamp: "20260321-140500",
+		},
+		{
+			name:          "no separator",
+			fileName:      "noseparator.json",
+			wantConv:      "",
+			wantAgent:     "unknown",
+			wantTimestamp: "unknown",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conv, agent, ts := parseHistoryFilename(tt.fileName)
+			if conv != tt.wantConv {
+				t.Errorf("conversation = %q, want %q", conv, tt.wantConv)
+			}
+			if agent != tt.wantAgent {
+				t.Errorf("agentName = %q, want %q", agent, tt.wantAgent)
+			}
+			if ts != tt.wantTimestamp {
+				t.Errorf("timestamp = %q, want %q", ts, tt.wantTimestamp)
+			}
+		})
+	}
+}

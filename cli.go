@@ -93,7 +93,7 @@ func createRootCommand() *cobra.Command {
 				)
 			}
 
-			if opts.OutputFormat == "" &&
+			if opts.OutputFormat != "" &&
 				!slices.Contains([]string{"text", "markdown", "json", "html"}, opts.OutputFormat) {
 				return fmt.Errorf(
 					"invalid output format: %s. Must be one of: text, markdown, json, html",
@@ -380,17 +380,9 @@ func listHistory(showAll bool) {
 	}
 
 	for i, fileName := range itemsToShow {
-		parts := strings.SplitN(strings.TrimSuffix(fileName, ".json"), "-", 5)
-		conversation := ""
-		agentName := "unknown"
-		timestampStr := "unknown"
-		if len(parts) == 5 {
-			conversation = parts[0]
-			agentName = parts[3]
-			timestampStr = parts[4]
-			if parsedTime, err := time.Parse("20060102-150405", timestampStr); err == nil {
-				timestampStr = parsedTime.Format("2006-01-02 15:04:05")
-			}
+		conversation, agentName, timestampStr := parseHistoryFilename(fileName)
+		if parsedTime, err := time.Parse("20060102-150405", timestampStr); err == nil {
+			timestampStr = parsedTime.Format("2006-01-02 15:04:05")
 		}
 
 		// Get first user query

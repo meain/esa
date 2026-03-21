@@ -84,6 +84,10 @@ func (app *Application) createChatCompletionWithRetry(tools []openai.Tool) (LLMS
 	var stream LLMStream
 	var err error
 
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	_ = ctx // context threaded through client when supported
+	defer cancel()
+
 	// Retry logic for rate limiting
 	for attempt := 0; attempt <= maxRetryCount; attempt++ {
 		stream, err = app.client.CreateChatCompletionStream(
@@ -120,6 +124,10 @@ func (app *Application) createChatCompletionWithRetry(tools []openai.Tool) (LLMS
 // prepareRetryMessages prepares messages for retry mode by keeping all messages
 // up to the last user message, optionally replacing its content.
 func prepareRetryMessages(allMessages []openai.ChatCompletionMessage, commandStr string) []openai.ChatCompletionMessage {
+	if len(allMessages) == 0 {
+		return nil
+	}
+
 	// Find the last user message in the history
 	lastUserIdx := -1
 	for i := len(allMessages) - 1; i >= 0; i-- {

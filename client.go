@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"math"
+	mathrand "math/rand/v2"
 	"net/http"
 	"os"
 	"time"
@@ -81,5 +82,7 @@ func calculateRetryDelay(attempt int) time.Duration {
 		delay = maxRetryDelay
 	}
 
-	return delay
+	// Add jitter: random value in [0, delay/2)
+	jitter := time.Duration(mathrand.Int64N(int64(delay / 2)))
+	return delay + jitter
 }
