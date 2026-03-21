@@ -1,8 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 )
@@ -75,5 +77,40 @@ func LoadConfig(configPath string) (*Config, error) {
 		return nil, err
 	}
 
+	if err := validateConfig(config); err != nil {
+		return nil, fmt.Errorf("invalid config: %w", err)
+	}
+
 	return config, nil
+}
+
+// validateConfig validates the loaded configuration for common errors.
+func validateConfig(config *Config) error {
+	// Detect circular model aliases
+	for alias := range config.ModelAliases {
+		visited := make(map[string]bool)
+		current := alias
+		for {
+			visited[current] = true
+			next, ok := config.ModelAliases[current]
+			if !ok {
+				break // resolved to a non-alias, good
+			}
+			if visited[next] {
+				return fmt.Errorf("circular model alias detected: %s", alias)
+			}
+			current = next
+		}
+	}
+
+	// Validate provider BaseURLs
+	for name, provider := range config.Providers {
+		if provider.BaseURL != "" &&
+			!strings.HasPrefix(provider.BaseURL, "http://") &&
+			!strings.HasPrefix(provider.BaseURL, "https://") {
+			return fmt.Errorf("provider %q has invalid base_url %q: must start with http:// or https://", name, provider.BaseURL)
+		}
+	}
+
+	return nil
 }

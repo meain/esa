@@ -85,6 +85,99 @@ args = ["--port", "8080"]
 			wantErr:     true,
 			errContains: "has no command defined",
 		},
+		{
+			name: "invalid ask level",
+			agentConfig: `
+name = "test-agent"
+ask = "invalid"
+`,
+			wantErr:     true,
+			errContains: "invalid ask level",
+		},
+		{
+			name: "valid ask level none",
+			agentConfig: `
+name = "test-agent"
+ask = "none"
+`,
+			wantErr: false,
+		},
+		{
+			name: "valid ask level all",
+			agentConfig: `
+name = "test-agent"
+ask = "all"
+`,
+			wantErr: false,
+		},
+		{
+			name: "duplicate function name",
+			agentConfig: `
+name = "test-agent"
+
+[[functions]]
+name = "hello"
+description = "Say hello"
+command = "echo Hello"
+
+[[functions]]
+name = "hello"
+description = "Duplicate hello"
+command = "echo World"
+`,
+			wantErr:     true,
+			errContains: "duplicate function name",
+		},
+		{
+			name: "duplicate parameter name",
+			agentConfig: `
+name = "test-agent"
+
+[[functions]]
+name = "hello"
+description = "Say hello"
+command = "echo {{a}} {{a}}"
+
+[[functions.parameters]]
+name = "a"
+type = "string"
+description = "first"
+
+[[functions.parameters]]
+name = "a"
+type = "string"
+description = "second"
+`,
+			wantErr:     true,
+			errContains: "duplicate parameter name",
+		},
+		{
+			name: "invalid timeout too high",
+			agentConfig: `
+name = "test-agent"
+
+[[functions]]
+name = "hello"
+description = "Say hello"
+command = "echo Hello"
+timeout = 7200
+`,
+			wantErr:     true,
+			errContains: "invalid timeout",
+		},
+		{
+			name: "valid timeout",
+			agentConfig: `
+name = "test-agent"
+
+[[functions]]
+name = "hello"
+description = "Say hello"
+command = "echo Hello"
+timeout = 300
+`,
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {

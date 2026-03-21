@@ -63,13 +63,30 @@ func loadAgent(agentPath string) (Agent, error) {
 func validateAgent(agent Agent) (Agent, error) {
 	var err error
 
+	// Validate ask level
+	validAskLevels := map[string]bool{"": true, "none": true, "unsafe": true, "all": true}
+	if !validAskLevels[agent.Ask] {
+		return agent, fmt.Errorf("agent '%s' has invalid ask level: %q (must be one of: none, unsafe, all)", agent.Name, agent.Ask)
+	}
+
+	// Check function name uniqueness
+	funcNames := make(map[string]bool)
+
 	// Validate each function configuration
 	for i, fc := range agent.Functions {
 		if fc.Name == "" {
 			return agent, fmt.Errorf("function %d in agent '%s' has no name", i+1, agent.Name)
 		}
+		if funcNames[fc.Name] {
+			return agent, fmt.Errorf("duplicate function name '%s' in agent '%s'", fc.Name, agent.Name)
+		}
+		funcNames[fc.Name] = true
+
 		if fc.Command == "" {
 			return agent, fmt.Errorf("function %s in agent '%s' has no command defined", fc.Name, agent.Name)
+		}
+		if fc.Timeout < 0 || fc.Timeout > 3600 {
+			return agent, fmt.Errorf("function '%s' in agent '%s' has invalid timeout %d (must be 0-3600)", fc.Name, agent.Name, fc.Timeout)
 		}
 
 		agent.Functions[i].Description, err = processShellBlocks(fc.Description)
@@ -78,10 +95,15 @@ func validateAgent(agent Agent) (Agent, error) {
 		}
 
 		// Validate parameters
+		paramNames := make(map[string]bool)
 		for j, param := range fc.Parameters {
 			if param.Name == "" {
 				return agent, fmt.Errorf("parameter %d in function '%s' has no name", j+1, fc.Name)
 			}
+			if paramNames[param.Name] {
+				return agent, fmt.Errorf("duplicate parameter name '%s' in function '%s'", param.Name, fc.Name)
+			}
+			paramNames[param.Name] = true
 			if param.Type == "" {
 				return agent, fmt.Errorf("parameter %s in function '%s' has no type defined", param.Name, fc.Name)
 			}
