@@ -9,10 +9,19 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/sashabaranov/go-openai"
 )
+
+// shellEscape escapes a string for safe use in a shell command by wrapping
+// it in single quotes and escaping any embedded single quotes.
+func shellEscape(s string) string {
+	// Replace each ' with '\'' (end quote, escaped quote, start quote)
+	escaped := strings.ReplaceAll(s, "'", "'\\''")
+	return "'" + escaped + "'"
+}
 
 func convertFunctionsToTools(functions []FunctionConfig) []openai.Tool {
 	var tools []openai.Tool
@@ -140,7 +149,7 @@ func prepareCommand(fc FunctionConfig, parsedArgs map[string]any) (string, error
 			if err != nil {
 				return "", err
 			}
-			command = strings.ReplaceAll(command, placeholder, replacement)
+			command = strings.ReplaceAll(command, placeholder, shellEscape(replacement))
 		} else if !param.Required {
 			command = strings.ReplaceAll(command, placeholder, "")
 		}
@@ -158,10 +167,17 @@ func processShellBlocks(input string) (string, error) {
 	shellRegex := regexp.MustCompile(`{{\$(.*?)}}`)
 	result := shellRegex.ReplaceAllStringFunc(input, func(match string) string {
 		command := match[3 : len(match)-2] // Extract command without {{$ and }}
-		cmd := exec.Command("sh", "-c", command)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, "sh", "-c", command)
 		output, err := cmd.CombinedOutput()
 		if err != nil {
 			return fmt.Sprintf("Error: %v", err)
+		}
+		// Truncate output to 1MB
+		const maxOutput = 1 << 20
+		if len(output) > maxOutput {
+			output = output[:maxOutput]
 		}
 		return strings.TrimSpace(string(output))
 	})
@@ -256,6 +272,9 @@ func executeShellCommand(
 	// Create command with context
 	cmd := exec.CommandContext(ctx, "sh", "-c", command)
 
+	// Set process group so we can kill child processes on timeout
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+
 	// Set working directory if specified
 	if fc.Pwd != "" {
 		// Process templates in pwd similar to command
@@ -280,46 +299,25 @@ func executeShellCommand(
 	} else {
 		cmd.Stdin = os.Stdin
 	}
-	// Start the command and capture output
-	var output []byte
-	var cmdErr error
+	// Run the command and capture output
+	output, cmdErr := cmd.CombinedOutput()
 
-	// Use a channel to handle the command execution
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		output, cmdErr = cmd.CombinedOutput()
-	}()
-
-	// Wait for either completion or timeout
-	select {
-	case <-done:
-		// Command completed normally
-		if cmdErr != nil {
-			return output, stdinContent, fmt.Errorf("%v\nCommand: %s\nOutput: %s", cmdErr, command, string(output))
-		}
-		return output, stdinContent, nil
-
-	case <-ctx.Done():
-		// Context was cancelled (timeout or other cancellation)
-		// Try to kill the process
+	// Check if the context timed out or was cancelled
+	if ctx.Err() != nil {
+		// Kill the entire process group to clean up child processes
 		if cmd.Process != nil {
-			cmd.Process.Kill()
+			syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 		}
-
-		// Wait a bit for the goroutine to finish
-		select {
-		case <-done:
-			// Goroutine finished
-		case <-time.After(3 * time.Second):
-			// Give it some time to gracefully exit
-		}
-
 		if ctx.Err() == context.DeadlineExceeded {
 			return nil, "", fmt.Errorf("command timed out after %d seconds: %s", timeout, command)
 		}
 		return nil, "", fmt.Errorf("command was cancelled: %s", command)
 	}
+
+	if cmdErr != nil {
+		return output, stdinContent, fmt.Errorf("%v\nCommand: %s\nOutput: %s", cmdErr, command, string(output))
+	}
+	return output, stdinContent, nil
 }
 
 func prepareStdinContent(stdinTemplate string, args map[string]any) string {

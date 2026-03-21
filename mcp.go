@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/sashabaranov/go-openai"
 )
@@ -22,6 +23,7 @@ type MCPClient struct {
 	stdin          io.WriteCloser
 	stdout         io.ReadCloser
 	stderr         io.ReadCloser
+	scanner        *bufio.Scanner // reused across requests, initialized in Start()
 	tools          []openai.Tool
 	functionSafety map[string]bool // Maps function name to safety status
 	mu             sync.Mutex
@@ -128,6 +130,12 @@ func (c *MCPClient) Start(ctx context.Context) error {
 
 	c.running = true
 
+	// Initialize scanner for reading responses (reused across requests)
+	const maxTokenSize = 10 * 1024 * 1024 // 10MB
+	c.scanner = bufio.NewScanner(c.stdout)
+	buffer := make([]byte, maxTokenSize)
+	c.scanner.Buffer(buffer, maxTokenSize)
+
 	// Initialize the MCP connection
 	if err := c.initialize(); err != nil {
 		c.stopInternal() // Use internal stop method to avoid deadlock
@@ -195,7 +203,7 @@ func (c *MCPClient) initialize() error {
 		},
 	}
 
-	response, err := c.sendRequest(initRequest)
+	response, err := c.sendRequestLocked(initRequest)
 	if err != nil {
 		return err
 	}
@@ -221,7 +229,7 @@ func (c *MCPClient) loadTools() error {
 		Method:  "tools/list",
 	}
 
-	response, err := c.sendRequest(request)
+	response, err := c.sendRequestLocked(request)
 	if err != nil {
 		return err
 	}
@@ -351,7 +359,7 @@ func (c *MCPClient) CallTool(toolName string, arguments interface{}, askLevel st
 		},
 	}
 
-	response, err := c.sendRequest(request)
+	response, err := c.sendRequestLocked(request)
 	if err != nil {
 		return "", err
 	}
@@ -393,8 +401,9 @@ func (c *MCPClient) CallTool(toolName string, arguments interface{}, askLevel st
 	return resultStr, nil
 }
 
-// sendRequest sends a JSON-RPC request and waits for response
-func (c *MCPClient) sendRequest(request MCPRequest) (*MCPResponse, error) {
+// sendRequestLocked sends a JSON-RPC request and waits for response.
+// Caller must hold c.mu.
+func (c *MCPClient) sendRequestLocked(request MCPRequest) (*MCPResponse, error) {
 	// Marshal request
 	requestBytes, err := json.Marshal(request)
 	if err != nil {
@@ -406,36 +415,46 @@ func (c *MCPClient) sendRequest(request MCPRequest) (*MCPResponse, error) {
 		return nil, fmt.Errorf("failed to write request: %w", err)
 	}
 
-	// Read response
-	scanner := bufio.NewScanner(c.stdout)
-	// Increase buffer size to handle large responses (default is 64KB, set to 10MB)
-	const maxTokenSize = 10 * 1024 * 1024 // 10MB
-	buffer := make([]byte, maxTokenSize)
-	scanner.Buffer(buffer, maxTokenSize)
+	// Read response with timeout
+	type scanResult struct {
+		data []byte
+		ok   bool
+		err  error
+	}
+	ch := make(chan scanResult, 1)
+	go func() {
+		ok := c.scanner.Scan()
+		ch <- scanResult{
+			data: append([]byte(nil), c.scanner.Bytes()...),
+			ok:   ok,
+			err:  c.scanner.Err(),
+		}
+	}()
 
-	if !scanner.Scan() {
-		// Check for scanner error
-		if err := scanner.Err(); err != nil {
-			return nil, fmt.Errorf("failed to read response (scanner error): %w", err)
+	const readTimeout = 60 * time.Second
+	select {
+	case res := <-ch:
+		if !res.ok {
+			if res.err != nil {
+				return nil, fmt.Errorf("failed to read response (scanner error): %w", res.err)
+			}
+			// Check stderr for any error messages from the MCP server
+			stderrBytes := make([]byte, 1024)
+			if n, err := c.stderr.Read(stderrBytes); err == nil && n > 0 {
+				return nil, fmt.Errorf("failed to read response, stderr from MCP server: %s", string(stderrBytes[:n]))
+			}
+			return nil, fmt.Errorf("failed to read response (no data from MCP server)")
 		}
 
-		// Check stderr for any error messages from the MCP server
-		stderrBytes := make([]byte, 1024)
-		if n, err := c.stderr.Read(stderrBytes); err == nil && n > 0 {
-			return nil, fmt.Errorf("failed to read response, stderr from MCP server: %s", string(stderrBytes[:n]))
+		var response MCPResponse
+		if err := json.Unmarshal(res.data, &response); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal response: %w, raw response: %s", err, string(res.data))
 		}
+		return &response, nil
 
-		return nil, fmt.Errorf("failed to read response (no data from MCP server)")
+	case <-time.After(readTimeout):
+		return nil, fmt.Errorf("MCP server %s: response timed out after %v", c.name, readTimeout)
 	}
-
-	responseBytes := scanner.Bytes()
-
-	var response MCPResponse
-	if err := json.Unmarshal(responseBytes, &response); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal response: %w, raw response: %s", err, string(responseBytes))
-	}
-
-	return &response, nil
 }
 
 // sendNotification sends a JSON-RPC notification (no response expected)
