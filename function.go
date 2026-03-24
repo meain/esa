@@ -15,14 +15,6 @@ import (
 	"github.com/sashabaranov/go-openai"
 )
 
-// shellEscape escapes a string for safe use in a shell command by wrapping
-// it in single quotes and escaping any embedded single quotes.
-func shellEscape(s string) string {
-	// Replace each ' with '\'' (end quote, escaped quote, start quote)
-	escaped := strings.ReplaceAll(s, "'", "'\\''")
-	return "'" + escaped + "'"
-}
-
 func convertFunctionsToTools(functions []FunctionConfig) []openai.Tool {
 	var tools []openai.Tool
 	for _, fc := range functions {
@@ -149,7 +141,7 @@ func prepareCommand(fc FunctionConfig, parsedArgs map[string]any) (string, error
 			if err != nil {
 				return "", err
 			}
-			command = strings.ReplaceAll(command, placeholder, shellEscape(replacement))
+			command = strings.ReplaceAll(command, placeholder, replacement)
 		} else if !param.Required {
 			command = strings.ReplaceAll(command, placeholder, "")
 		}
