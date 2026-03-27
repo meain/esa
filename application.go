@@ -17,8 +17,9 @@ import (
 const (
 	historyTimeFormat    = "20060102-150405"
 	defaultModel         = "openai/gpt-4o-mini"
-	toolCallCommandColor = color.FgCyan
-	toolCallOutputColor  = color.FgWhite
+	toolCallCommandColor      = color.FgCyan
+	toolCallOutputColor       = color.FgWhite
+	toolCallErrorCommandColor = color.FgRed
 	maxRetryCount        = 5
 	baseRetryDelay       = 1 * time.Second
 	maxRetryDelay        = 1 * time.Minute
@@ -539,9 +540,15 @@ func (app *Application) showToolProgress(funcName string, args string) {
 	app.lastProgressLen = len(msg)
 }
 
-// appendToolError appends an error message for a tool call to the conversation
-func (app *Application) appendToolError(toolCall openai.ToolCall, err error) {
+// appendToolError appends an error message for a tool call to the conversation and displays it if configured
+func (app *Application) appendToolError(toolCall openai.ToolCall, err error, displayCommand string) {
 	app.clearProgress()
+	if displayCommand != "" && (app.showCommands || app.showToolCalls) {
+		color.New(toolCallErrorCommandColor).Fprintf(os.Stderr, "%s\n", displayCommand)
+	}
+	if app.showToolCalls {
+		color.New(toolCallErrorCommandColor).Fprintf(os.Stderr, "Error: %v\n", err)
+	}
 	app.messages = append(app.messages, openai.ChatCompletionMessage{
 		Role:       "tool",
 		Name:       toolCall.Function.Name,
@@ -617,7 +624,7 @@ func (app *Application) handleToolCalls(toolCalls []openai.ToolCall, opts CLIOpt
 
 		if err != nil {
 			app.debugPrint("Function Error", err)
-			app.appendToolError(toolCall, err)
+			app.appendToolError(toolCall, err, fmt.Sprintf("$ %s", command))
 			continue
 		}
 
@@ -635,10 +642,14 @@ func (app *Application) handleMCPToolCall(toolCall openai.ToolCall, opts CLIOpti
 	if toolCall.Function.Arguments != "" {
 		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &arguments); err != nil {
 			app.debugPrint("MCP Tool Error", fmt.Sprintf("Failed to parse arguments: %v", err))
-			app.appendToolError(toolCall, fmt.Errorf("Failed to parse arguments: %v", err))
+			app.appendToolError(toolCall, fmt.Errorf("Failed to parse arguments: %v", err), "")
 			return
 		}
 	}
+
+	// Format arguments for display
+	argsDisplay := formatArgsForDisplay(arguments)
+	displayCommand := fmt.Sprintf("# %s(%s)", toolCall.Function.Name, argsDisplay)
 
 	// Call the MCP tool with ask level
 	result, err := app.mcpManager.CallTool(toolCall.Function.Name, arguments, app.getEffectiveAskLevel())
@@ -650,13 +661,10 @@ func (app *Application) handleMCPToolCall(toolCall openai.ToolCall, opts CLIOpti
 
 	if err != nil {
 		app.debugPrint("MCP Tool Error", err)
-		app.appendToolError(toolCall, err)
+		app.appendToolError(toolCall, err, displayCommand)
 		return
 	}
 
-	// Format arguments for display
-	argsDisplay := formatArgsForDisplay(arguments)
-	displayCommand := fmt.Sprintf("# %s(%s)", toolCall.Function.Name, argsDisplay)
 	app.appendToolResult(toolCall, result, displayCommand, result)
 }
 

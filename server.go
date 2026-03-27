@@ -766,7 +766,7 @@ func (s *webSession) handleWebToolCalls(app *Application, toolCalls []openai.Too
 		}
 
 		if matchedFunc.Name == "" {
-			app.appendToolError(toolCall, fmt.Errorf("no matching function found: %s", toolCall.Function.Name))
+			app.appendToolError(toolCall, fmt.Errorf("no matching function found: %s", toolCall.Function.Name), "")
 			s.sendJSON(WSMessage{
 				Type:   wsMsgToolResult,
 				ID:     toolCall.ID,
@@ -779,7 +779,7 @@ func (s *webSession) handleWebToolCalls(app *Application, toolCalls []openai.Too
 		// Parse args and prepare command
 		parsedArgs, err := parseAndValidateArgs(matchedFunc, toolCall.Function.Arguments)
 		if err != nil {
-			app.appendToolError(toolCall, err)
+			app.appendToolError(toolCall, err, "")
 			s.sendJSON(WSMessage{
 				Type:   wsMsgToolResult,
 				ID:     toolCall.ID,
@@ -791,7 +791,7 @@ func (s *webSession) handleWebToolCalls(app *Application, toolCalls []openai.Too
 
 		command, err := prepareCommand(matchedFunc, parsedArgs)
 		if err != nil {
-			app.appendToolError(toolCall, err)
+			app.appendToolError(toolCall, err, "")
 			s.sendJSON(WSMessage{
 				Type:   wsMsgToolResult,
 				ID:     toolCall.ID,
@@ -850,7 +850,7 @@ func (s *webSession) handleWebToolCalls(app *Application, toolCalls []openai.Too
 		_ = stdinContent
 
 		if cmdErr != nil {
-			app.appendToolError(toolCall, cmdErr)
+			app.appendToolError(toolCall, cmdErr, fmt.Sprintf("$ %s", command))
 			s.sendJSON(WSMessage{
 				Type:   wsMsgToolResult,
 				ID:     toolCall.ID,
@@ -883,7 +883,7 @@ func (s *webSession) handleWebMCPToolCall(app *Application, toolCall openai.Tool
 	var arguments any
 	if toolCall.Function.Arguments != "" {
 		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &arguments); err != nil {
-			app.appendToolError(toolCall, fmt.Errorf("failed to parse arguments: %v", err))
+			app.appendToolError(toolCall, fmt.Errorf("failed to parse arguments: %v", err), "")
 			s.sendJSON(WSMessage{
 				Type:   wsMsgToolResult,
 				ID:     toolCall.ID,
@@ -931,7 +931,8 @@ func (s *webSession) handleWebMCPToolCall(app *Application, toolCall openai.Tool
 	// Call with askLevel "none" since we already handled approval in the web layer
 	result, err := app.mcpManager.CallTool(toolCall.Function.Name, arguments, "none")
 	if err != nil {
-		app.appendToolError(toolCall, err)
+		argsDisplay := formatArgsForDisplay(arguments)
+		app.appendToolError(toolCall, err, fmt.Sprintf("# %s(%s)", toolCall.Function.Name, argsDisplay))
 		s.sendJSON(WSMessage{
 			Type:   wsMsgToolResult,
 			ID:     toolCall.ID,
