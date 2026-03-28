@@ -75,14 +75,18 @@ func (t *transportWithCustomHeaders) RoundTrip(req *http.Request) (*http.Respons
 // calculateRetryDelay calculates exponential backoff delay with jitter
 func calculateRetryDelay(attempt int) time.Duration {
 	// Exponential backoff: baseDelay * 2^attempt
-	delay := time.Duration(float64(baseRetryDelay) * math.Pow(2, float64(attempt)))
-
-	// Cap the delay
-	if delay > maxRetryDelay {
-		delay = maxRetryDelay
+	// Cap in float64 space to avoid int64 overflow for large attempt values
+	delayF := float64(baseRetryDelay) * math.Pow(2, float64(attempt))
+	if delayF > float64(maxRetryDelay) || delayF < 0 {
+		delayF = float64(maxRetryDelay)
 	}
+	delay := time.Duration(delayF)
 
 	// Add jitter: random value in [0, delay/2)
-	jitter := time.Duration(mathrand.Int64N(int64(delay / 2)))
+	half := int64(delay / 2)
+	if half <= 0 {
+		return delay
+	}
+	jitter := time.Duration(mathrand.Int64N(half))
 	return delay + jitter
 }
