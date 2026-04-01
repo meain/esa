@@ -142,6 +142,12 @@ func prepareCommand(fc FunctionConfig, parsedArgs map[string]any) (string, error
 				return "", err
 			}
 			command = strings.ReplaceAll(command, placeholder, replacement)
+		} else if param.Default != nil {
+			replacement, err := getParameterReplacement(param, param.Default)
+			if err != nil {
+				return "", err
+			}
+			command = strings.ReplaceAll(command, placeholder, replacement)
 		} else if !param.Required {
 			command = strings.ReplaceAll(command, placeholder, "")
 		}

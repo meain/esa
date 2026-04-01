@@ -46,6 +46,7 @@ type ParameterConfig struct {
 	Required    bool     `toml:"required"`
 	Format      string   `toml:"format,omitempty"`
 	Options     []string `toml:"options,omitempty"`
+	Default     any      `toml:"default,omitempty"`
 }
 
 func loadAgent(agentPath string) (Agent, error) {
