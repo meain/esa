@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -51,6 +52,7 @@ type Application struct {
 	config          *Config
 	cliAskLevel     string
 	prettyOutput    bool
+	startTime       time.Time
 }
 
 // providerInfo contains provider-specific configuration
@@ -262,6 +264,7 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 		config:       config,
 		cliAskLevel:  opts.AskLevel,
 		prettyOutput: opts.Pretty,
+		startTime:    time.Now(),
 
 		debug:         opts.DebugMode,
 		showCommands:  showCommands && !showToolCalls && !opts.DebugMode,
@@ -389,6 +392,62 @@ func (app *Application) runConversationLoop(opts CLIOptions) {
 
 		// Save history after processing tool calls
 		app.saveConversationHistory()
+	}
+
+	app.runOnComplete()
+}
+
+// CompletionSession is the JSON payload passed to the on_complete script via stdin.
+type CompletionSession struct {
+	AgentPath    string                         `json:"agent_path"`
+	Model        string                         `json:"model"`
+	WorkDir      string                         `json:"work_dir"`
+	StartTime    time.Time                      `json:"start_time"`
+	EndTime      time.Time                      `json:"end_time"`
+	DurationMs   int64                          `json:"duration_ms"`
+	ToolCallCount int                           `json:"tool_call_count"`
+	Messages     []openai.ChatCompletionMessage `json:"messages"`
+}
+
+func (app *Application) runOnComplete() {
+	script := app.config.Settings.OnComplete
+	if script == "" {
+		return
+	}
+
+	endTime := time.Now()
+	provider, model, _ := app.parseModel()
+	workDir, _ := os.Getwd()
+
+	toolCallCount := 0
+	for _, msg := range app.messages {
+		toolCallCount += len(msg.ToolCalls)
+	}
+
+	session := CompletionSession{
+		AgentPath:     app.agentPath,
+		Model:         fmt.Sprintf("%s/%s", provider, model),
+		WorkDir:       workDir,
+		StartTime:     app.startTime,
+		EndTime:       endTime,
+		DurationMs:    endTime.Sub(app.startTime).Milliseconds(),
+		ToolCallCount: toolCallCount,
+		Messages:      app.messages,
+	}
+
+	data, err := json.Marshal(session)
+	if err != nil {
+		app.debugPrint("OnComplete", fmt.Sprintf("Failed to marshal session: %v", err))
+		return
+	}
+
+	script = expandHomePath(script)
+	cmd := exec.Command("sh", "-c", script)
+	cmd.Stdin = strings.NewReader(string(data))
+	cmd.Stdout = os.Stderr // route script output to stderr to avoid polluting stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		app.debugPrint("OnComplete", fmt.Sprintf("Script error: %v", err))
 	}
 }
 

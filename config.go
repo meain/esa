@@ -17,6 +17,7 @@ type Settings struct {
 	ShowCommands  bool   `toml:"show_commands"`
 	ShowToolCalls bool   `toml:"show_tool_calls"`
 	DefaultModel  string `toml:"default_model"`
+	OnComplete    string `toml:"on_complete"`
 }
 
 // Config represents the global configuration structure
