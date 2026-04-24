@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"os"
@@ -319,21 +318,6 @@ func validateAndSetAgent(app *Application, opts *CLIOptions, agentStr string) er
 	opts.AgentPath = tempOpts.AgentPath
 	if agentName != "" {
 		opts.AgentName = agentName
-	}
-
-	// Restart MCP servers if needed
-	if len(agent.MCPServers) > 0 {
-		// Stop existing servers
-		app.mcpManager.StopAllServers()
-
-		// Start new servers
-		ctx := context.Background()
-		if err := app.mcpManager.StartServers(ctx, agent.MCPServers); err != nil {
-			return fmt.Errorf("failed to start MCP servers for agent: %v", err)
-		}
-	} else {
-		// Stop all servers if the new agent doesn't have any
-		app.mcpManager.StopAllServers()
 	}
 
 	return nil

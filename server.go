@@ -650,8 +650,6 @@ func (s *webSession) handleChatMessage(msg WSMessage, baseOpts *CLIOptions) {
 // runWebConversationLoop is the web-adapted version of runConversationLoop
 func (s *webSession) runWebConversationLoop(app *Application, opts CLIOptions) {
 	openAITools := convertFunctionsToTools(app.agent.Functions)
-	mcpTools := app.mcpManager.GetAllTools()
-	openAITools = append(openAITools, mcpTools...)
 
 	for {
 		if s.isAborted() {
@@ -747,12 +745,6 @@ func (s *webSession) handleWebToolCalls(app *Application, toolCalls []openai.Too
 		}
 
 		if toolCall.Type != "function" || toolCall.Function.Name == "" {
-			continue
-		}
-
-		// MCP tool calls
-		if strings.HasPrefix(toolCall.Function.Name, "mcp_") {
-			s.handleWebMCPToolCall(app, toolCall, opts)
 			continue
 		}
 
@@ -878,82 +870,3 @@ func (s *webSession) handleWebToolCalls(app *Application, toolCalls []openai.Too
 	}
 }
 
-// handleWebMCPToolCall handles MCP tool calls via WebSocket
-func (s *webSession) handleWebMCPToolCall(app *Application, toolCall openai.ToolCall, opts CLIOptions) {
-	var arguments any
-	if toolCall.Function.Arguments != "" {
-		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &arguments); err != nil {
-			app.appendToolError(toolCall, fmt.Errorf("failed to parse arguments: %v", err), "")
-			s.sendJSON(WSMessage{
-				Type:   wsMsgToolResult,
-				ID:     toolCall.ID,
-				Name:   toolCall.Function.Name,
-				Output: fmt.Sprintf("Error parsing arguments: %v", err),
-			})
-			return
-		}
-	}
-
-	argsDisplay := formatArgsForDisplay(arguments)
-	displayCommand := fmt.Sprintf("%s(%s)", toolCall.Function.Name, argsDisplay)
-
-	// Always ask for approval on web for MCP tools
-	s.sendJSON(WSMessage{
-		Type:    wsMsgToolCall,
-		ID:      toolCall.ID,
-		Name:    toolCall.Function.Name,
-		Command: displayCommand,
-		Safe:    false,
-		Args:    toolCall.Function.Arguments,
-	})
-
-	approval := <-s.approvalCh
-	if !approval.approved {
-		result := "Tool execution cancelled by user."
-		if approval.message != "" {
-			result = fmt.Sprintf("Message from user: %s", approval.message)
-		}
-		app.messages = append(app.messages, openai.ChatCompletionMessage{
-			Role:       "tool",
-			Name:       toolCall.Function.Name,
-			Content:    result,
-			ToolCallID: toolCall.ID,
-		})
-		s.sendJSON(WSMessage{
-			Type:   wsMsgToolResult,
-			ID:     toolCall.ID,
-			Name:   toolCall.Function.Name,
-			Output: result,
-		})
-		return
-	}
-
-	// Call with askLevel "none" since we already handled approval in the web layer
-	result, err := app.mcpManager.CallTool(toolCall.Function.Name, arguments, "none")
-	if err != nil {
-		argsDisplay := formatArgsForDisplay(arguments)
-		app.appendToolError(toolCall, err, fmt.Sprintf("# %s(%s)", toolCall.Function.Name, argsDisplay))
-		s.sendJSON(WSMessage{
-			Type:   wsMsgToolResult,
-			ID:     toolCall.ID,
-			Name:   toolCall.Function.Name,
-			Output: fmt.Sprintf("Error: %v", err),
-		})
-		return
-	}
-
-	app.messages = append(app.messages, openai.ChatCompletionMessage{
-		Role:       "tool",
-		Name:       toolCall.Function.Name,
-		Content:    result,
-		ToolCallID: toolCall.ID,
-	})
-	app.saveConversationHistory()
-
-	s.sendJSON(WSMessage{
-		Type:   wsMsgToolResult,
-		ID:     toolCall.ID,
-		Name:   toolCall.Function.Name,
-		Output: result,
-	})
-}

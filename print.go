@@ -1,14 +1,12 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"html"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/charmbracelet/glamour"
 	"github.com/fatih/color"
@@ -76,7 +74,6 @@ func printDetailedAgentInfo(agent Agent, agentPath string) {
 	}
 
 	fmt.Printf("  %s %d\n", labelStyle("Functions:"), len(agent.Functions))
-	fmt.Printf("  %s %d\n", labelStyle("MCP Servers:"), len(agent.MCPServers))
 }
 
 // printError prints an error message with consistent formatting
@@ -505,43 +502,6 @@ func printOutput(history ConversationHistory, pretty bool) {
 	}
 }
 
-// printMCPServerInfo prints information about an MCP server
-// It attempts to start the server temporarily to discover available tools
-func printMCPServerInfo(name string, server MCPServerConfig) {
-	nameStyle := color.New(color.FgHiGreen, color.Bold).SprintFunc()
-	descStyle := color.New(color.FgHiBlack).SprintFunc()
-	commandStyle := color.New(color.FgYellow).SprintFunc()
-	errorStyle := color.New(color.FgRed).SprintFunc()
-	toolStyle := color.New(color.FgCyan).SprintFunc()
-
-	fmt.Printf("  %s: %s\n", nameStyle(name), descStyle("MCP Server"))
-	fmt.Printf("    %s %s %s\n", commandStyle("Command:"), server.Command, strings.Join(server.Args, " "))
-
-	// Try to discover MCP tools by temporarily starting the server
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	client := NewMCPClient(name, server)
-	if err := client.Start(ctx); err != nil {
-		fmt.Printf("    %s %s\n", errorStyle("Error:"), fmt.Sprintf("Failed to start MCP server: %v", err))
-		return
-	}
-	defer client.Stop()
-
-	tools := client.GetTools()
-	if len(tools) > 0 {
-		fmt.Printf("    %s\n", commandStyle("Available Tools:"))
-		for _, tool := range tools {
-			if tool.Function != nil {
-				displayName := strings.TrimPrefix(tool.Function.Name, "mcp_"+name+"_")
-				fmt.Printf("      %s: %s\n", toolStyle(displayName), tool.Function.Description)
-			}
-		}
-	} else {
-		fmt.Printf("    %s %s\n", descStyle("Tools:"), "No tools discovered")
-	}
-	fmt.Println()
-}
 
 func printPrettyOutput(content string) {
 	width := 80

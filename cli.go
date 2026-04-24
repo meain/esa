@@ -576,16 +576,8 @@ func handleShowAgent(agentPath string) {
 		}
 	}
 
-	// Print MCP servers
-	if len(agent.MCPServers) > 0 {
-		fmt.Printf("%s\n", labelStyle("MCP Servers:"))
-		for name, server := range agent.MCPServers {
-			printMCPServerInfo(name, server)
-		}
-	}
-
-	if len(agent.Functions) == 0 && len(agent.MCPServers) == 0 {
+	if len(agent.Functions) == 0 {
 		noFuncStyle := color.New(color.FgYellow, color.Italic).SprintFunc()
-		fmt.Printf("%s\n", noFuncStyle("No functions or MCP servers available."))
+		fmt.Printf("%s\n", noFuncStyle("No functions available."))
 	}
 }

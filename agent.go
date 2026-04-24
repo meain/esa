@@ -8,23 +8,13 @@ import (
 )
 
 type Agent struct {
-	Name           string                     `toml:"name"`
-	Description    string                     `toml:"description"`
-	Functions      []FunctionConfig           `toml:"functions"`
-	MCPServers     map[string]MCPServerConfig `toml:"mcp_servers"`
-	Ask            string                     `toml:"ask"`
-	SystemPrompt   string                     `toml:"system_prompt"`
-	InitialMessage string                     `toml:"initial_message"`
-	DefaultModel   string                     `toml:"default_model"`
-}
-
-// MCPServerConfig represents the configuration for an MCP server
-type MCPServerConfig struct {
-	Command          string   `toml:"command"`
-	Args             []string `toml:"args"`
-	Safe             bool     `toml:"safe"`              // Whether tools from this server are considered safe by default
-	SafeFunctions    []string `toml:"safe_functions"`    // List of specific functions that are safe (overrides server-level safe setting)
-	AllowedFunctions []string `toml:"allowed_functions"` // List of functions to expose to the LLM (if empty, all functions are allowed)
+	Name           string           `toml:"name"`
+	Description    string           `toml:"description"`
+	Functions      []FunctionConfig `toml:"functions"`
+	Ask            string           `toml:"ask"`
+	SystemPrompt   string           `toml:"system_prompt"`
+	InitialMessage string           `toml:"initial_message"`
+	DefaultModel   string           `toml:"default_model"`
 }
 
 type FunctionConfig struct {
@@ -127,16 +117,6 @@ func validateAgent(agent Agent) (Agent, error) {
 					param.Name, fc.Name, err)
 			}
 		}
-	}
-
-	// Validate MCP server configurations
-	for serverName, serverConfig := range agent.MCPServers {
-		if serverConfig.Command == "" {
-			return agent, fmt.Errorf("MCP server '%s' has no command defined", serverName)
-		}
-
-		// Check that any safe or allowed functions referenced actually exist in the server
-		// This would require knowledge of what functions each server exposes
 	}
 
 	return agent, nil

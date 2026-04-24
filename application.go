@@ -49,7 +49,6 @@ type Application struct {
 	lastProgressLen int
 	modelFlag       string
 	config          *Config
-	mcpManager      *MCPManager
 	cliAskLevel     string
 	prettyOutput    bool
 }
@@ -253,9 +252,6 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 	showCommands := opts.ShowCommands || config.Settings.ShowCommands
 	showToolCalls := opts.ShowToolCalls || config.Settings.ShowToolCalls
 
-	// Initialize MCP manager
-	mcpManager := NewMCPManager()
-
 	app := &Application{
 		agent:        agent,
 		agentPath:    opts.AgentPath,
@@ -264,7 +260,6 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 		messages:     messages,
 		modelFlag:    opts.Model,
 		config:       config,
-		mcpManager:   mcpManager,
 		cliAskLevel:  opts.AskLevel,
 		prettyOutput: opts.Pretty,
 
@@ -293,19 +288,10 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 	return app, nil
 }
 
-// initializeRuntime starts MCP servers and sets up the system prompt.
+// initializeRuntime sets up the system prompt.
 // Returns a cleanup function that should be deferred by the caller.
 func (app *Application) initializeRuntime() (cleanup func(), err error) {
 	cleanup = func() {}
-
-	if len(app.agent.MCPServers) > 0 {
-		ctx := context.Background()
-		if err := app.mcpManager.StartServers(ctx, app.agent.MCPServers); err != nil {
-			return nil, fmt.Errorf("failed to start MCP servers: %w", err)
-		}
-		cleanup = app.mcpManager.StopAllServers
-		app.debugPrint("MCP Servers", fmt.Sprintf("Started %d MCP servers", len(app.agent.MCPServers)))
-	}
 
 	prompt, err := app.getSystemPrompt()
 	if err != nil {
@@ -382,10 +368,6 @@ func (app *Application) processInitialMessage(message string) (string, error) {
 
 func (app *Application) runConversationLoop(opts CLIOptions) {
 	openAITools := convertFunctionsToTools(app.agent.Functions)
-
-	// Add MCP tools
-	mcpTools := app.mcpManager.GetAllTools()
-	openAITools = append(openAITools, mcpTools...)
 
 	for {
 		stream, err := app.createChatCompletionWithRetry(openAITools)
@@ -579,14 +561,6 @@ func (app *Application) handleToolCalls(toolCalls []openai.ToolCall, opts CLIOpt
 			continue
 		}
 
-		// Check if it's an MCP tool (starts with "mcp_")
-		// FIXME: This might not be reliable, the user might define a
-		// function that starts with mcp_
-		if strings.HasPrefix(toolCall.Function.Name, "mcp_") {
-			app.handleMCPToolCall(toolCall, opts)
-			continue
-		}
-
 		// Handle regular function
 		var matchedFunc FunctionConfig
 		for _, fc := range app.agent.Functions {
@@ -631,52 +605,6 @@ func (app *Application) handleToolCalls(toolCalls []openai.ToolCall, opts CLIOpt
 		content := fmt.Sprintf("Command: %s\n\nOutput: \n%s", command, result)
 		app.appendToolResult(toolCall, content, fmt.Sprintf("$ %s", command), result)
 	}
-}
-
-// handleMCPToolCall handles tool calls for MCP servers
-func (app *Application) handleMCPToolCall(toolCall openai.ToolCall, opts CLIOptions) {
-	app.showToolProgress(toolCall.Function.Name, toolCall.Function.Arguments)
-
-	// Parse the arguments
-	var arguments any
-	if toolCall.Function.Arguments != "" {
-		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &arguments); err != nil {
-			app.debugPrint("MCP Tool Error", fmt.Sprintf("Failed to parse arguments: %v", err))
-			app.appendToolError(toolCall, fmt.Errorf("Failed to parse arguments: %v", err), "")
-			return
-		}
-	}
-
-	// Format arguments for display
-	argsDisplay := formatArgsForDisplay(arguments)
-	displayCommand := fmt.Sprintf("# %s(%s)", toolCall.Function.Name, argsDisplay)
-
-	// Call the MCP tool with ask level
-	result, err := app.mcpManager.CallTool(toolCall.Function.Name, arguments, app.getEffectiveAskLevel())
-
-	app.debugPrint("MCP Tool Execution",
-		fmt.Sprintf("Tool: %s", toolCall.Function.Name),
-		fmt.Sprintf("Arguments: %s", toolCall.Function.Arguments),
-		fmt.Sprintf("Output: %s", result))
-
-	if err != nil {
-		app.debugPrint("MCP Tool Error", err)
-		app.appendToolError(toolCall, err, displayCommand)
-		return
-	}
-
-	app.appendToolResult(toolCall, result, displayCommand, result)
-}
-
-// formatArgsForDisplay formats arguments as a JSON string for display purposes
-func formatArgsForDisplay(arguments any) string {
-	if arguments == nil {
-		return "{}"
-	}
-	if argsJSON, err := json.Marshal(arguments); err == nil {
-		return string(argsJSON)
-	}
-	return fmt.Sprintf("%v", arguments)
 }
 
 func (app *Application) getSystemPrompt() (string, error) {

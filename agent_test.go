@@ -74,18 +74,6 @@ description = "A parameter with invalid type"
 			errContains: "invalid type",
 		},
 		{
-			name: "mcp server without command",
-			agentConfig: `
-name = "test-agent"
-description = "A test agent"
-
-[mcp_servers.server1]
-args = ["--port", "8080"]
-`,
-			wantErr:     true,
-			errContains: "has no command defined",
-		},
-		{
 			name: "invalid ask level",
 			agentConfig: `
 name = "test-agent"
