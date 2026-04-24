@@ -53,14 +53,21 @@ type anthropicMessage struct {
 }
 
 type anthropicContentBlock struct {
-	Type      string  `json:"type"`
-	Text      string  `json:"text,omitempty"`
-	ID        string  `json:"id,omitempty"`
-	Name      string  `json:"name,omitempty"`
-	Input     any     `json:"input,omitempty"`
-	ToolUseID string  `json:"tool_use_id,omitempty"`
-	Content   *string `json:"content,omitempty"` // for tool_result text content (pointer to distinguish empty from absent)
-	IsError   bool    `json:"is_error,omitempty"`
+	Type      string `json:"type"`
+	Text      string `json:"text,omitempty"`
+	ID        string `json:"id,omitempty"`
+	Name      string `json:"name,omitempty"`
+	Input     any    `json:"input,omitempty"`
+	ToolUseID string `json:"tool_use_id,omitempty"`
+	Content   any    `json:"content,omitempty"` // string, *string, or []anthropicContentBlock
+	IsError   bool   `json:"is_error,omitempty"`
+	Source    *anthropicImageSource `json:"source,omitempty"` // for image blocks
+}
+
+type anthropicImageSource struct {
+	Type      string `json:"type"`                 // "base64"
+	MediaType string `json:"media_type,omitempty"` // e.g. "image/png"
+	Data      string `json:"data,omitempty"`       // base64-encoded bytes
 }
 
 type anthropicTool struct {
@@ -164,12 +171,36 @@ func convertOpenAIMessagesToAnthropic(messages []openai.ChatCompletionMessage) (
 		case "tool":
 			// Anthropic expects tool results in a user message with tool_result content blocks.
 			// Merge consecutive tool messages into a single user message.
-			content := msg.Content
-			block := anthropicContentBlock{
-				Type:      "tool_result",
-				ToolUseID: msg.ToolCallID,
-				Content:   &content,
-				IsError:   strings.HasPrefix(msg.Content, "Error: "),
+			var block anthropicContentBlock
+			if len(msg.MultiContent) > 0 {
+				// Image tool result — convert image_url parts to Anthropic image blocks.
+				var imageBlocks []anthropicContentBlock
+				for _, part := range msg.MultiContent {
+					if part.Type == openai.ChatMessagePartTypeImageURL && part.ImageURL != nil {
+						mime, data := parseDataURI(part.ImageURL.URL)
+						imageBlocks = append(imageBlocks, anthropicContentBlock{
+							Type: "image",
+							Source: &anthropicImageSource{
+								Type:      "base64",
+								MediaType: mime,
+								Data:      data,
+							},
+						})
+					}
+				}
+				block = anthropicContentBlock{
+					Type:      "tool_result",
+					ToolUseID: msg.ToolCallID,
+					Content:   imageBlocks,
+				}
+			} else {
+				content := msg.Content
+				block = anthropicContentBlock{
+					Type:      "tool_result",
+					ToolUseID: msg.ToolCallID,
+					Content:   &content,
+					IsError:   strings.HasPrefix(msg.Content, "Error: "),
+				}
 			}
 			// Check if the last message is already a user message with tool_result blocks
 			if len(anthropicMsgs) > 0 {
@@ -189,6 +220,28 @@ func convertOpenAIMessagesToAnthropic(messages []openai.ChatCompletionMessage) (
 	}
 
 	return system, anthropicMsgs
+}
+
+// parseDataURI splits a data URI of the form "data:<mime>;base64,<data>"
+// into its MIME type and base64 data components.
+func parseDataURI(uri string) (mime, data string) {
+	// data:<mime>;base64,<data>
+	if !strings.HasPrefix(uri, "data:") {
+		return "image/png", uri
+	}
+	rest := uri[len("data:"):]
+	semi := strings.Index(rest, ";")
+	if semi < 0 {
+		return "image/png", uri
+	}
+	mime = rest[:semi]
+	rest = rest[semi+1:]
+	comma := strings.Index(rest, ",")
+	if comma < 0 {
+		return mime, ""
+	}
+	data = rest[comma+1:]
+	return mime, data
 }
 
 func convertOpenAIToolsToAnthropic(tools []openai.Tool) []anthropicTool {

@@ -25,6 +25,7 @@ type FunctionConfig struct {
 	Safe        bool              `toml:"safe"`
 	Stdin       string            `toml:"stdin,omitempty"`
 	Output      string            `toml:"output"`
+	OutputType  string            `toml:"output_type,omitempty"` // e.g. "image/png", "image/jpeg"
 	Pwd         string            `toml:"pwd,omitempty"`
 	Timeout     int               `toml:"timeout"`
 }

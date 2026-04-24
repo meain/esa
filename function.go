@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -92,7 +93,33 @@ func executeFunction(
 	}
 
 	output, stdinContent, err := executeShellCommand(command, fc, parsedArgs)
-	return true, origCommand, stdinContent, strings.TrimSpace(string(output)), err
+	if err != nil {
+		return true, origCommand, stdinContent, strings.TrimSpace(string(output)), err
+	}
+	if fc.OutputType == "image" {
+		mime := detectImageMIME(output)
+		dataURI := "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(output)
+		return true, origCommand, stdinContent, dataURI, nil
+	}
+	return true, origCommand, stdinContent, strings.TrimSpace(string(output)), nil
+}
+
+// detectImageMIME sniffs the MIME type of image bytes from magic bytes.
+// Falls back to "image/png" if unrecognised.
+func detectImageMIME(data []byte) string {
+	if len(data) >= 4 {
+		switch {
+		case data[0] == 0x89 && data[1] == 'P' && data[2] == 'N' && data[3] == 'G':
+			return "image/png"
+		case data[0] == 0xFF && data[1] == 0xD8:
+			return "image/jpeg"
+		case data[0] == 'G' && data[1] == 'I' && data[2] == 'F':
+			return "image/gif"
+		case len(data) >= 12 && string(data[0:4]) == "RIFF" && string(data[8:12]) == "WEBP":
+			return "image/webp"
+		}
+	}
+	return "image/png"
 }
 
 func parseAndValidateArgs(fc FunctionConfig, args string) (map[string]any, error) {

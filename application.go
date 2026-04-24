@@ -617,20 +617,35 @@ func (app *Application) appendToolError(toolCall openai.ToolCall, err error, dis
 	})
 }
 
-// appendToolResult appends a tool result to the conversation and displays it if configured
-func (app *Application) appendToolResult(toolCall openai.ToolCall, content string, displayCommand string, displayOutput string) {
+// appendToolResult appends a tool result to the conversation and displays it if configured.
+// If outputType is an image MIME type, content is treated as base64-encoded image data.
+func (app *Application) appendToolResult(toolCall openai.ToolCall, content string, displayCommand string, displayOutput string, outputType string) {
 	if app.showCommands || app.showToolCalls {
 		color.New(toolCallCommandColor).Fprintf(os.Stderr, "%s\n", displayCommand)
 	}
 	if app.showToolCalls && displayOutput != "" {
 		color.New(toolCallOutputColor).Fprintf(os.Stderr, "%s\n", displayOutput)
 	}
-	app.messages = append(app.messages, openai.ChatCompletionMessage{
+
+	msg := openai.ChatCompletionMessage{
 		Role:       "tool",
 		Name:       toolCall.Function.Name,
-		Content:    content,
 		ToolCallID: toolCall.ID,
-	})
+	}
+
+	if outputType == "image" {
+		// content is already a data URI (data:<mime>;base64,<data>)
+		msg.MultiContent = []openai.ChatMessagePart{
+			{
+				Type:     openai.ChatMessagePartTypeImageURL,
+				ImageURL: &openai.ChatMessageImageURL{URL: content},
+			},
+		}
+	} else {
+		msg.Content = content
+	}
+
+	app.messages = append(app.messages, msg)
 }
 
 func (app *Application) handleToolCalls(toolCalls []openai.ToolCall, opts CLIOptions) {
@@ -680,8 +695,13 @@ func (app *Application) handleToolCalls(toolCalls []openai.ToolCall, opts CLIOpt
 			continue
 		}
 
-		content := fmt.Sprintf("Command: %s\n\nOutput: \n%s", command, result)
-		app.appendToolResult(toolCall, content, fmt.Sprintf("$ %s", command), result)
+		var content string
+		if matchedFunc.OutputType == "image" {
+			content = result // data URI
+		} else {
+			content = fmt.Sprintf("Command: %s\n\nOutput: \n%s", command, result)
+		}
+		app.appendToolResult(toolCall, content, fmt.Sprintf("$ %s", command), result, matchedFunc.OutputType)
 	}
 }
 

@@ -136,6 +136,20 @@ type = "string"
 description = "URL of the website to open"
 required = true
 
+## Read Image
+[[functions]]
+name = "read_image"
+description = "Read an image file and return its contents for visual analysis"
+command = "cat '{{file}}'"
+output_type = "image"
+safe = true
+
+[[functions.parameters]]
+name = "file"
+type = "string"
+description = "Path to the image file to read (png, jpeg, gif, or webp)"
+required = true
+
 ## Run command
 [[functions]]
 name = "run_shell_command"
