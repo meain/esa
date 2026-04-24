@@ -13,6 +13,7 @@ This guide provides comprehensive instructions for creating custom ESA agents. A
 - [Advanced Features](#advanced-features)
 - [Best Practices](#best-practices)
 - [Example Agents](#example-agents)
+- [Project-Specific Agents](#project-specific-agents)
 - [Debugging and Testing](#debugging-and-testing)
 
 ## Overview
@@ -878,6 +879,90 @@ name = "lines"
 type = "number"
 description = "Number of processes to show"
 required = false
+```
+
+## Project-Specific Agents
+
+Agents don't have to live in `~/.config/esa/agents/` — you can ship an agent file alongside any project and invoke it directly with the `--agent` flag. This is useful for:
+
+- Sharing project-specific tooling with teammates via version control
+- Encoding project context (paths, conventions, tools) directly into the agent
+- Keeping domain-specific agents scoped to the projects that need them
+
+### Example: Tree-sitter Project Agent
+
+Given a project at `~/projects/evil-textobj-treesitter`, you might add:
+
+```
+evil-textobj-treesitter/
+├── treesitter.toml     # project-specific esa agent
+├── README.md
+└── ...
+```
+
+```toml
+# treesitter.toml
+name = "Tree-sitter Assistant"
+description = "Helps work on the evil-textobj-treesitter plugin"
+
+system_prompt = """
+You are helping develop the evil-textobj-treesitter Emacs plugin.
+Working directory: {{$pwd}}
+The plugin uses tree-sitter grammars to define text objects in Evil mode.
+"""
+
+[[functions]]
+name = "run_tests"
+description = "Run the test suite"
+command = "make test"
+safe = true
+
+[[functions]]
+name = "show_grammar"
+description = "Show the tree-sitter grammar for a language"
+command = "cat grammars/{{language}}.scm"
+safe = true
+
+[[functions.parameters]]
+name = "language"
+type = "string"
+description = "Language name (e.g. python, go, rust)"
+required = true
+```
+
+Invoke it from anywhere inside the project:
+
+```bash
+esa --agent ./treesitter.toml "add text objects for function arguments in Python"
+```
+
+### Multiple Agents in One Project
+
+A project can include several agents for different roles:
+
+```
+myproject/
+├── agents/
+│   ├── dev.toml       # development tasks
+│   ├── deploy.toml    # deployment and ops
+│   └── review.toml    # code review helpers
+└── ...
+```
+
+```bash
+esa --agent ./agents/dev.toml "run the linter and fix any issues"
+esa --agent ./agents/deploy.toml "deploy to staging"
+```
+
+### Tips for Project Agents
+
+- Use `{{$pwd}}` in the system prompt to give the LLM awareness of the current directory
+- Hardcode project-specific paths, commands, and conventions so teammates don't have to configure anything
+- Commit the agent file to the repo so everyone on the team gets it for free
+- Combine with a `Makefile` target or shell alias for quick access:
+
+```bash
+alias esa-dev="esa --agent ./agents/dev.toml"
 ```
 
 ## Debugging and Testing
