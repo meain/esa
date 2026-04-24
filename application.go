@@ -53,6 +53,7 @@ type Application struct {
 	cliAskLevel     string
 	prettyOutput    bool
 	startTime       time.Time
+	maxTurns        int
 }
 
 // providerInfo contains provider-specific configuration
@@ -265,6 +266,7 @@ func NewApplication(opts *CLIOptions) (*Application, error) {
 		cliAskLevel:  opts.AskLevel,
 		prettyOutput: opts.Pretty,
 		startTime:    time.Now(),
+		maxTurns:     resolveMaxTurns(opts.MaxTurns, config.Settings.MaxTurns),
 
 		debug:         opts.DebugMode,
 		showCommands:  showCommands && !showToolCalls && !opts.DebugMode,
@@ -369,10 +371,26 @@ func (app *Application) processInitialMessage(message string) (string, error) {
 	return app.processSystemPrompt(message)
 }
 
+// resolveMaxTurns returns the effective max turns: CLI flag takes priority over
+// config, 0 means unlimited.
+func resolveMaxTurns(cliFlag, configVal int) int {
+	if cliFlag > 0 {
+		return cliFlag
+	}
+	return configVal
+}
+
 func (app *Application) runConversationLoop(opts CLIOptions) {
 	openAITools := convertFunctionsToTools(app.agent.Functions)
+	turns := 0
 
 	for {
+		if app.maxTurns > 0 && turns >= app.maxTurns {
+			app.clearProgress()
+			color.New(color.FgYellow).Fprintf(os.Stderr, "Max turns (%d) reached. Use -c to continue.\n", app.maxTurns)
+			break
+		}
+
 		stream, err := app.createChatCompletionWithRetry(openAITools)
 		if err != nil {
 			log.Fatalf("ChatCompletionStream error: %v", err)
@@ -380,6 +398,7 @@ func (app *Application) runConversationLoop(opts CLIOptions) {
 
 		assistantMsg := app.handleStreamResponse(stream)
 		app.messages = append(app.messages, assistantMsg)
+		turns++
 
 		// Save history after each assistant response
 		app.saveConversationHistory()

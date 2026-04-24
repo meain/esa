@@ -18,6 +18,7 @@ type Settings struct {
 	ShowToolCalls bool   `toml:"show_tool_calls"`
 	DefaultModel  string `toml:"default_model"`
 	OnComplete    string `toml:"on_complete"`
+	MaxTurns      int    `toml:"max_turns"`
 }
 
 // Config represents the global configuration structure

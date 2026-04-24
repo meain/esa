@@ -51,6 +51,7 @@ type CLIOptions struct {
 	ServeMode       bool   // Flag for starting web server mode
 	ServePort       int    // Port for the web server
 	ServeWorkDir    string // Working directory for the web server
+	MaxTurns        int    // Maximum number of conversation turns (0 = unlimited)
 }
 
 func createRootCommand() *cobra.Command {
@@ -201,6 +202,7 @@ func createRootCommand() *cobra.Command {
 	rootCmd.Flags().BoolVar(&opts.ServeMode, "serve", false, "Start web server mode")
 	rootCmd.Flags().IntVar(&opts.ServePort, "port", 8080, "Port for the web server (used with --serve)")
 	rootCmd.Flags().StringVar(&opts.ServeWorkDir, "work-dir", "", "Working directory for the web server (used with --serve)")
+	rootCmd.Flags().IntVar(&opts.MaxTurns, "max-turns", 0, "Maximum number of conversation turns (0 = unlimited)")
 
 	// Make history-index required when show-history is used
 	rootCmd.PreRunE = func(cmd *cobra.Command, args []string) error {
