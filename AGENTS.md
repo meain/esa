@@ -58,7 +58,6 @@ CI runs `go test -v ./...` on push/PR to master. No race detection or coverage i
 | `client.go` | LLM client instantiation: routes to Anthropic or OpenAI-compatible providers |
 | `config.go` | Global config at `~/.config/esa/config.toml` |
 | `function.go` | Function execution: JSON arg parsing, template substitution, shell exec |
-| `mcp.go` | MCP server JSON-RPC lifecycle, tool discovery, function filtering |
 | `print.go` | Output formatting (text, markdown, JSON, HTML) |
 | `repl.go` | Interactive REPL with `/help`, `/model`, `/agent`, `/editor`, `/config` commands |
 | `server.go` | HTTP + WebSocket web server with embedded UI |
@@ -68,7 +67,7 @@ CI runs `go test -v ./...` on push/PR to master. No race detection or coverage i
 | `web_embed.go` | `//go:embed` for web UI assets |
 | `builtins/` | Embedded agent configs: `default.toml`, `new.toml`, `auto.toml` |
 | `examples/` | Sample agent TOML configurations |
-| `docs/` | Detailed documentation (agent creation, MCP integration) |
+| `docs/` | Detailed documentation (agent creation) |
 | `web/` | Embedded web interface (HTML/JS/CSS) |
 
 ## Code Style
@@ -98,7 +97,7 @@ No third group needed since everything is `package main`.
 - **Error message constants**: camelCase with `err` prefix (`errFailedToLoadConfig`)
 - **Types/Structs**: PascalCase nouns; config types end with `Config` (`FunctionConfig`, `ProviderConfig`), info types with `Info`, stats types with `Stats`
 - **Unexported types**: camelCase (`providerInfo`, `webSession`)
-- **Exported functions**: PascalCase; constructors use `New` prefix (`NewApplication`, `NewMCPClient`)
+- **Exported functions**: PascalCase; constructors use `New` prefix (`NewApplication`, `NewAgent`)
 - **Unexported functions**: camelCase; use prefixes: `handle` for handlers, `print` for output, `setup` for initialization, `is`/`needs` for boolean checks
 - **Method receivers**: Short names -- `app`, `c`, `m`, `s`, `sc`
 - **Struct fields**: PascalCase for serialized fields with `toml:"name"` or `json:"name"` tags; camelCase for internal fields (`baseURL`, `apiKeyEnvar`)
@@ -133,8 +132,8 @@ No third group needed since everything is `package main`.
 - All struct methods use pointer receivers (no value receivers)
 - Mutex-protected structs use `Internal` suffix for lock-holder methods:
   ```go
-  func (c *MCPClient) Stop() error { c.mu.Lock(); defer c.mu.Unlock(); c.stopInternal() }
-  func (c *MCPClient) stopInternal() { ... }
+  func (c *Client) Stop() error { c.mu.Lock(); defer c.mu.Unlock(); c.stopInternal() }
+  func (c *Client) stopInternal() { ... }
   ```
 
 ### Comments
